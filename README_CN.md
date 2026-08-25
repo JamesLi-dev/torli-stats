@@ -72,7 +72,7 @@ git add CHANGELOG.md
 AI_CHANGELOG_ON_COMMIT=1 git commit
 ```
 
-GitHub Actions 会在每次 `main` 更新时构建并上传 Artifact。推送类似 `v0.1.0` 的版本标签时，还会自动创建 GitHub Release 并上传 App 压缩包。为了让版本更新日志更准确，打标签前请将已检查过的 `[Unreleased]` 章节改名为 `[vX.Y.Z]`。
+GitHub Actions 会在每次 `main` 更新时构建并上传 App 压缩包，同时创建类似 `main-12` 的唯一预发布 Release。推送类似 `v0.1.0` 的版本标签时，会创建正式的 GitHub Release。为了让版本更新日志更准确，打标签前请将已检查过的 `[Unreleased]` 章节改名为 `[vX.Y.Z]`。
 
 ## 说明
 

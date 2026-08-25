@@ -97,7 +97,7 @@ The script only analyzes staged changes and does not claim behavior that is not 
 AI_CHANGELOG_ON_COMMIT=1 git commit
 ```
 
-The GitHub Actions workflow builds an artifact for every `main` update. Pushing a version tag such as `v0.1.0` also creates a GitHub Release and uploads the app archive. For detailed tag notes, move the reviewed `[Unreleased]` section to a `[vX.Y.Z]` section before tagging.
+The GitHub Actions workflow builds and uploads an app archive for every `main` update, and creates a unique prerelease such as `main-12`. Pushing a version tag such as `v0.1.0` creates a stable GitHub Release. For detailed tag notes, move the reviewed `[Unreleased]` section to a `[vX.Y.Z]` section before tagging.
 
 ## Notes
 
