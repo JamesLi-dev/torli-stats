@@ -24,13 +24,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let popover = NSPopover()
     private var localOutsideClickMonitor: Any?
     private var globalOutsideClickMonitor: Any?
-    private let settings = AppSettings()
+    private let settings: AppSettings
     private let store: MetricsStore
+    private let codexUsageStore: CodexUsageStore
     private var settingsWindow: NSWindow?
     private var cancellables = Set<AnyCancellable>()
 
     override init() {
+        let appSettings = AppSettings()
+        settings = appSettings
         store = MetricsStore()
+        codexUsageStore = CodexUsageStore(homePathProvider: { appSettings.codexHomePath })
         super.init()
         store.setProcessLimit(settings.processLimit)
         store.setProcessSort(settings.processSort)
@@ -52,9 +56,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         popover.behavior = .transient
         popover.animates = true
         popover.delegate = self
-        popover.contentSize = NSSize(width: 360, height: 780)
+        popover.contentSize = NSSize(width: 360, height: 820)
         popover.contentViewController = NSHostingController(
-            rootView: DashboardView(store: store, settings: settings)
+            rootView: DashboardView(
+                store: store,
+                settings: settings,
+                codexUsageStore: codexUsageStore
+            )
         )
 
         store.objectWillChange
@@ -76,6 +84,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                     self.store.setSensorHelperEnabled(self.settings.sensorHelperEnabled)
                     self.settingsWindow?.appearance = self.settings.theme.windowAppearance
                     self.settingsWindow?.backgroundColor = AppColors.backgroundNSColor
+                    self.updateStatusTitle(self.store.statusLine)
+                }
+            }
+            .store(in: &cancellables)
+
+        settings.$codexHomePath
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.codexUsageStore.refresh()
+            }
+            .store(in: &cancellables)
+
+        codexUsageStore.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                DispatchQueue.main.async {
+                    guard let self else { return }
                     self.updateStatusTitle(self.store.statusLine)
                 }
             }
@@ -192,10 +218,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             settings: self.settings,
             onChange: { [weak self] seconds in
                 self?.store.setRefreshInterval(seconds)
+            },
+            onCodexRefresh: { [weak self] in
+                self?.codexUsageStore.refresh()
             }
         )
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 860, height: 520),
+            contentRect: NSRect(x: 0, y: 0, width: 860, height: 460),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
@@ -204,7 +233,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         window.titlebarAppearsTransparent = true
         window.backgroundColor = AppColors.backgroundNSColor
         window.appearance = self.settings.theme.windowAppearance
-        window.minSize = NSSize(width: 820, height: 480)
+        window.minSize = NSSize(width: 820, height: 420)
         window.isReleasedWhenClosed = false
         window.contentViewController = NSHostingController(rootView: settings)
         window.center()
@@ -221,34 +250,93 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         guard let button = statusItem.button else { return }
 
         // 根据设置拼接状态栏内容，同时保持数字列宽对齐。
-        var firstLine: [String] = []
-        var secondLine: [String] = []
-        if settings.showCPU { firstLine.append("CPU\(rightAligned(line.cpu, width: 5))") }
-        if settings.showUpload { firstLine.append("↑ \(rightAligned(line.upload, width: 8))") }
-        if settings.showMemory { secondLine.append("MEM\(rightAligned(line.memory, width: 5))") }
-        if settings.showDownload { secondLine.append("↓ \(rightAligned(line.download, width: 8))") }
-        let text = (firstLine + secondLine).joined(separator: "\n").isEmpty
-            ? "Torli"
-            : ([firstLine.joined(separator: "  "), secondLine.joined(separator: "  ")] as [String])
-                .filter { !$0.isEmpty }
-                .joined(separator: "\n")
+        let font = NSFont.monospacedSystemFont(ofSize: 9, weight: .medium)
         let style = NSMutableParagraphStyle()
         // 两行共用紧凑的行框，不额外添加行间距。
         style.lineSpacing = 0
         style.minimumLineHeight = 10
         style.maximumLineHeight = 10
+        let commonAttributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.labelColor,
+            .paragraphStyle: style,
+            // NSStatusBarButton 默认会把多行标题放在中间，向下移动
+            // 让第二行基线贴近菜单栏底部。
+            .baselineOffset: -4
+        ]
 
-        button.attributedTitle = NSAttributedString(
-            string: text,
-            attributes: [
-                .font: NSFont.monospacedSystemFont(ofSize: 9, weight: .medium),
-                .foregroundColor: NSColor.labelColor,
-                .paragraphStyle: style,
-                // NSStatusBarButton 默认会把多行标题放在中间，向下移动
-                // 让第二行基线贴近菜单栏底部。
-                .baselineOffset: -4
-            ]
-        )
+        var firstLine: [NSAttributedString] = []
+        var secondLine: [NSAttributedString] = []
+        if settings.showCPU {
+            firstLine.append(NSAttributedString(
+                string: "CPU\(rightAligned(line.cpu, width: 5))",
+                attributes: commonAttributes
+            ))
+        }
+        if settings.showUpload {
+            firstLine.append(NSAttributedString(
+                string: "↑ \(rightAligned(line.upload, width: 8))",
+                attributes: commonAttributes
+            ))
+        }
+        if settings.showMemory {
+            secondLine.append(NSAttributedString(
+                string: "MEM\(rightAligned(line.memory, width: 5))",
+                attributes: commonAttributes
+            ))
+        }
+        if settings.showDownload {
+            secondLine.append(NSAttributedString(
+                string: "↓ \(rightAligned(line.download, width: 8))",
+                attributes: commonAttributes
+            ))
+        }
+
+        if settings.showCodexStatusItem,
+           let snapshot = codexUsageStore.state.snapshot,
+           let primary = snapshot.primary {
+            let used = Int(min(100, max(0, primary.usedPercent)).rounded())
+            let remaining = 100 - used
+            let displayed = settings.codexStatusMetric == .used ? used : remaining
+            firstLine.append(NSAttributedString(
+                string: snapshot.account.displayPrefix,
+                attributes: commonAttributes
+            ))
+            secondLine.append(NSAttributedString(
+                string: "\(displayed)%",
+                attributes: commonAttributes.merging([
+                    .foregroundColor: codexStatusColor(usedPercent: primary.usedPercent)
+                ]) { _, new in new }
+            ))
+            button.toolTip = "Torli Stats · Codex \(snapshot.account.displayPrefix) · 已使用 \(used)% · 剩余 \(remaining)%"
+        } else {
+            button.toolTip = "Torli Stats"
+        }
+
+        let lines = [firstLine, secondLine].filter { !$0.isEmpty }
+        let attributedTitle = NSMutableAttributedString()
+        for (lineIndex, line) in lines.enumerated() {
+            for (segmentIndex, segment) in line.enumerated() {
+                if segmentIndex > 0 {
+                    attributedTitle.append(NSAttributedString(string: "  ", attributes: commonAttributes))
+                }
+                attributedTitle.append(segment)
+            }
+            if lineIndex < lines.count - 1 {
+                attributedTitle.append(NSAttributedString(string: "\n", attributes: commonAttributes))
+            }
+        }
+        if attributedTitle.length == 0 {
+            attributedTitle.append(NSAttributedString(string: "Torli", attributes: commonAttributes))
+        }
+        button.attributedTitle = attributedTitle
+    }
+
+    private func codexStatusColor(usedPercent: Double) -> NSColor {
+        let remaining = 100 - usedPercent
+        if remaining < 20 { return .systemRed }
+        if remaining <= 50 { return .systemOrange }
+        return .systemGreen
     }
 
     private func rightAligned(_ value: String, width: Int) -> String {
@@ -264,6 +352,20 @@ struct StatusLine {
     let memory: String
     let download: String
     let upload: String
+}
+
+enum CodexStatusMetric: String, CaseIterable, Identifiable {
+    case remaining
+    case used
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .remaining: return "剩余量"
+        case .used: return "用量"
+        }
+    }
 }
 
 enum ThemePreference: String, CaseIterable, Identifiable {
@@ -354,6 +456,18 @@ final class AppSettings: ObservableObject {
     @Published var showProcessesCard: Bool {
         didSet { defaults.set(showProcessesCard, forKey: "showProcessesCard") }
     }
+    @Published var showCodexCard: Bool {
+        didSet { defaults.set(showCodexCard, forKey: "showCodexCard") }
+    }
+    @Published var showCodexStatusItem: Bool {
+        didSet { defaults.set(showCodexStatusItem, forKey: "showCodexStatusItem") }
+    }
+    @Published var codexStatusMetric: CodexStatusMetric {
+        didSet { defaults.set(codexStatusMetric.rawValue, forKey: "codexStatusMetric") }
+    }
+    @Published var codexHomePath: String {
+        didSet { defaults.set(codexHomePath, forKey: "codexHomePath") }
+    }
     @Published var powerSavingMode: Bool {
         didSet { defaults.set(powerSavingMode, forKey: "powerSavingMode") }
     }
@@ -382,6 +496,10 @@ final class AppSettings: ObservableObject {
         showFanCard = defaults.object(forKey: "showFanCard") as? Bool ?? true
         showPowerCard = defaults.object(forKey: "showPowerCard") as? Bool ?? true
         showProcessesCard = defaults.object(forKey: "showProcessesCard") as? Bool ?? true
+        showCodexCard = defaults.object(forKey: "showCodexCard") as? Bool ?? true
+        showCodexStatusItem = defaults.object(forKey: "showCodexStatusItem") as? Bool ?? true
+        codexStatusMetric = CodexStatusMetric(rawValue: defaults.string(forKey: "codexStatusMetric") ?? "") ?? .remaining
+        codexHomePath = defaults.string(forKey: "codexHomePath") ?? ""
         powerSavingMode = defaults.object(forKey: "powerSavingMode") as? Bool ?? false
 
         let savedLimit = defaults.integer(forKey: "processLimit")
@@ -454,6 +572,7 @@ final class AppSettings: ObservableObject {
             "themePreference", "showCPU", "showMemory", "showDownload", "showUpload",
             "showCPUCard", "showGPUCard", "showMemoryCard", "showDiskCard",
             "showNetworkCard", "showFanCard", "showPowerCard", "showProcessesCard",
+            "showCodexCard", "showCodexStatusItem", "codexStatusMetric", "codexHomePath",
             "powerSavingMode", "processLimit", "processSort", "refreshInterval"
         ].forEach { defaults.removeObject(forKey: $0) }
 
@@ -470,6 +589,10 @@ final class AppSettings: ObservableObject {
         showFanCard = true
         showPowerCard = true
         showProcessesCard = true
+        showCodexCard = true
+        showCodexStatusItem = true
+        codexStatusMetric = .remaining
+        codexHomePath = ""
         powerSavingMode = false
         processLimit = 8
         processSort = .cpu
@@ -1578,6 +1701,7 @@ private enum ProcessReader {
 struct DashboardView: View {
     @ObservedObject var store: MetricsStore
     @ObservedObject var settings: AppSettings
+    @ObservedObject var codexUsageStore: CodexUsageStore
 
     private let columns = [
         GridItem(.flexible(), spacing: 8),
@@ -1586,10 +1710,10 @@ struct DashboardView: View {
 
     var body: some View {
         ScrollView(.vertical) {
-            VStack(spacing: 8) {
+            VStack(spacing: 4) {
                 DeviceInfoView(info: store.deviceInfo)
 
-            LazyVGrid(columns: columns, spacing: 8) {
+            LazyVGrid(columns: columns, spacing: 4) {
                 if settings.showCPUCard {
                     MetricCard(title: "CPU", icon: "cpu", value: "\(Int(store.cpu))%", badge: "\(store.cpuPerCore.count) 核") {
                     CPUBarChart(values: store.cpuPerCore)
@@ -1673,13 +1797,19 @@ struct DashboardView: View {
                 )
             }
 
+            if settings.showCodexCard {
+                CodexUsageView(store: codexUsageStore)
+            }
+
             if settings.showProcessesCard {
                 ProcessListView(processes: store.processes)
             }
             }
             .padding(8)
+            .background(ThinScrollViewConfigurator())
         }
-        .frame(width: 360, height: 780, alignment: .top)
+        .scrollIndicators(.hidden)
+        .frame(width: 360, height: 820, alignment: .top)
         .background(AppColors.background)
         .preferredColorScheme(settings.theme.colorScheme)
     }
@@ -1689,6 +1819,31 @@ struct DashboardView: View {
         return String(format: "%.0f KB/s", bytes / 1024)
     }
 
+}
+
+private struct ThinScrollViewConfigurator: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        ScrollViewConfiguratorView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    private final class ScrollViewConfiguratorView: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            configureScrollView()
+        }
+
+        private func configureScrollView() {
+            DispatchQueue.main.async { [weak self] in
+                guard let scrollView = self?.enclosingScrollView else { return }
+                scrollView.scrollerStyle = .overlay
+                scrollView.autohidesScrollers = true
+                scrollView.verticalScroller?.controlSize = .mini
+                scrollView.horizontalScroller?.controlSize = .mini
+            }
+        }
+    }
 }
 
 struct PowerStatusView: View {
@@ -1896,11 +2051,18 @@ struct SettingsView: View {
     @ObservedObject var settings: AppSettings
     @State private var selectedInterval: Int
     let onChange: (Int) -> Void
+    let onCodexRefresh: () -> Void
 
-    init(selectedInterval: Int, settings: AppSettings, onChange: @escaping (Int) -> Void) {
+    init(
+        selectedInterval: Int,
+        settings: AppSettings,
+        onChange: @escaping (Int) -> Void,
+        onCodexRefresh: @escaping () -> Void
+    ) {
         _selectedInterval = State(initialValue: selectedInterval)
         self.settings = settings
         self.onChange = onChange
+        self.onCodexRefresh = onCodexRefresh
     }
 
     var body: some View {
@@ -1908,7 +2070,8 @@ struct SettingsView: View {
             AppColors.background
                 .ignoresSafeArea()
 
-            VStack(alignment: .leading, spacing: 16) {
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("偏好设置")
                         .font(.title3.weight(.semibold))
@@ -1918,67 +2081,52 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                // 按使用顺序排列：外观 → 状态栏 → 监控，下面是模块和系统设置。
+                // 外观与状态栏合并，面板模块位于右侧；监控模块放到下一行。
                 HStack(alignment: .top, spacing: 16) {
-                    SettingsSection(title: "外观", cardMinHeight: 150) {
-                        Picker("", selection: $settings.theme) {
-                            ForEach(ThemePreference.allCases) { theme in
-                                Text(theme.title).tag(theme)
+                    SettingsSection(title: "外观与状态栏") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Picker("", selection: $settings.theme) {
+                                ForEach(ThemePreference.allCases) { theme in
+                                    Text(theme.title).tag(theme)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(width: 240, alignment: .leading)
+                            .offset(x: -8)
+
+                            LazyVGrid(columns: [
+                                GridItem(.flexible(), alignment: .leading),
+                                GridItem(.flexible(), alignment: .leading)
+                            ], alignment: .leading, spacing: 8) {
+                                Toggle("CPU", isOn: $settings.showCPU)
+                                Toggle("内存", isOn: $settings.showMemory)
+                                Toggle("下载", isOn: $settings.showDownload)
+                                Toggle("上传", isOn: $settings.showUpload)
+                                Toggle("Codex 进度", isOn: $settings.showCodexStatusItem)
+                                HStack(spacing: 5) {
+                                    Text("Codex")
+                                        .lineLimit(1)
+                                    Picker("", selection: $settings.codexStatusMetric) {
+                                        ForEach(CodexStatusMetric.allCases) { metric in
+                                            Text(metric.title).tag(metric)
+                                        }
+                                    }
+                                    .labelsHidden()
+                                    .pickerStyle(.menu)
+                                    .frame(width: 74)
+                                }
                             }
                         }
-                        .pickerStyle(.segmented)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
-                    SettingsSection(title: "状态栏", cardMinHeight: 150) {
-                        LazyVGrid(columns: [
-                            GridItem(.flexible(), alignment: .leading),
-                            GridItem(.flexible(), alignment: .leading)
-                        ], alignment: .leading, spacing: 10) {
-                            Toggle("CPU", isOn: $settings.showCPU)
-                            Toggle("内存", isOn: $settings.showMemory)
-                            Toggle("下载", isOn: $settings.showDownload)
-                            Toggle("上传", isOn: $settings.showUpload)
-                        }
-                    }
-
-                    SettingsSection(title: "监控", cardMinHeight: 150) {
-                        Picker("更新间隔", selection: $selectedInterval) {
-                            Text("1 秒").tag(1)
-                            Text("3 秒").tag(3)
-                            Text("5 秒").tag(5)
-                            Text("10 秒").tag(10)
-                            Text("30 秒").tag(30)
-                        }
-                        .onChange(of: selectedInterval) { newValue in
-                            onChange(newValue)
-                        }
-
-                        Toggle("省电模式", isOn: $settings.powerSavingMode)
-
-                        Picker("进程数量", selection: $settings.processLimit) {
-                            Text("5 个").tag(5)
-                            Text("8 个").tag(8)
-                            Text("10 个").tag(10)
-                            Text("15 个").tag(15)
-                        }
-
-                        Picker("进程排序", selection: $settings.processSort) {
-                            ForEach(ProcessSortOption.allCases) { option in
-                                Text(option.title).tag(option)
-                            }
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .top)
-
-                HStack(alignment: .top, spacing: 16) {
-                    SettingsSection(title: "面板模块", cardMinHeight: 140) {
+                    SettingsSection(title: "面板模块") {
                         LazyVGrid(columns: [
                             GridItem(.flexible(), alignment: .leading),
                             GridItem(.flexible(), alignment: .leading),
                             GridItem(.flexible(), alignment: .leading),
                             GridItem(.flexible(), alignment: .leading)
-                        ], alignment: .leading, spacing: 10) {
+                        ], alignment: .leading, spacing: 8) {
                             Toggle("CPU", isOn: $settings.showCPUCard)
                             Toggle("GPU", isOn: $settings.showGPUCard)
                             Toggle("内存", isOn: $settings.showMemoryCard)
@@ -1987,44 +2135,136 @@ struct SettingsView: View {
                             Toggle("风扇", isOn: $settings.showFanCard)
                             Toggle("电源", isOn: $settings.showPowerCard)
                             Toggle("进程", isOn: $settings.showProcessesCard)
+                            Toggle("Codex", isOn: $settings.showCodexCard)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .top)
+
+                HStack(alignment: .top, spacing: 16) {
+                    SettingsSection(title: "监控") {
+                        LazyVGrid(columns: [
+                            GridItem(.flexible(), alignment: .leading),
+                            GridItem(.flexible(), alignment: .leading)
+                        ], alignment: .leading, spacing: 10) {
+                            HStack(spacing: 6) {
+                                Text("更新间隔")
+                                Picker("", selection: $selectedInterval) {
+                                    Text("1 秒").tag(1)
+                                    Text("3 秒").tag(3)
+                                    Text("5 秒").tag(5)
+                                    Text("10 秒").tag(10)
+                                    Text("30 秒").tag(30)
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.menu)
+                            }
+                            .fixedSize(horizontal: true, vertical: false)
+                            Toggle("省电模式", isOn: $settings.powerSavingMode)
+                            HStack(spacing: 6) {
+                                Text("进程数量")
+                                Picker("", selection: $settings.processLimit) {
+                                    Text("5 个").tag(5)
+                                    Text("8 个").tag(8)
+                                    Text("10 个").tag(10)
+                                    Text("15 个").tag(15)
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.menu)
+                            }
+                            .fixedSize(horizontal: true, vertical: false)
+                            HStack(spacing: 6) {
+                                Text("进程排序")
+                                Picker("", selection: $settings.processSort) {
+                                    ForEach(ProcessSortOption.allCases) { option in
+                                        Text(option.title).tag(option)
+                                    }
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.menu)
+                            }
+                            .fixedSize(horizontal: true, vertical: false)
                         }
                     }
 
-                    SettingsSection(title: "系统", cardMinHeight: 140) {
+                    SettingsSection(title: "系统") {
                         Toggle("开机启动", isOn: Binding(
                             get: { settings.launchAtLogin },
                             set: { settings.setLaunchAtLogin($0) }
                         ))
 
-                        Button(settings.sensorHelperEnabled ? "更新传感器辅助进程" : "授权读取风扇和温度") {
-                            settings.installSensorHelper()
+                        HStack(spacing: 8) {
+                            Button(settings.sensorHelperEnabled ? "更新传感器辅助进程" : "授权读取风扇和温度") {
+                                settings.installSensorHelper()
+                            }
+
+                            Button("恢复默认设置", role: .destructive) {
+                                settings.resetToDefaults()
+                                selectedInterval = 3
+                                onChange(3)
+                            }
                         }
 
                         Text(settings.sensorHelperMessage ?? "需要将 App 放在“应用程序”文件夹，并完成管理员授权。")
                             .font(.caption)
                             .foregroundStyle(settings.sensorHelperMessage?.hasPrefix("授权失败") == true ? .red : .secondary)
                             .fixedSize(horizontal: false, vertical: true)
-
-                        Button("恢复默认设置", role: .destructive) {
-                            settings.resetToDefaults()
-                            selectedInterval = 3
-                            onChange(3)
-                        }
                     }
 
                     Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity, alignment: .top)
 
+                SettingsSection(title: "Codex") {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text("Codex Home")
+                                .font(.caption.weight(.medium))
+                            Text(settings.codexHomePath.isEmpty ? "自动：CODEX_HOME / ~/.codex" : settings.codexHomePath)
+                                .font(.caption2.monospaced())
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Button("选择") {
+                            chooseCodexHome()
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button("立即刷新") {
+                            onCodexRefresh()
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+
                 Text("更新间隔越短，数据越及时，但耗电和资源占用也会略有增加。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             .padding(20)
+            .background(ThinScrollViewConfigurator())
         }
-        .frame(minWidth: 820, idealWidth: 860, minHeight: 480, idealHeight: 520)
+        .scrollIndicators(.hidden)
+    }
+        .frame(minWidth: 820, idealWidth: 860, minHeight: 420, idealHeight: 460)
         .background(AppColors.background)
         .preferredColorScheme(settings.theme.colorScheme)
+    }
+
+    private func chooseCodexHome() {
+        let panel = NSOpenPanel()
+        panel.title = "选择 Codex Home"
+        panel.message = "请选择包含 auth.json 的 Codex Home 目录。"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(fileURLWithPath: settings.codexHomePath.isEmpty ? NSHomeDirectory() : settings.codexHomePath)
+        if panel.runModal() == .OK, let url = panel.url {
+            settings.codexHomePath = url.path
+        }
     }
 }
 
@@ -2045,10 +2285,10 @@ struct SettingsSection<Content: View>: View {
                 .font(.system(size: 16, weight: .semibold, design: .rounded))
                 .foregroundStyle(.primary)
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 content
             }
-            .padding(16)
+            .padding(12)
             .frame(maxWidth: .infinity, minHeight: cardMinHeight, alignment: .topLeading)
             .background(AppColors.card)
             .overlay(
@@ -2080,7 +2320,7 @@ struct MetricCard<Content: View, Footer: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Label(title, systemImage: icon)
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -2096,20 +2336,20 @@ struct MetricCard<Content: View, Footer: View>: View {
             }
 
             Text(value)
-                .font(.system(size: 23, weight: .bold, design: .rounded))
+                .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundStyle(.primary)
 
             content
                 .font(.system(size: 10, weight: .medium, design: .rounded))
-                .frame(height: 28)
+                .frame(height: 24)
 
             footer
                 .font(.system(size: 9, weight: .medium, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
-        .padding(8)
-        .frame(minHeight: 124, alignment: .top)
+        .padding(6)
+        .frame(minHeight: 100, alignment: .top)
         .background(AppColors.card)
         .overlay(
             RoundedRectangle(cornerRadius: 13)
@@ -2227,7 +2467,7 @@ struct NetworkChart: View {
     }
 }
 
-private enum AppColors {
+enum AppColors {
     // 同时适配系统亮色/暗色，并让背景与卡片保持轻微层次。
     static let backgroundNSColor = NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
