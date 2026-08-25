@@ -4,13 +4,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 APP="$ROOT/TorliStats.app"
 
-swift build -c release
+BIN_DIR="$(swift build -c release --show-bin-path)"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" \
   "$APP/Contents/Library/LaunchDaemons" \
   "$APP/Contents/Library/LaunchServices"
-cp "$ROOT/.build/arm64-apple-macosx/release/TorliStats" "$APP/Contents/MacOS/TorliStats"
-cp "$ROOT/.build/arm64-apple-macosx/release/TorliStatsHelper" \
+cp "$BIN_DIR/TorliStats" "$APP/Contents/MacOS/TorliStats"
+cp "$BIN_DIR/TorliStatsHelper" \
   "$APP/Contents/Library/LaunchServices/TorliStatsHelper"
 cp "$ROOT/Info.plist" "$APP/Contents/Info.plist"
 cp "$ROOT/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"

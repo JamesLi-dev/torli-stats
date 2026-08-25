@@ -55,6 +55,25 @@ SKIP_INSTALL=1 ./build-app.sh
 
 读取风扇转速和温度可能需要安装可选的传感器辅助进程。在设置中点击“授权读取风扇和温度”。安装辅助进程前，需要先将 App 放在“应用程序”文件夹中。
 
+## Changelog 工作流
+
+可以使用已安装的 `codex` 或 `claude` CLI，根据已暂存的代码变更在本地生成详细的 Changelog：
+
+```bash
+./scripts/generate-changelog.sh
+# 检查生成内容后再暂存：
+git add CHANGELOG.md
+```
+
+脚本只会分析已暂存的变更，不会根据 diff 臆测未实现的功能。启用可选的提交前 Hook：
+
+```bash
+./scripts/setup-git-hooks.sh
+AI_CHANGELOG_ON_COMMIT=1 git commit
+```
+
+GitHub Actions 会在每次 `main` 更新时构建并上传 Artifact。推送类似 `v0.1.0` 的版本标签时，还会自动创建 GitHub Release 并上传 App 压缩包。为了让版本更新日志更准确，打标签前请将已检查过的 `[Unreleased]` 章节改名为 `[vX.Y.Z]`。
+
 ## 说明
 
 macOS 没有稳定的公开 GPU 使用率 API。Torli Stats 会在可用时读取 IORegistry 中的 `Renderer Utilization %` 和 `Device Utilization %` 字段，并避免将同一行中的内存数值误判为 GPU 使用率。

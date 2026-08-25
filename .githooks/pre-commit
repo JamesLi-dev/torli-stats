@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# The hook is opt-in so a missing AI CLI or network access never blocks normal commits.
+if [[ "${AI_CHANGELOG_ON_COMMIT:-0}" != "1" ]]; then
+    exit 0
+fi
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+"$ROOT/scripts/generate-changelog.sh"
+git add -- CHANGELOG.md

@@ -1,0 +1,72 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build app
+        env:
+          CODE_SIGN_IDENTITY: "-"
+          SKIP_INSTALL: "1"
+        run: ./build-app.sh
+
+      - name: Archive app
+        env:
+          ARCHIVE_NAME: TorliStats-${{ github.ref_name }}-macos-arm64.zip
+        run: ditto -c -k --sequesterRsrc --keepParent TorliStats.app "$ARCHIVE_NAME"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TorliStats-${{ github.ref_name }}-macos-arm64
+          path: TorliStats-${{ github.ref_name }}-macos-arm64.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+          ARCHIVE_NAME: TorliStats-${{ github.ref_name }}-macos-arm64.zip
+        run: |
+          NOTES_FILE="$RUNNER_TEMP/release-notes.md"
+          awk -v tag="$TAG_NAME" '
+            $0 == "## [" tag "]" { inside=1; next }
+            inside && /^## / { exit }
+            inside { print }
+          ' CHANGELOG.md > "$NOTES_FILE"
+
+          if [[ ! -s "$NOTES_FILE" ]]; then
+            awk '
+              /^## \[Unreleased\]/ { inside=1; next }
+              inside && /^## / { exit }
+              inside { print }
+            ' CHANGELOG.md > "$NOTES_FILE"
+          fi
+
+          if [[ -s "$NOTES_FILE" ]]; then
+            gh release create "$TAG_NAME" "$ARCHIVE_NAME" \
+              --title "$TAG_NAME" \
+              --notes-file "$NOTES_FILE" \
+              --verify-tag
+          else
+            gh release create "$TAG_NAME" "$ARCHIVE_NAME" \
+              --title "$TAG_NAME" \
+              --generate-notes \
+              --verify-tag
+          fi
