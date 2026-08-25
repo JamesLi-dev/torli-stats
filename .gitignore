@@ -1,0 +1,27 @@
+# SwiftPM and build products
+.build/
+.swiftpm/
+DerivedData/
+*.app/
+
+# Xcode and local IDE state
+xcuserdata/
+*.xcuserstate
+.idea/
+.vscode/
+
+# macOS metadata and editor temporary files
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Local environment and machine-specific configuration
+.env
+.env.*
+!.env.example
+*.local
+
+# Existing generated app names
+MacStats.app/
+Torli Stats.app/
