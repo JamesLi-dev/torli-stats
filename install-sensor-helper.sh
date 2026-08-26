@@ -45,6 +45,15 @@ chown root:wheel "$TMP_PLIST"
 chmod 644 "$TMP_PLIST"
 
 launchctl bootout system/local.torli.stats.helper 2>/dev/null || true
+# bootout is asynchronous; waiting avoids a race where bootstrap returns
+# EIO/"Operation already in progress" while launchd is still removing the
+# previous helper instance.
+for _ in {1..20}; do
+  if ! launchctl print system/local.torli.stats.helper >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.25
+done
 install -o root -g wheel -m 644 "$TMP_PLIST" "$PLIST"
 launchctl bootstrap system "$PLIST"
 launchctl enable system/local.torli.stats.helper 2>/dev/null || true

@@ -4,41 +4,23 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
-<!-- ai-changelog:84467e13e525 -->
+<!-- ai-changelog:ac531ba9b21a -->
 ### 2026-08-26
 
 ### English
 
-- Added multi-account Codex usage support with the default `~/.codex` account plus independently logged-in profiles under `~/.torli-stats-codex/<name>`.
-- Added per-account Codex Home configuration, terminal-based `codex login`, dashboard visibility, status-bar inclusion, account naming, re-login, and configuration-only removal without deleting local authentication files.
-- Added per-account background refresh and isolated loading/error states while continuing to avoid reading, storing, or logging access and refresh tokens.
-- Added menu-bar metric group ordering for System (CPU / memory), Network (download / upload), and Codex, while keeping CPU/memory and download/upload bound as single groups.
-- Added compact and stacked System status-bar styles, with aligned CPU/memory labels and percentages, and Codex display modes for the default account, lowest remaining capacity, or each account.
-- Made the dashboard Codex section support multiple account rows; simplified each row by moving reset and update information into the header, combining daily and weekly quota details, and removing secondary-window and Credits noise.
-- Made the status-bar popover size itself from the enabled dashboard modules and process count, removing the fixed-height bottom gap and visible scrolling.
-- Reorganized settings into independent columns, aligned the settings cards, moved Codex status-bar controls into Appearance and Status Bar, and tightened spacing and sizing throughout.
-- Changelog generation now keeps only the latest entry in the checked-in `CHANGELOG.md`, while backing up the previous non-empty file to `.changelog-backups/`.
-- Added `.changelog-backups/` to `.gitignore` so local changelog history is not staged or committed.
-- Backups use date-based filenames such as `2026-08-25-changelog.md`; duplicate filenames receive incrementing suffixes such as `-2`.
-- Updated `scripts/generate-changelog.sh` to copy the existing changelog before replacing it, then recreate the file with the standard `# Changelog` heading, description, `## [Unreleased]` section, and newly generated entry.
-- The script output now explicitly reports that only the latest entry is retained and reports the backup path.
-- Updated `README.md` and `README_CN.md` to document the latest-entry workflow, local backup location, and review/staging steps.
-- Existing staged-diff analysis, change identifiers, AI command selection, and Markdown output handling remain in place.
+- Improves macOS sensor monitoring across Apple Silicon generations by adding fallback CPU cluster keys `Tp01`–`Tp16` and fan keys `F0Ac`–`F9Ac`, including cases where `discoverKeys()` does not return fan keys.
+- Refines CPU temperature selection: preferred keys remain `TCMz`, `TCMb`, `TCDX`, and `TC0P`; otherwise, the hottest valid `Tp##` cluster reading is used before falling back to the median of other CPU readings.
+- Broadens accepted temperature readings from `20...100` to `10...125` °C for both CPU and GPU sensors.
+- Extends SMC decoding with guarded handling for short payloads and support for `ui32`. Corrects `flt ` decoding to little-endian for Apple Silicon payloads, preventing normal fan speeds and temperatures from being interpreted as invalid or near-zero values.
+- Makes `install-sensor-helper.sh` wait after `launchctl bootout` detects that `local.torli.stats.helper` has stopped, polling up to 20 times at 0.25-second intervals before reinstalling and bootstrapping the launch daemon. This addresses the asynchronous removal race during helper reinstallation.
+- The installer continues to place the helper at `/Library/PrivilegedHelperTools/TorliStatsHelper` and the launch daemon at `/Library/LaunchDaemons/local.torli.stats.helper.plist`, with `root:wheel` ownership and modes `755` and `644` respectively. These system-level locations and permissions require appropriate installation privileges.
 
 ### 中文
 
-- 增加 Codex 多账号用量支持：默认账号继续使用 `~/.codex`，后续账号使用 `~/.torli-stats-codex/<名称>` 下独立登录的 Codex Home。
-- 增加账号级 Codex Home 配置、终端 `codex login`、Dashboard 显示、状态栏参与、账号命名、重新登录和仅移除配置；不会删除本地认证文件。
-- 增加账号级后台刷新及独立的加载/错误状态，并继续避免读取、保存或记录 access token 和 refresh token。
-- 增加菜单栏指标组排序：系统（CPU / 内存）、网络（下载 / 上传）和 Codex；CPU/内存、下载/上传始终分别作为一个整体。
-- 增加系统状态栏的紧凑/分栏样式，保证 CPU/内存标签和百分比对齐；Codex 支持默认账号、最低剩余量和逐账号三种显示模式。
-- Dashboard 的 Codex 区域支持多个账号，并简化账号行：更新时间靠近刷新按钮，日/周额度共用信息行，移除短窗口和 Credits 展示。
-- 菜单栏展开面板根据已启用模块和进程数量自适应高度，去除固定底部空白和可见滚动。
-- 重组设置页独立左右列，对齐设置卡片，将 Codex 状态栏设置移入“外观与状态栏”，并统一优化间距和尺寸。
-- Changelog 生成现在只在已提交的 `CHANGELOG.md` 中保留最新条目，同时将之前的非空文件备份到 `.changelog-backups/`。
-- 在 `.gitignore` 中加入 `.changelog-backups/`，避免本地 Changelog 历史被暂存或提交。
-- 备份文件使用日期命名，例如 `2026-08-25-changelog.md`；文件名重复时会追加递增后缀，例如 `-2`。
-- 更新 `scripts/generate-changelog.sh`：在替换现有 Changelog 前先复制备份，然后使用标准的 `# Changelog` 标题、说明文字、`## [Unreleased]` 章节和新生成的条目重新创建文件。
-- 脚本输出现在会明确提示仅保留最新条目，并显示备份路径。
-- 更新 `README.md` 和 `README_CN.md`，说明最新条目工作流、本地备份目录以及检查和暂存步骤。
-- 现有的暂存 diff 分析、变更标识、AI 命令选择和 Markdown 输出处理逻辑保持不变。
+- 改进 macOS 在不同 Apple Silicon 世代上的传感器监控：新增 CPU 集群备用键 `Tp01`–`Tp16` 和风扇备用键 `F0Ac`–`F9Ac`，即使 `discoverKeys()` 未返回风扇键也可以尝试读取。
+- 优化 CPU 温度选择逻辑：优先使用 `TCMz`、`TCMb`、`TCDX` 和 `TC0P`；如果这些键不可用，则使用有效 `Tp##` 集群读数中的最高温度，最后才回退到其他 CPU 读数的中位数。
+- 将 CPU 和 GPU 可接受的温度范围从 `20...100` °C 扩展为 `10...125` °C。
+- 增强 SMC 解码：对过短 payload 增加长度检查，新增 `ui32` 支持，并将 Apple Silicon 的 `flt ` payload 改为按 little-endian 解码，避免正常的风扇转速和温度被解析为无效值或接近零的数值。
+- 让 `install-sensor-helper.sh` 在执行 `launchctl bootout` 后确认 `local.torli.stats.helper` 已停止，最多轮询 20 次、每次间隔 0.25 秒，再重新安装并 bootstrap launch daemon，以处理辅助进程异步移除导致的重装竞态。
+- 安装脚本仍会将辅助进程写入 `/Library/PrivilegedHelperTools/TorliStatsHelper`，将 launch daemon 写入 `/Library/LaunchDaemons/local.torli.stats.helper.plist`，并分别设置 `root:wheel` 所有权及 `755`、`644` 权限。这些系统级路径和权限要求具备相应的安装权限。

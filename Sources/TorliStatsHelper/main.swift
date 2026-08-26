@@ -36,6 +36,10 @@ private enum SMCReader {
         "Tg0q", "Tg0r", "Tg0y", "Tg0z", "Tg4a", "Tg7a", "Tg12", "Tg15", "Tg20", "Tg23", "Tg28",
         "Tg31", "Tg0P", "Tg0f", "TG0P", "TG0D", "TG0T", "TG1D", "TGDD"
     ]
+    // Apple Silicon exposes different numbers of cluster sensors on
+    // different generations. Keep these known four-character keys as a
+    // fallback even when key enumeration is unavailable.
+    private static let appleSiliconCPUKeys = (1...16).map { String(format: "Tp%02d", $0) }
 
     private static let smc = SMCConnection()
     private static var lastFanRPM: Int?
@@ -46,9 +50,17 @@ private enum SMCReader {
         guard smc.open() else { return ["available": false] }
 
         let discovered = smc.discoverKeys()
-        let cpuKeys = unique(fallbackCPUKeys + discovered.filter { $0.hasPrefix("Tp") || $0.hasPrefix("Te") || $0.hasPrefix("TC") })
+        let cpuKeys = unique(fallbackCPUKeys + appleSiliconCPUKeys + discovered.filter {
+            $0.hasPrefix("Tp") || $0.hasPrefix("Te") || $0.hasPrefix("TC")
+        })
         let gpuKeys = unique(fallbackGPUKeys + discovered.filter { $0.hasPrefix("Tg") || $0.hasPrefix("TG") })
-        let fanKeys = unique(["F0Ac", "F1Ac"] + discovered.filter {
+        // Do not depend on discoverKeys() for fans. Some Apple Silicon
+        // versions expose the keys through the endpoint but do not return
+        // them from the key index query.
+        // SMC keys are exactly four characters, so fan indexes are encoded
+        // as F0Ac...F9Ac (there is no valid five-character F10Ac key).
+        let knownFanKeys = (0...9).map { "F\($0)Ac" }
+        let fanKeys = unique(knownFanKeys + discovered.filter {
             $0.count == 4 && $0.first == "F" && $0.hasSuffix("Ac")
         })
 
@@ -62,10 +74,10 @@ private enum SMCReader {
             lastFanRPM = Int(rpm.rounded())
         }
 
-        // Ignore values below 20°C. Those are usually non-temperature/status
-        // keys that happen to use a temperature-looking SMC data type.
+        // Ignore implausibly low values. Those are usually non-temperature /
+        // status keys that happen to use a temperature-looking SMC data type.
         let cpuReadings = cpuKeys.compactMap { key -> (String, Double)? in
-            guard let value = smc.readNumber(key), value >= 20, value <= 100 else { return nil }
+            guard let value = smc.readNumber(key), value >= 10, value <= 125 else { return nil }
             return (key, value)
         }
         // TCMz is the CPU-die hotspot and is closest to what monitoring
@@ -78,12 +90,18 @@ private enum SMCReader {
             cpuReadings.first(where: { $0.0 == key })?.1
         }).first {
             lastCPUTemperature = temperature
-        } else if let temperature = median(cpuReadings.map { $0.1 }) {
-            lastCPUTemperature = temperature
+        } else {
+            // A median across all T* keys can be skewed by power-management
+            // and package sensors. Tp01...Tp16 are the CPU cluster sensors;
+            // the hottest valid cluster is a more useful dashboard value.
+            let clusterReadings = cpuReadings.filter { isAppleSiliconCPUKey($0.0) }
+            let temperature = clusterReadings.map { $0.1 }.max()
+                ?? median(cpuReadings.map { $0.1 })
+            if let temperature { lastCPUTemperature = temperature }
         }
 
         let gpuReadings = gpuKeys.compactMap { key -> (String, Double)? in
-            guard let value = smc.readNumber(key), value >= 20, value <= 100 else { return nil }
+            guard let value = smc.readNumber(key), value >= 10, value <= 125 else { return nil }
             return (key, value)
         }
         // GPU keys describe different GPU regions. Use the hottest valid
@@ -102,6 +120,11 @@ private enum SMCReader {
     private static func unique(_ keys: [String]) -> [String] {
         var seen = Set<String>()
         return keys.filter { seen.insert($0).inserted }
+    }
+
+    private static func isAppleSiliconCPUKey(_ key: String) -> Bool {
+        guard key.count == 4, key.hasPrefix("Tp") else { return false }
+        return key.dropFirst(2).allSatisfy { $0.isNumber }
     }
 
     private static func median(_ values: [Double]) -> Double? {
@@ -232,32 +255,49 @@ private final class SMCConnection {
     }
 
     private func decode(type: UInt32, bytes: [UInt8]) -> Double? {
-        guard bytes.count >= 2 else { return nil }
         switch fourCharString(type) {
         case "fpe2":
+            guard bytes.count >= 2 else { return nil }
             return Double(UInt16(bytes[0]) << 8 | UInt16(bytes[1])) / 4
         case "sp78":
+            guard bytes.count >= 2 else { return nil }
             return Double(Int8(bitPattern: bytes[0])) + Double(bytes[1]) / 256
         case "sp87":
+            guard bytes.count >= 2 else { return nil }
             return Double(Int16(Int(bytes[0]) << 8 | Int(bytes[1]))) / 128
         case "sp5a":
+            guard bytes.count >= 2 else { return nil }
             return Double(Int16(Int(bytes[0]) << 8 | Int(bytes[1]))) / 1024
         case "fp88":
+            guard bytes.count >= 2 else { return nil }
             return Double(Int16(Int(bytes[0]) << 8 | Int(bytes[1]))) / 256
         case "fp79":
+            guard bytes.count >= 2 else { return nil }
             return Double(Int16(Int(bytes[0]) << 8 | Int(bytes[1]))) / 512
         case "fpe4":
+            guard bytes.count >= 2 else { return nil }
             return Double(UInt16(bytes[0]) << 8 | UInt16(bytes[1])) / 16
         case "ui8 ":
-            return Double(bytes[0])
+            guard let byte = bytes.first else { return nil }
+            return Double(byte)
         case "ui16":
+            guard bytes.count >= 2 else { return nil }
             return Double(UInt16(bytes[0]) << 8 | UInt16(bytes[1]))
+        case "ui32":
+            guard bytes.count >= 4 else { return nil }
+            let value = UInt32(bytes[0]) << 24 | UInt32(bytes[1]) << 16 | UInt32(bytes[2]) << 8 | UInt32(bytes[3])
+            return Double(value)
         case "flt ":
             guard bytes.count >= 4 else { return nil }
-            let bits = UInt32(bytes[0]) << 24 | UInt32(bytes[1]) << 16 | UInt32(bytes[2]) << 8 | UInt32(bytes[3])
+            // SMC's Apple Silicon `flt ` payload is little-endian. Decoding
+            // it as big-endian turns normal fan speeds into tiny floats that
+            // round to 0 RPM and makes temperatures disappear as outliers.
+            let bits = UInt32(bytes[0]) | UInt32(bytes[1]) << 8
+                | UInt32(bytes[2]) << 16 | UInt32(bytes[3]) << 24
             let value = Double(Float(bitPattern: bits))
             return value.isFinite ? value : nil
         default:
+            guard bytes.count >= 2 else { return nil }
             return Double(UInt16(bytes[0]) << 8 | UInt16(bytes[1])) / 4
         }
     }
