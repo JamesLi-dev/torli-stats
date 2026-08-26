@@ -56,7 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         popover.behavior = .transient
         popover.animates = true
         popover.delegate = self
-        popover.contentSize = NSSize(width: 360, height: 820)
+        popover.contentSize = NSSize(width: 360, height: DashboardView.preferredHeight(for: settings))
         popover.contentViewController = NSHostingController(
             rootView: DashboardView(
                 store: store,
@@ -84,6 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                     self.store.setSensorHelperEnabled(self.settings.sensorHelperEnabled)
                     self.settingsWindow?.appearance = self.settings.theme.windowAppearance
                     self.settingsWindow?.backgroundColor = AppColors.backgroundNSColor
+                    self.updatePopoverSize()
                     self.updateStatusTitle(self.store.statusLine)
                 }
             }
@@ -116,6 +117,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         } else {
             togglePopover()
         }
+    }
+
+    private func updatePopoverSize() {
+        popover.contentSize = NSSize(width: 360, height: DashboardView.preferredHeight(for: settings))
     }
 
     private func togglePopover() {
@@ -224,7 +229,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
         )
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 860, height: 460),
+            contentRect: NSRect(x: 0, y: 0, width: 860, height: 560),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
@@ -503,7 +508,7 @@ final class AppSettings: ObservableObject {
         powerSavingMode = defaults.object(forKey: "powerSavingMode") as? Bool ?? false
 
         let savedLimit = defaults.integer(forKey: "processLimit")
-        processLimit = [5, 8, 10, 15].contains(savedLimit) ? savedLimit : 8
+        processLimit = [3, 5, 8, 10, 15].contains(savedLimit) ? savedLimit : 5
         processSort = ProcessSortOption(rawValue: defaults.string(forKey: "processSort") ?? "") ?? .cpu
         launchAtLogin = SMAppService.mainApp.status == .enabled
         sensorHelperEnabled = false
@@ -594,7 +599,7 @@ final class AppSettings: ObservableObject {
         codexStatusMetric = .remaining
         codexHomePath = ""
         powerSavingMode = false
-        processLimit = 8
+        processLimit = 5
         processSort = .cpu
     }
 
@@ -837,7 +842,7 @@ final class MetricsStore: ObservableObject {
     private var workerMemoryHistory = Array(repeating: 0.0, count: 24)
     private var workerDownloadHistory = Array(repeating: 0.0, count: 24)
     private var workerUploadHistory = Array(repeating: 0.0, count: 24)
-    private var processLimit = 8
+    private var processLimit = 5
     private var processSort: ProcessSortOption = .cpu
     private var powerSavingMode = false
     private var sensorHelperEnabled = false
@@ -887,7 +892,7 @@ final class MetricsStore: ObservableObject {
     }
 
     func setProcessLimit(_ limit: Int) {
-        guard [5, 8, 10, 15].contains(limit) else { return }
+        guard [3, 5, 8, 10, 15].contains(limit) else { return }
         lowMetricsQueue.async { [weak self] in self?.processLimit = limit }
     }
 
@@ -1809,9 +1814,35 @@ struct DashboardView: View {
             .background(ThinScrollViewConfigurator())
         }
         .scrollIndicators(.hidden)
-        .frame(width: 360, height: 820, alignment: .top)
+        .frame(width: 360, height: Self.preferredHeight(for: settings), alignment: .top)
         .background(AppColors.background)
         .preferredColorScheme(settings.theme.colorScheme)
+    }
+
+    static func preferredHeight(for settings: AppSettings) -> CGFloat {
+        let metricCount = [
+            settings.showCPUCard,
+            settings.showGPUCard,
+            settings.showMemoryCard,
+            settings.showDiskCard,
+            settings.showNetworkCard,
+            settings.showFanCard
+        ].filter { $0 }.count
+        let metricRows = CGFloat((metricCount + 1) / 2)
+
+        var height: CGFloat = 8 + 42 // outer padding + device information
+        if metricRows > 0 {
+            height += metricRows * 100 + max(0, metricRows - 1) * 4
+        }
+        if settings.showPowerCard { height += 110 + 4 }
+        if settings.showCodexCard { height += 145 + 4 }
+        if settings.showProcessesCard {
+            height += 30 + CGFloat(settings.processLimit) * 24 + 4
+        }
+
+        // Keep the popover usable on smaller screens while allowing the
+        // configured modules and process count to determine its height.
+        return min(max(height, 160), 760)
     }
 
     private func formatRate(_ bytes: Double) -> String {
@@ -2164,6 +2195,7 @@ struct SettingsView: View {
                             HStack(spacing: 6) {
                                 Text("进程数量")
                                 Picker("", selection: $settings.processLimit) {
+                                    Text("3 个").tag(3)
                                     Text("5 个").tag(5)
                                     Text("8 个").tag(8)
                                     Text("10 个").tag(10)
@@ -2249,7 +2281,7 @@ struct SettingsView: View {
         }
         .scrollIndicators(.hidden)
     }
-        .frame(minWidth: 820, idealWidth: 860, minHeight: 420, idealHeight: 460)
+        .frame(minWidth: 820, idealWidth: 860, minHeight: 520, idealHeight: 560)
         .background(AppColors.background)
         .preferredColorScheme(settings.theme.colorScheme)
     }

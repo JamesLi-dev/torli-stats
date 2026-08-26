@@ -4,6 +4,30 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
+<!-- ai-changelog:b0e6e44756be -->
+### 2026-08-26
+
+### English
+
+- Adjusted the macOS menu-bar dashboard height dynamically according to visible modules and the configured process count, while keeping the width at `360` points and clamping the height between `160` and `760` points.
+- Dashboard sizing now recalculates when `AppSettings` changes, so module visibility and process-count changes update the popover size.
+- Increased the settings window’s initial and ideal height from `460` to `560` points; `SettingsView` now uses a minimum height of `520` and an ideal height of `560`.
+- Added `3` as a selectable process-count option. The default process count changed from `8` to `5` for new or invalid stored values, and “恢复默认设置” now resets it to `5`. Existing stored values of `5`, `8`, `10`, and `15` remain accepted.
+- Added `docs/codex-usage-multi-account-plan.md` as a planning document only; it explicitly states that multi-account support has not yet been implemented.
+- The planned multi-account design is limited to locally authenticated Codex CLI accounts. It proposes separate `CODEX_HOME` directories under `~/.torli-stats-codex/<目录名>`, explicit per-process `CODEX_HOME` usage with commands such as `codex login` and `codex app-server --stdio`, and recommended `0700` permissions for the managed root and account directories.
+- The plan excludes OAuth, storage or display of `access_token`, `refresh_token`, authentication headers, raw `auth.json`, and Pi Agent credentials. Removing an account is planned to remove configuration only, not its account directory or login files.
+
+### 中文
+
+- 调整 macOS 菜单栏面板高度：根据当前显示的模块和进程数量动态计算，同时保持宽度为 `360` 点，并将高度限制在 `160` 至 `760` 点之间。
+- 当 `AppSettings` 发生变化时重新计算面板尺寸，因此模块显示状态和进程数量变化会同步更新 popover 高度。
+- 设置窗口的初始高度和理想高度从 `460` 点增加到 `560` 点；`SettingsView` 的最小高度调整为 `520`，理想高度调整为 `560`。
+- 增加 `3` 个进程的选项。新配置或已保存值无效时，进程数量默认值从 `8` 改为 `5`；“恢复默认设置”也会重置为 `5`。已保存的 `5`、`8`、`10`、`15` 仍然有效。
+- 新增 `docs/codex-usage-multi-account-plan.md`，仅包含规划方案；文档明确说明多账号支持尚未实现。
+- 该多账号方案限定为本机已登录的 Codex CLI 账号，计划将账号分别放置在 `~/.torli-stats-codex/<目录名>` 下的独立 `CODEX_HOME` 中，并通过 `codex login`、`codex app-server --stdio` 等命令为每个子进程显式设置对应的 `CODEX_HOME`；同时建议将管理根目录和账号目录设置为 `0700` 权限。
+- 方案不包含 OAuth，也不保存或展示 `access_token`、`refresh_token`、认证头、原始 `auth.json` 或 Pi Agent 凭据。移除账号计划仅删除账号配置，不删除账号目录或登录文件。
+
+
 <!-- ai-changelog:d6bb7b86365e -->
 ### 2026-08-25
 
