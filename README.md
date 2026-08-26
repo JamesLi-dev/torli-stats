@@ -67,7 +67,7 @@ git add CHANGELOG.md
 git commit -m "..."
 ```
 
-The script uses `codex` when available, then falls back to `claude`. To use another local AI command that reads the prompt from stdin and writes Markdown to stdout, set `AI_CHANGELOG_COMMAND`. The generated text must be reviewed before committing.
+The script uses `codex` when available, then falls back to `claude`. To use another local AI command that reads the prompt from stdin and writes Markdown to stdout, set `AI_CHANGELOG_COMMAND`. The generated text must be reviewed before committing. Each generation replaces the checked-in `CHANGELOG.md` with the latest entry and backs up the previous file under the ignored `.changelog-backups/` directory.
 
 An optional pre-commit hook is available:
 
@@ -90,7 +90,7 @@ Detailed changelog entries can be generated locally from the staged diff with an
 git add CHANGELOG.md
 ```
 
-The script only analyzes staged changes and does not claim behavior that is not supported by the diff. To enable the optional pre-commit hook:
+The script only analyzes staged changes and does not claim behavior that is not supported by the diff. The active `CHANGELOG.md` intentionally contains only the latest entry; previous entries are kept locally as date-named files such as `.changelog-backups/2026-08-25-changelog.md` and are excluded by `.gitignore`. To enable the optional pre-commit hook:
 
 ```bash
 ./scripts/setup-git-hooks.sh

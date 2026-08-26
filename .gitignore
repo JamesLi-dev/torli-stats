@@ -25,3 +25,6 @@ xcuserdata/
 # Existing generated app names
 MacStats.app/
 Torli Stats.app/
+
+# Local changelog history (the active CHANGELOG.md keeps only the latest entry)
+.changelog-backups/

@@ -10,7 +10,9 @@ if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
 fi
 
 # CHANGELOG.md is generated from the other staged files, so editing it does not
-# cause the same staged change to be sent to the model again.
+# cause the same staged change to be sent to the model again. The checked-in
+# CHANGELOG.md intentionally contains only the latest generated entry; older
+# content is copied to the ignored .changelog-backups/ directory below.
 STAGED_FILES="$(git diff --cached --name-status -- . ':(exclude)CHANGELOG.md')"
 if [[ -z "$STAGED_FILES" ]]; then
     echo "错误：没有可分析的已暂存变更，请先执行 git add。" >&2
@@ -89,23 +91,29 @@ trap 'rm -f "$ENTRY_FILE"' EXIT
     printf '%s\n' "$AI_OUTPUT"
 } > "$ENTRY_FILE"
 
+ARCHIVE_DIR="$ROOT/.changelog-backups"
+if [[ -s "$CHANGELOG" ]]; then
+    mkdir -p "$ARCHIVE_DIR"
+    ARCHIVE_PATH="$ARCHIVE_DIR/$(date +%Y-%m-%d)-changelog.md"
+    suffix=2
+    while [[ -e "$ARCHIVE_PATH" ]]; do
+        ARCHIVE_PATH="$ARCHIVE_DIR/$(date +%Y-%m-%d)-changelog-${suffix}.md"
+        suffix=$((suffix + 1))
+    done
+    cp "$CHANGELOG" "$ARCHIVE_PATH"
+    echo "已备份旧 Changelog：${ARCHIVE_PATH#$ROOT/}"
+fi
+
 python3 - "$CHANGELOG" "$ENTRY_FILE" <<'PY'
 from pathlib import Path
-import re
 import sys
 
 changelog = Path(sys.argv[1])
-entry = Path(sys.argv[2]).read_text().rstrip() + "\n"
-text = changelog.read_text() if changelog.exists() else "# Changelog\n\n"
-match = re.search(r"^## \[Unreleased\][ \t]*$", text, re.MULTILINE)
-if match:
-    insert_at = match.end()
-    text = text[:insert_at] + "\n\n" + entry + text[insert_at:]
-else:
-    prefix = text.rstrip() + "\n\n" if text.strip() else "# Changelog\n\n"
-    text = prefix + "## [Unreleased]\n\n" + entry
-changelog.write_text(text.rstrip() + "\n")
+entry = Path(sys.argv[2]).read_text().rstrip()
+text = "# Changelog\n\nAll notable changes to Torli Stats are documented here.\n\n"
+text += "## [Unreleased]\n\n" + entry + "\n"
+changelog.write_text(text)
 PY
 
-echo "已生成 CHANGELOG.md（变更标识：$CHANGE_ID）。请检查内容后执行："
+echo "已生成 CHANGELOG.md（仅保留最新条目，变更标识：$CHANGE_ID）。请检查内容后执行："
 echo "  git add CHANGELOG.md"

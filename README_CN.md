@@ -65,7 +65,7 @@ SKIP_INSTALL=1 ./build-app.sh
 git add CHANGELOG.md
 ```
 
-脚本只会分析已暂存的变更，不会根据 diff 臆测未实现的功能。启用可选的提交前 Hook：
+脚本只会分析已暂存的变更，不会根据 diff 臆测未实现的功能。每次生成会让已提交的 `CHANGELOG.md` 只保留最新条目，并将旧内容备份到被 `.gitignore` 排除的 `.changelog-backups/` 目录，例如 `.changelog-backups/2026-08-25-changelog.md`。启用可选的提交前 Hook：
 
 ```bash
 ./scripts/setup-git-hooks.sh
