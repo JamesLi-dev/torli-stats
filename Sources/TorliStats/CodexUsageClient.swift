@@ -18,7 +18,7 @@ final class CodexUsageClient {
                 completion(.failure(.authFileNotFound))
                 return
             }
-            guard let executable = Self.resolveExecutable() else {
+            guard let executable = Self.executableURL() else {
                 completion(.failure(.executableNotFound))
                 return
             }
@@ -51,7 +51,7 @@ final class CodexUsageClient {
         return url
     }
 
-    private static func resolveExecutable() -> URL? {
+    static func executableURL() -> URL? {
         let fileManager = FileManager.default
         var candidates: [String] = []
         if let path = ProcessInfo.processInfo.environment["PATH"] {

@@ -1,5 +1,25 @@
 import Foundation
 
+struct CodexAccountConfiguration: Codable, Identifiable, Equatable {
+    static let defaultAccountID = UUID(uuidString: "D8C4A85A-6264-4C66-A384-57246B328E8F")!
+
+    let id: UUID
+    var displayName: String
+    var homePath: String
+    var isDashboardVisible: Bool
+    var isStatusBarIncluded: Bool
+
+    static func defaultAccount(homePath: String, isDashboardVisible: Bool, isStatusBarIncluded: Bool) -> Self {
+        Self(
+            id: defaultAccountID,
+            displayName: "默认账号",
+            homePath: homePath,
+            isDashboardVisible: isDashboardVisible,
+            isStatusBarIncluded: isStatusBarIncluded
+        )
+    }
+}
+
 enum CodexUsageError: Error, LocalizedError {
     case codexHomeNotFound
     case authFileNotFound
