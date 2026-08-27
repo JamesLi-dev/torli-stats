@@ -33,7 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     override init() {
         let appSettings = AppSettings()
         settings = appSettings
-        store = MetricsStore()
+        store = MetricsStore(refreshInterval: appSettings.refreshInterval)
         codexUsageStore = CodexAccountsUsageStore(configurationsProvider: { appSettings.codexAccounts })
         super.init()
         store.setProcessLimit(settings.processLimit)
@@ -85,6 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             .sink { [weak self] _ in
                 DispatchQueue.main.async {
                     guard let self else { return }
+                    self.store.setRefreshInterval(self.settings.refreshInterval)
                     self.store.setProcessLimit(self.settings.processLimit)
                     self.store.setProcessSort(self.settings.processSort)
                     self.store.setPowerSavingMode(self.settings.powerSavingMode)
@@ -242,11 +243,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
 
         let settings = SettingsView(
-            selectedInterval: store.intervalSeconds,
             settings: self.settings,
-            onChange: { [weak self] seconds in
-                self?.store.setRefreshInterval(seconds)
-            },
             onCodexRefresh: { [weak self] in
                 self?.codexUsageStore.refresh()
             }
@@ -389,9 +386,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                     ]) { _, new in new }
                 )
             }
+            // Use the same width for each account's name and percentage
+            // column. Without this, a three-character name followed by a
+            // four-character value shifts the next account by one character.
+            let columnWidths = zip(labels, percentages).map { label, percentage in
+                max(label.string.count, percentage.string.count)
+            }
             return StatusBarGroupContent(
-                firstLine: joinStatusBarSegments(labels, attributes: attributes),
-                secondLine: joinStatusBarSegments(percentages, attributes: attributes)
+                firstLine: joinStatusBarColumns(labels, widths: columnWidths, attributes: attributes),
+                secondLine: joinStatusBarColumns(percentages, widths: columnWidths, attributes: attributes)
             )
         }
     }
@@ -461,6 +464,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let padding = max(0, width - segment.string.count)
         if padding > 0 {
             result.append(NSAttributedString(string: String(repeating: " ", count: padding), attributes: attributes))
+        }
+        return result
+    }
+
+    private func joinStatusBarColumns(
+        _ segments: [NSAttributedString],
+        widths: [Int],
+        attributes: [NSAttributedString.Key: Any],
+        separator: String = "  "
+    ) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        for (index, segment) in segments.enumerated() {
+            if index > 0 {
+                result.append(NSAttributedString(string: separator, attributes: attributes))
+            }
+            let width = widths.indices.contains(index) ? widths[index] : segment.string.count
+            result.append(paddedStatusBarSegment(segment, width: width, attributes: attributes))
         }
         return result
     }
@@ -609,6 +629,8 @@ enum ProcessSortOption: String, CaseIterable, Identifiable {
 }
 
 final class AppSettings: ObservableObject {
+    static let supportedRefreshIntervals = [1, 3, 5, 10, 30]
+
     private let defaults = UserDefaults.standard
 
     @Published var theme: ThemePreference {
@@ -686,6 +708,9 @@ final class AppSettings: ObservableObject {
             )
         ] + codexManagedAccounts
     }
+    @Published var refreshInterval: Int {
+        didSet { defaults.set(refreshInterval, forKey: "refreshInterval") }
+    }
     @Published var powerSavingMode: Bool {
         didSet { defaults.set(powerSavingMode, forKey: "powerSavingMode") }
     }
@@ -697,6 +722,11 @@ final class AppSettings: ObservableObject {
     }
     @Published private(set) var launchAtLogin: Bool
     @Published private(set) var sensorHelperEnabled: Bool
+    @Published private(set) var sensorHelperChecking: Bool
+    @Published private(set) var sensorFanAvailable: Bool
+    @Published private(set) var sensorCPUTemperatureAvailable: Bool
+    @Published private(set) var sensorGPUTemperatureAvailable: Bool
+    @Published private(set) var sensorLastReadAt: Date?
     @Published private(set) var sensorHelperMessage: String?
     private let sensorClient = SensorClient()
 
@@ -722,6 +752,8 @@ final class AppSettings: ObservableObject {
         systemStatusBarStyle = SystemStatusBarStyle(rawValue: defaults.string(forKey: "systemStatusBarStyle") ?? "") ?? .compact
         codexHomePath = defaults.string(forKey: "codexHomePath") ?? ""
         codexManagedAccounts = Self.loadCodexManagedAccounts(from: defaults.data(forKey: "codexManagedAccounts"))
+        let savedInterval = defaults.integer(forKey: "refreshInterval")
+        refreshInterval = Self.supportedRefreshIntervals.contains(savedInterval) ? savedInterval : 3
         powerSavingMode = defaults.object(forKey: "powerSavingMode") as? Bool ?? false
 
         let savedLimit = defaults.integer(forKey: "processLimit")
@@ -729,6 +761,11 @@ final class AppSettings: ObservableObject {
         processSort = ProcessSortOption(rawValue: defaults.string(forKey: "processSort") ?? "") ?? .cpu
         launchAtLogin = SMAppService.mainApp.status == .enabled
         sensorHelperEnabled = false
+        sensorHelperChecking = true
+        sensorFanAvailable = false
+        sensorCPUTemperatureAvailable = false
+        sensorGPUTemperatureAvailable = false
+        sensorLastReadAt = nil
         sensorHelperMessage = nil
         probeSensorHelper()
     }
@@ -860,11 +897,45 @@ final class AppSettings: ObservableObject {
     }
 
     func installSensorHelper() {
-        guard let scriptURL = Bundle.main.url(forResource: "install-sensor-helper", withExtension: "sh") else {
+        runSensorHelperScript(
+            named: "install-sensor-helper",
+            successMessage: "辅助进程已安装，正在读取传感器。"
+        ) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                self?.probeSensorHelper()
+            }
+        }
+    }
+
+    func uninstallSensorHelper() {
+        runSensorHelperScript(
+            named: "uninstall-sensor-helper",
+            successMessage: "传感器辅助进程已卸载。"
+        ) { [weak self] in
+            self?.sensorHelperEnabled = false
+            self?.sensorFanAvailable = false
+            self?.sensorCPUTemperatureAvailable = false
+            self?.sensorGPUTemperatureAvailable = false
+            self?.sensorLastReadAt = nil
+        }
+    }
+
+    func refreshSensorStatus() {
+        probeSensorHelper()
+    }
+
+    private func runSensorHelperScript(
+        named name: String,
+        successMessage: String,
+        onSuccess: @escaping () -> Void = {}
+    ) {
+        guard let scriptURL = Bundle.main.url(forResource: name, withExtension: "sh") else {
             sensorHelperMessage = "找不到传感器安装脚本。"
             return
         }
 
+        sensorHelperChecking = true
+        sensorHelperMessage = "正在处理传感器辅助进程…"
         let scriptPath = escapeForAppleScript(scriptURL.path)
         let appPath = escapeForAppleScript(Bundle.main.bundlePath)
         let appleScript = "do shell script \"/bin/bash \" & quoted form of \"\(scriptPath)\" & \" \" & quoted form of \"\(appPath)\" with administrator privileges"
@@ -877,29 +948,43 @@ final class AppSettings: ObservableObject {
                 try task.run()
                 task.waitUntilExit()
                 DispatchQueue.main.async {
+                    guard let self else { return }
                     if task.terminationStatus == 0 {
-                        self?.sensorHelperMessage = "辅助进程已安装，正在读取传感器。"
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                            self?.probeSensorHelper()
-                        }
+                        self.sensorHelperChecking = false
+                        self.sensorHelperMessage = successMessage
+                        onSuccess()
                     } else {
-                        self?.sensorHelperMessage = "辅助进程安装未完成。"
+                        self.sensorHelperChecking = false
+                        self.sensorHelperMessage = "传感器辅助进程操作未完成。"
                     }
                 }
             } catch {
                 DispatchQueue.main.async {
-                    self?.sensorHelperMessage = "安装失败：\(error.localizedDescription)"
+                    self?.sensorHelperChecking = false
+                    self?.sensorHelperMessage = "操作失败：\(error.localizedDescription)"
                 }
             }
         }
     }
 
     private func probeSensorHelper() {
+        sensorHelperChecking = true
         sensorClient.read { [weak self] values in
             DispatchQueue.main.async {
-                self?.sensorHelperEnabled = values.isAvailable
+                guard let self else { return }
+                self.sensorHelperChecking = false
+                self.sensorHelperEnabled = values.isAvailable
+                self.sensorFanAvailable = values.isAvailable && values.fanRPM != nil
+                self.sensorCPUTemperatureAvailable = values.isAvailable && values.cpuTemperature != nil
+                self.sensorGPUTemperatureAvailable = values.isAvailable && values.gpuTemperature != nil
                 if values.isAvailable {
-                    self?.sensorHelperMessage = "传感器辅助进程已运行。"
+                    self.sensorLastReadAt = Date()
+                    self.sensorHelperMessage = "传感器辅助进程已运行。"
+                } else {
+                    self.sensorFanAvailable = false
+                    self.sensorCPUTemperatureAvailable = false
+                    self.sensorGPUTemperatureAvailable = false
+                    self.sensorHelperMessage = "未检测到正在运行的传感器辅助进程。"
                 }
             }
         }
@@ -945,6 +1030,7 @@ final class AppSettings: ObservableObject {
         systemStatusBarStyle = .compact
         codexHomePath = ""
         codexManagedAccounts = []
+        refreshInterval = 3
         powerSavingMode = false
         processLimit = 5
         processSort = .cpu
@@ -1189,6 +1275,7 @@ final class MetricsStore: ObservableObject {
     private var workerMemoryHistory = Array(repeating: 0.0, count: 24)
     private var workerDownloadHistory = Array(repeating: 0.0, count: 24)
     private var workerUploadHistory = Array(repeating: 0.0, count: 24)
+    private var workerIntervalSeconds = 3
     private var processLimit = 5
     private var processSort: ProcessSortOption = .cpu
     private var powerSavingMode = false
@@ -1198,18 +1285,19 @@ final class MetricsStore: ObservableObject {
     private let sensorClient = SensorClient()
     private(set) var intervalSeconds: Int
 
-    init() {
-        let saved = UserDefaults.standard.integer(forKey: "refreshInterval")
-        intervalSeconds = [1, 3, 5, 10, 30].contains(saved) ? saved : 3
+    init(refreshInterval: Int = 3) {
+        let resolvedInterval = AppSettings.supportedRefreshIntervals.contains(refreshInterval) ? refreshInterval : 3
+        intervalSeconds = resolvedInterval
+        workerIntervalSeconds = resolvedInterval
         startMonitoring()
     }
 
     func setRefreshInterval(_ seconds: Int) {
-        guard [1, 3, 5, 10, 30].contains(seconds) else { return }
+        guard AppSettings.supportedRefreshIntervals.contains(seconds), intervalSeconds != seconds else { return }
         intervalSeconds = seconds
-        UserDefaults.standard.set(seconds, forKey: "refreshInterval")
         highMetricsQueue.async { [weak self] in
             guard let self else { return }
+            self.workerIntervalSeconds = seconds
             let interval = self.powerSavingMode ? max(TimeInterval(seconds), 10) : TimeInterval(seconds)
             self.installHighTimer(interval: interval)
             self.collectHighFrequency()
@@ -1251,7 +1339,7 @@ final class MetricsStore: ObservableObject {
         highMetricsQueue.async { [weak self] in
             guard let self else { return }
             self.powerSavingMode = enabled
-            let interval = enabled ? max(TimeInterval(self.intervalSeconds), 10) : TimeInterval(self.intervalSeconds)
+            let interval = enabled ? max(TimeInterval(self.workerIntervalSeconds), 10) : TimeInterval(self.workerIntervalSeconds)
             self.installHighTimer(interval: interval)
             self.collectHighFrequency()
         }
@@ -1405,10 +1493,9 @@ final class MetricsStore: ObservableObject {
                     return
                 }
 
-                // A missing fan key ends polling for this session, but preserve
-                // any temperature values returned by the same successful read.
-                // Zero RPM remains valid and is not treated as missing.
-                if values.fanRPM == nil { self.sensorPollingStopped = true }
+                // A missing fan key is a capability limitation, not a failed
+                // helper session. Continue polling so CPU/GPU temperatures can
+                // still update on machines that do not expose fan RPM.
                 DispatchQueue.main.async {
                     self.objectWillChange.send()
                     if let fanRPM = values.fanRPM { self.fanRPM = fanRPM }
@@ -2423,24 +2510,27 @@ private struct InfoTag: View {
     }
 }
 
+private struct SettingsColumnHeightPreferenceKey: PreferenceKey {
+    static let defaultValue: [Int: CGFloat] = [:]
+
+    static func reduce(value: inout [Int: CGFloat], nextValue: () -> [Int: CGFloat]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
+}
+
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
-    @State private var selectedInterval: Int
+    @State private var settingsColumnsHeight: CGFloat = 0
     @State private var codexAccountMessage: String?
     @State private var isAddingCodexAccount = false
     @State private var newCodexAccountName = ""
-    let onChange: (Int) -> Void
     let onCodexRefresh: () -> Void
 
     init(
-        selectedInterval: Int,
         settings: AppSettings,
-        onChange: @escaping (Int) -> Void,
         onCodexRefresh: @escaping () -> Void
     ) {
-        _selectedInterval = State(initialValue: selectedInterval)
         self.settings = settings
-        self.onChange = onChange
         self.onCodexRefresh = onCodexRefresh
     }
 
@@ -2463,7 +2553,7 @@ struct SettingsView: View {
                 // 外观与状态栏、系统位于左列；面板模块、监控位于右列，避免模块间出现大块空白。
                 HStack(alignment: .top, spacing: 16) {
                     VStack(alignment: .leading, spacing: 16) {
-                        SettingsSection(title: "外观与状态栏", cardMinHeight: 355) {
+                        SettingsSection(title: "外观与状态栏", cardMinHeight: 372) {
                             VStack(alignment: .leading, spacing: 12) {
                                 Picker("", selection: $settings.theme) {
                                     ForEach(ThemePreference.allCases) { theme in
@@ -2577,8 +2667,28 @@ struct SettingsView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
 
+                        SettingsSection(title: "系统") {
+                            HStack(spacing: 16) {
+                                Toggle("开机启动", isOn: Binding(
+                                    get: { settings.launchAtLogin },
+                                    set: { settings.setLaunchAtLogin($0) }
+                                ))
+
+                                Spacer(minLength: 0)
+
+                                Button("恢复默认设置", role: .destructive) {
+                                    settings.resetToDefaults()
+                                }
+                            }
+                        }
                     }
-                    .frame(minHeight: 400, alignment: .top)
+                    .background(GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: SettingsColumnHeightPreferenceKey.self,
+                            value: [0: proxy.size.height]
+                        )
+                    })
+                    .frame(minHeight: max(settingsColumnsHeight, 400), alignment: .top)
 
                     VStack(alignment: .leading, spacing: 16) {
                         SettingsSection(title: "面板模块") {
@@ -2607,12 +2717,10 @@ struct SettingsView: View {
                             ], alignment: .leading, spacing: 10) {
                                 HStack(spacing: 6) {
                                     Text("更新间隔")
-                                    Picker("", selection: $selectedInterval) {
-                                        Text("1 秒").tag(1)
-                                        Text("3 秒").tag(3)
-                                        Text("5 秒").tag(5)
-                                        Text("10 秒").tag(10)
-                                        Text("30 秒").tag(30)
+                                    Picker("", selection: $settings.refreshInterval) {
+                                        ForEach(AppSettings.supportedRefreshIntervals, id: \.self) { interval in
+                                            Text("\(interval) 秒").tag(interval)
+                                        }
                                     }
                                     .labelsHidden()
                                     .pickerStyle(.menu)
@@ -2646,33 +2754,74 @@ struct SettingsView: View {
                             }
                         }
 
-                        SettingsSection(title: "系统") {
-                            Toggle("开机启动", isOn: Binding(
-                                get: { settings.launchAtLogin },
-                                set: { settings.setLaunchAtLogin($0) }
-                            ))
-
-                            HStack(spacing: 8) {
-                                Button(settings.sensorHelperEnabled ? "更新传感器辅助进程" : "授权读取风扇和温度") {
-                                    settings.installSensorHelper()
+                        SettingsSection(title: "传感器") {
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: settings.sensorHelperEnabled ? "checkmark.shield.fill" : "exclamationmark.shield")
+                                        .foregroundStyle(settings.sensorHelperEnabled ? .green : .secondary)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(settings.sensorHelperEnabled ? "辅助进程运行中" : "未授权或不可用")
+                                            .font(.callout.weight(.semibold))
+                                        Text(settings.sensorHelperMessage ?? "需要管理员授权后读取风扇和温度。")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(2)
+                                    }
+                                    Spacer(minLength: 0)
+                                    if settings.sensorHelperChecking {
+                                        ProgressView()
+                                            .controlSize(.small)
+                                    }
                                 }
 
-                                Button("恢复默认设置", role: .destructive) {
-                                    settings.resetToDefaults()
-                                    selectedInterval = 3
-                                    onChange(3)
+                                HStack(spacing: 6) {
+                                    PowerTag(text: "风扇 \(settings.sensorFanAvailable ? "可用" : "不可用")")
+                                    PowerTag(text: "CPU 温度 \(settings.sensorCPUTemperatureAvailable ? "可用" : "不可用")")
+                                    PowerTag(text: "GPU 温度 \(settings.sensorGPUTemperatureAvailable ? "可用" : "不可用")")
+                                }
+
+                                if let lastReadAt = settings.sensorLastReadAt {
+                                    Text("上次成功读取：\(lastReadAt, style: .time)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                HStack(spacing: 8) {
+                                    Button(settings.sensorHelperEnabled ? "重新安装" : "授权读取") {
+                                        settings.installSensorHelper()
+                                    }
+                                    .disabled(settings.sensorHelperChecking)
+
+                                    Button("重新检测") {
+                                        settings.refreshSensorStatus()
+                                    }
+                                    .disabled(settings.sensorHelperChecking)
+
+                                    if settings.sensorHelperEnabled {
+                                        Button("卸载", role: .destructive) {
+                                            settings.uninstallSensorHelper()
+                                        }
+                                        .disabled(settings.sensorHelperChecking)
+                                    }
                                 }
                             }
-
-                            Text(settings.sensorHelperMessage ?? "需要将 App 放在“应用程序”文件夹，并完成管理员授权。")
-                                .font(.caption)
-                                .foregroundStyle(settings.sensorHelperMessage?.hasPrefix("授权失败") == true ? .red : .secondary)
-                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
-                    .frame(minHeight: 400, alignment: .top)
+                    .background(GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: SettingsColumnHeightPreferenceKey.self,
+                            value: [1: proxy.size.height]
+                        )
+                    })
+                    .frame(minHeight: max(settingsColumnsHeight, 400), alignment: .top)
                 }
                 .frame(maxWidth: .infinity, alignment: .top)
+                .onPreferenceChange(SettingsColumnHeightPreferenceKey.self) { heights in
+                    let height = max(heights.values.max() ?? 0, 400)
+                    if abs(settingsColumnsHeight - height) > 0.5 {
+                        settingsColumnsHeight = height
+                    }
+                }
 
                 SettingsSection(title: "Codex 账号") {
                     VStack(alignment: .leading, spacing: 10) {

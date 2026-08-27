@@ -37,7 +37,12 @@ final class CodexAccountsUsageStore: ObservableObject {
 
     func synchronize() {
         let configurations = configurationsProvider()
-        let activeIDs = Set(configurations.map(\.id))
+        // Do not launch a Codex app-server for accounts that are not shown
+        // anywhere. Hidden accounts can be enabled later and will be created
+        // lazily on the next synchronization.
+        let activeIDs = Set(configurations
+            .filter { $0.isDashboardVisible || $0.isStatusBarIncluded }
+            .map(\.id))
 
         for id in Array(stores.keys) where !activeIDs.contains(id) {
             stores[id] = nil

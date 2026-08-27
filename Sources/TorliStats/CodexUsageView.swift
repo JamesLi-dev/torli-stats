@@ -140,11 +140,11 @@ private struct CodexAccountUsageRow: View {
                 HStack(alignment: .firstTextBaseline, spacing: 7) {
                     Text("用量 \(used)%")
                         .font(.system(size: 9, weight: .medium, design: .monospaced))
-                        .foregroundStyle(progressColor(primary.usedPercent))
+                        .foregroundStyle(.secondary)
                         .fixedSize()
                     Text("剩余 \(100 - used)%")
                         .font(.system(size: 9, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.green)
                         .fixedSize()
                     Spacer(minLength: 4)
                     if let resetsAt = primary.resetsAt {
@@ -160,9 +160,9 @@ private struct CodexAccountUsageRow: View {
                     }
                 }
 
-                ProgressView(value: min(100, max(0, primary.usedPercent)) / 100)
+                ProgressView(value: min(100, max(0, 100 - primary.usedPercent)) / 100)
                     .controlSize(.mini)
-                    .tint(progressColor(primary.usedPercent))
+                    .tint(.green)
 
                 if let secondary = snapshot.secondary {
                     HStack(spacing: 8) {
@@ -188,10 +188,4 @@ private struct CodexAccountUsageRow: View {
         Int(min(100, max(0, value)).rounded())
     }
 
-    private func progressColor(_ usedPercent: Double) -> Color {
-        let remaining = 100 - usedPercent
-        if remaining < 20 { return .red }
-        if remaining <= 50 { return .orange }
-        return .green
-    }
 }

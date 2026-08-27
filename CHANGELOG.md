@@ -4,23 +4,51 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
-<!-- ai-changelog:ac531ba9b21a -->
-### 2026-08-26
+<!-- ai-changelog:3333203e50eb -->
+### 2026-08-27
 
 ### English
-
-- Improves macOS sensor monitoring across Apple Silicon generations by adding fallback CPU cluster keys `Tp01`–`Tp16` and fan keys `F0Ac`–`F9Ac`, including cases where `discoverKeys()` does not return fan keys.
-- Refines CPU temperature selection: preferred keys remain `TCMz`, `TCMb`, `TCDX`, and `TC0P`; otherwise, the hottest valid `Tp##` cluster reading is used before falling back to the median of other CPU readings.
-- Broadens accepted temperature readings from `20...100` to `10...125` °C for both CPU and GPU sensors.
-- Extends SMC decoding with guarded handling for short payloads and support for `ui32`. Corrects `flt ` decoding to little-endian for Apple Silicon payloads, preventing normal fan speeds and temperatures from being interpreted as invalid or near-zero values.
-- Makes `install-sensor-helper.sh` wait after `launchctl bootout` detects that `local.torli.stats.helper` has stopped, polling up to 20 times at 0.25-second intervals before reinstalling and bootstrapping the launch daemon. This addresses the asynchronous removal race during helper reinstallation.
-- The installer continues to place the helper at `/Library/PrivilegedHelperTools/TorliStatsHelper` and the launch daemon at `/Library/LaunchDaemons/local.torli.stats.helper.plist`, with `root:wheel` ownership and modes `755` and `644` respectively. These system-level locations and permissions require appropriate installation privileges.
+- User-facing summary: Settings now directly controls monitoring refresh intervals, provides sensor-helper management, and presents Codex remaining quota more consistently.
+- Monitoring settings:
+  - Centralized supported intervals in `AppSettings.supportedRefreshIntervals`; `refreshInterval` is persisted in `UserDefaults`, defaults to `3`, and is reset by `resetToDefaults()`.
+  - `MetricsStore` now receives the configured interval during initialization and updates its high-frequency timer when the setting changes. Power-saving mode uses the worker interval when recalculating the timer.
+- Sensor helper:
+  - Added sensor status state for checking progress, fan/CPU/GPU temperature capability, and the last successful read.
+  - Added “重新检测”, “重新安装”/“授权读取”, and “卸载” controls in a dedicated sensor settings section.
+  - Helper installation and uninstallation run bundled scripts through `/usr/bin/osascript` with administrator privileges.
+  - A missing fan RPM value is treated as an unavailable capability; it no longer stops subsequent CPU/GPU temperature reads.
+  - The new `uninstall-sensor-helper.sh` is packaged into the app bundle by `build-app.sh`.
+  - LaunchDaemon authorization still requires a Developer ID signed/notarized app; local builds continue to default to the ad-hoc `-` identity.
+- Codex usage and account handling:
+  - Codex usage progress now represents remaining quota: the progress bar and remaining percentage use green styling, while the used percentage uses secondary styling.
+  - Status-bar Codex account labels and percentages now use matching column widths to keep multiple account values aligned.
+  - `CodexAccountsUsageStore.synchronize()` tracks accounts included in the Dashboard or status bar and removes stores outside that active set.
+- Settings layout:
+  - Moved launch-at-login and reset controls into a left-column “系统” section.
+  - Added a dedicated “传感器” section and synchronized the minimum heights of the two settings columns using `SettingsColumnHeightPreferenceKey`.
+- Planning and repository maintenance:
+  - Added `TODO.md` as the committed roadmap and ignored `/docs/` as local planning material.
+  - Removed the previously committed single-account and multi-account Codex planning documents.
 
 ### 中文
-
-- 改进 macOS 在不同 Apple Silicon 世代上的传感器监控：新增 CPU 集群备用键 `Tp01`–`Tp16` 和风扇备用键 `F0Ac`–`F9Ac`，即使 `discoverKeys()` 未返回风扇键也可以尝试读取。
-- 优化 CPU 温度选择逻辑：优先使用 `TCMz`、`TCMb`、`TCDX` 和 `TC0P`；如果这些键不可用，则使用有效 `Tp##` 集群读数中的最高温度，最后才回退到其他 CPU 读数的中位数。
-- 将 CPU 和 GPU 可接受的温度范围从 `20...100` °C 扩展为 `10...125` °C。
-- 增强 SMC 解码：对过短 payload 增加长度检查，新增 `ui32` 支持，并将 Apple Silicon 的 `flt ` payload 改为按 little-endian 解码，避免正常的风扇转速和温度被解析为无效值或接近零的数值。
-- 让 `install-sensor-helper.sh` 在执行 `launchctl bootout` 后确认 `local.torli.stats.helper` 已停止，最多轮询 20 次、每次间隔 0.25 秒，再重新安装并 bootstrap launch daemon，以处理辅助进程异步移除导致的重装竞态。
-- 安装脚本仍会将辅助进程写入 `/Library/PrivilegedHelperTools/TorliStatsHelper`，将 launch daemon 写入 `/Library/LaunchDaemons/local.torli.stats.helper.plist`，并分别设置 `root:wheel` 所有权及 `755`、`644` 权限。这些系统级路径和权限要求具备相应的安装权限。
+- 用户可见摘要：设置页现在可直接控制监控更新间隔，并提供传感器辅助进程管理；Codex 剩余额度的展示也更加统一。
+- 监控设置：
+  - 通过 `AppSettings.supportedRefreshIntervals` 统一维护可选间隔；`refreshInterval` 持久化到 `UserDefaults`，默认值为 `3`，并由 `resetToDefaults()` 一并重置。
+  - `MetricsStore` 初始化时接收配置的更新间隔，设置变化时更新高频指标定时器；省电模式重新计算定时器时使用 worker 内部保存的间隔。
+- 传感器辅助进程：
+  - 新增检测状态、风扇/CPU/GPU 温度能力以及最近一次成功读取时间等状态。
+  - 在独立的传感器设置区域增加“重新检测”、“重新安装”/“授权读取”和“卸载”操作。
+  - 辅助进程的安装和卸载通过 `/usr/bin/osascript` 调用打包在应用内的脚本，并请求管理员权限。
+  - 缺少风扇 RPM 会被视为单项能力不可用，不再因此停止后续 CPU/GPU 温度读取。
+  - `build-app.sh` 现在会将新增的 `uninstall-sensor-helper.sh` 打包到应用资源中。
+  - LaunchDaemon 授权仍要求使用 Developer ID 签名并完成公证的应用；本地构建默认继续使用 ad-hoc `-` 签名身份。
+- Codex 用量与账号处理：
+  - Codex 用量进度现在表示剩余额度：进度条和剩余百分比使用绿色，用量百分比使用次要颜色。
+  - 菜单栏中的 Codex 账号名称和百分比使用匹配的列宽，保持多个账号的数值对齐。
+  - `CodexAccountsUsageStore.synchronize()` 根据账号是否显示在 Dashboard 或菜单栏来维护活动账号，并移除不在活动集合中的 Store。
+- 设置界面布局：
+  - 将开机启动和恢复默认设置操作移动到左列独立的“系统”区域。
+  - 新增独立的“传感器”区域，并通过 `SettingsColumnHeightPreferenceKey` 同步两列设置内容的最小高度。
+- 规划与仓库维护：
+  - 新增作为版本内路线图的 `TODO.md`，并将 `/docs/` 标记为本地规划资料目录。
+  - 删除此前提交的单账号和多账号 Codex 规划文档。
