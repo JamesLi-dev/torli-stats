@@ -16,6 +16,7 @@ cp "$BIN_DIR/TorliStatsHelper" \
 cp "$ROOT/Info.plist" "$APP/Contents/Info.plist"
 cp "$ROOT/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 cp "$ROOT/install-sensor-helper.sh" "$APP/Contents/Resources/install-sensor-helper.sh"
+cp "$ROOT/uninstall-sensor-helper.sh" "$APP/Contents/Resources/uninstall-sensor-helper.sh"
 cp "$ROOT/TorliStatsHelper.plist" "$APP/Contents/Library/LaunchDaemons/TorliStatsHelper.plist"
 
 # LaunchDaemon authorization requires a Developer ID signed/notarized app.
