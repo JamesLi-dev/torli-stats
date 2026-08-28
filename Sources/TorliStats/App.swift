@@ -29,6 +29,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let codexUsageStore: CodexAccountsUsageStore
     private var settingsWindow: NSWindow?
     private var cancellables = Set<AnyCancellable>()
+    private var statusLogoAnimator: StatusBarLogoAnimator?
+    private var appliedStatusLogoConfiguration: StatusBarLogoConfiguration?
 
     override init() {
         let appSettings = AppSettings()
@@ -67,7 +69,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             rootView: DashboardView(
                 store: store,
                 settings: settings,
-                codexUsageStore: codexUsageStore
+                codexUsageStore: codexUsageStore,
+                onCodexDisplayCountChange: { [weak self] count in
+                    self?.updatePopoverSize(codexAccountCount: count)
+                }
             )
         )
         updatePopoverSize()
@@ -76,6 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self else { return }
+                self.updateStatusBarLogoSpeed()
                 self.updateStatusTitle(self.store.statusLine)
             }
             .store(in: &cancellables)
@@ -94,6 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                     self.settingsWindow?.appearance = self.settings.theme.windowAppearance
                     self.settingsWindow?.backgroundColor = AppColors.backgroundNSColor
                     self.updatePopoverSize()
+                    self.updateStatusBarLogo()
                     self.updateStatusTitle(self.store.statusLine)
                 }
             }
@@ -117,6 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
             .store(in: &cancellables)
 
+        updateStatusBarLogo()
         updateStatusTitle(store.statusLine)
     }
 
@@ -128,10 +136,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
     }
 
-    private func updatePopoverSize() {
+    private func updatePopoverSize(codexAccountCount: Int? = nil) {
+        let visibleAccountCount = codexAccountCount
+            ?? min(2, codexUsageStore.accounts.filter(\.isDashboardVisible).count)
         let estimatedHeight = DashboardView.preferredHeight(
             for: settings,
-            codexAccountCount: codexUsageStore.accounts.filter(\.isDashboardVisible).count
+            codexAccountCount: visibleAccountCount
         )
         popover.contentSize = NSSize(width: 360, height: estimatedHeight)
 
@@ -145,6 +155,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             guard fittedHeight > 0 else { return }
             self.popover.contentSize = NSSize(width: 360, height: fittedHeight)
         }
+    }
+
+    private func updateStatusBarLogo() {
+        guard let button = statusItem?.button else { return }
+
+        let configuration = StatusBarLogoConfiguration(
+            isVisible: settings.showStatusBarLogo,
+            runner: settings.statusBarRunner,
+            isAnimated: settings.statusBarLogoAnimation,
+            reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        )
+        guard configuration != appliedStatusLogoConfiguration else { return }
+        appliedStatusLogoConfiguration = configuration
+        statusLogoAnimator = nil
+
+        guard configuration.isVisible else {
+            button.image = nil
+            button.imagePosition = .noImage
+            return
+        }
+
+        statusLogoAnimator = StatusBarLogoAnimator(
+            button: button,
+            runner: configuration.runner,
+            animated: configuration.isAnimated && !configuration.reduceMotion,
+            cpuUsage: store.cpu
+        )
+    }
+
+    private func updateStatusBarLogoSpeed() {
+        statusLogoAnimator?.setCPUUsage(store.cpu)
     }
 
     private func togglePopover() {
@@ -515,6 +556,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
 // MARK: - Models
 
+private struct StatusBarLogoConfiguration: Equatable {
+    let isVisible: Bool
+    let runner: StatusBarRunner
+    let isAnimated: Bool
+    let reduceMotion: Bool
+}
+
 struct StatusLine {
     let cpu: String
     let memory: String
@@ -690,6 +738,15 @@ final class AppSettings: ObservableObject {
     @Published var systemStatusBarStyle: SystemStatusBarStyle {
         didSet { defaults.set(systemStatusBarStyle.rawValue, forKey: "systemStatusBarStyle") }
     }
+    @Published var showStatusBarLogo: Bool {
+        didSet { defaults.set(showStatusBarLogo, forKey: "showStatusBarLogo") }
+    }
+    @Published var statusBarLogoAnimation: Bool {
+        didSet { defaults.set(statusBarLogoAnimation, forKey: "statusBarLogoAnimation") }
+    }
+    @Published var statusBarRunner: StatusBarRunner {
+        didSet { defaults.set(statusBarRunner.rawValue, forKey: "statusBarRunner") }
+    }
     @Published var codexHomePath: String {
         didSet { defaults.set(codexHomePath, forKey: "codexHomePath") }
     }
@@ -750,6 +807,9 @@ final class AppSettings: ObservableObject {
         codexStatusBarMode = CodexStatusBarMode(rawValue: defaults.string(forKey: "codexStatusBarMode") ?? "") ?? .defaultAccount
         statusBarMetricOrder = Self.validStatusBarMetricOrder(defaults.stringArray(forKey: "statusBarMetricOrder"))
         systemStatusBarStyle = SystemStatusBarStyle(rawValue: defaults.string(forKey: "systemStatusBarStyle") ?? "") ?? .compact
+        showStatusBarLogo = defaults.object(forKey: "showStatusBarLogo") as? Bool ?? true
+        statusBarLogoAnimation = defaults.object(forKey: "statusBarLogoAnimation") as? Bool ?? true
+        statusBarRunner = StatusBarRunner(rawValue: defaults.string(forKey: "statusBarRunner") ?? "") ?? .runCat
         codexHomePath = defaults.string(forKey: "codexHomePath") ?? ""
         codexManagedAccounts = Self.loadCodexManagedAccounts(from: defaults.data(forKey: "codexManagedAccounts"))
         let savedInterval = defaults.integer(forKey: "refreshInterval")
@@ -1006,7 +1066,7 @@ final class AppSettings: ObservableObject {
             "showCPUCard", "showGPUCard", "showMemoryCard", "showDiskCard",
             "showNetworkCard", "showFanCard", "showPowerCard", "showProcessesCard",
             "showCodexCard", "showCodexStatusItem", "codexStatusMetric", "codexStatusBarMode", "statusBarMetricOrder",
-            "systemStatusBarStyle", "codexHomePath", "codexManagedAccounts", "powerSavingMode", "processLimit", "processSort", "refreshInterval"
+            "systemStatusBarStyle", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "codexHomePath", "codexManagedAccounts", "powerSavingMode", "processLimit", "processSort", "refreshInterval"
         ].forEach { defaults.removeObject(forKey: $0) }
 
         theme = .system
@@ -1028,6 +1088,9 @@ final class AppSettings: ObservableObject {
         codexStatusBarMode = .defaultAccount
         statusBarMetricOrder = StatusBarMetricGroup.allCases
         systemStatusBarStyle = .compact
+        showStatusBarLogo = true
+        statusBarLogoAnimation = true
+        statusBarRunner = .runCat
         codexHomePath = ""
         codexManagedAccounts = []
         refreshInterval = 3
@@ -2141,6 +2204,7 @@ struct DashboardView: View {
     @ObservedObject var store: MetricsStore
     @ObservedObject var settings: AppSettings
     @ObservedObject var codexUsageStore: CodexAccountsUsageStore
+    let onCodexDisplayCountChange: (Int) -> Void
 
     private let columns = [
         GridItem(.flexible(), spacing: 8),
@@ -2236,7 +2300,10 @@ struct DashboardView: View {
             }
 
             if codexUsageStore.accounts.contains(where: \.isDashboardVisible) {
-                CodexUsageView(store: codexUsageStore)
+                CodexUsageView(
+                    store: codexUsageStore,
+                    onDisplayCountChange: onCodexDisplayCountChange
+                )
             }
 
             if settings.showProcessesCard {
@@ -2553,7 +2620,10 @@ struct SettingsView: View {
                 // 外观与状态栏、系统位于左列；面板模块、监控位于右列，避免模块间出现大块空白。
                 HStack(alignment: .top, spacing: 16) {
                     VStack(alignment: .leading, spacing: 16) {
-                        SettingsSection(title: "外观与状态栏", cardMinHeight: 372) {
+                        SettingsSection(
+                            title: "外观与状态栏",
+                            cardMinHeight: max(470, settingsColumnsHeight - 28)
+                        ) {
                             VStack(alignment: .leading, spacing: 12) {
                                 Picker("", selection: $settings.theme) {
                                     ForEach(ThemePreference.allCases) { theme in
@@ -2622,6 +2692,39 @@ struct SettingsView: View {
                                     .frame(width: 132, alignment: .leading)
                                 }
 
+                                Divider()
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Toggle("显示状态栏 Logo", isOn: $settings.showStatusBarLogo)
+
+                                    HStack(spacing: 8) {
+                                        Text("动画样式")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Picker("", selection: $settings.statusBarRunner) {
+                                            ForEach(StatusBarRunner.allCases) { runner in
+                                                Text(runner.title).tag(runner)
+                                            }
+                                        }
+                                        .labelsHidden()
+                                        .pickerStyle(.menu)
+                                        .frame(width: 118, alignment: .leading)
+                                        .disabled(!settings.showStatusBarLogo)
+
+                                        Spacer(minLength: 0)
+                                        Toggle("随 CPU 加速", isOn: $settings.statusBarLogoAnimation)
+                                            .toggleStyle(.switch)
+                                            .disabled(!settings.showStatusBarLogo)
+                                    }
+
+                                    Text("内置 9 种 RunCatNeo / RunnerGallery 动画（Apache-2.0）；系统启用“减少动态效果”时自动显示静态图标。")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+
+                                Divider()
+
                                 VStack(alignment: .leading, spacing: 9) {
                                     Text("菜单栏指标顺序")
                                         .font(.caption)
@@ -2667,20 +2770,6 @@ struct SettingsView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
 
-                        SettingsSection(title: "系统") {
-                            HStack(spacing: 16) {
-                                Toggle("开机启动", isOn: Binding(
-                                    get: { settings.launchAtLogin },
-                                    set: { settings.setLaunchAtLogin($0) }
-                                ))
-
-                                Spacer(minLength: 0)
-
-                                Button("恢复默认设置", role: .destructive) {
-                                    settings.resetToDefaults()
-                                }
-                            }
-                        }
                     }
                     .background(GeometryReader { proxy in
                         Color.clear.preference(
@@ -2803,6 +2892,21 @@ struct SettingsView: View {
                                         }
                                         .disabled(settings.sensorHelperChecking)
                                     }
+                                }
+                            }
+                        }
+
+                        SettingsSection(title: "系统") {
+                            HStack(spacing: 16) {
+                                Toggle("开机启动", isOn: Binding(
+                                    get: { settings.launchAtLogin },
+                                    set: { settings.setLaunchAtLogin($0) }
+                                ))
+
+                                Spacer(minLength: 0)
+
+                                Button("恢复默认设置", role: .destructive) {
+                                    settings.resetToDefaults()
                                 }
                             }
                         }
