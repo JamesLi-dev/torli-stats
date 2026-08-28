@@ -7,7 +7,7 @@ APP="$ROOT/TorliStats.app"
 swift build -c release
 BIN_DIR="$(swift build -c release --show-bin-path)"
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" \
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/Licenses" \
   "$APP/Contents/Library/LaunchDaemons" \
   "$APP/Contents/Library/LaunchServices"
 cp "$BIN_DIR/TorliStats" "$APP/Contents/MacOS/TorliStats"
@@ -15,6 +15,11 @@ cp "$BIN_DIR/TorliStatsHelper" \
   "$APP/Contents/Library/LaunchServices/TorliStatsHelper"
 cp "$ROOT/Info.plist" "$APP/Contents/Info.plist"
 cp "$ROOT/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
+for runner_asset in "$ROOT"/Resources/runner-*.png; do
+  cp "$runner_asset" "$APP/Contents/Resources/$(basename "$runner_asset")"
+done
+cp "$ROOT/THIRD_PARTY_NOTICES.md" "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md"
+cp "$ROOT/LICENSES/Apache-2.0.txt" "$APP/Contents/Resources/Licenses/Apache-2.0.txt"
 cp "$ROOT/install-sensor-helper.sh" "$APP/Contents/Resources/install-sensor-helper.sh"
 cp "$ROOT/uninstall-sensor-helper.sh" "$APP/Contents/Resources/uninstall-sensor-helper.sh"
 cp "$ROOT/TorliStatsHelper.plist" "$APP/Contents/Library/LaunchDaemons/TorliStatsHelper.plist"

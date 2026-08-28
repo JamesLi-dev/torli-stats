@@ -1,10 +1,32 @@
 import SwiftUI
 
 struct CodexUsageView: View {
+    private static let collapsedAccountLimit = 2
+
     @ObservedObject var store: CodexAccountsUsageStore
+    let onDisplayCountChange: (Int) -> Void
+    @State private var showsAllAccounts = false
+
+    init(
+        store: CodexAccountsUsageStore,
+        onDisplayCountChange: @escaping (Int) -> Void = { _ in }
+    ) {
+        self.store = store
+        self.onDisplayCountChange = onDisplayCountChange
+    }
 
     private var visibleAccounts: [CodexAccountConfiguration] {
         store.accounts.filter(\.isDashboardVisible)
+    }
+
+    private var displayedAccounts: [CodexAccountConfiguration] {
+        showsAllAccounts
+            ? visibleAccounts
+            : Array(visibleAccounts.prefix(Self.collapsedAccountLimit))
+    }
+
+    private var hiddenAccountCount: Int {
+        max(0, visibleAccounts.count - Self.collapsedAccountLimit)
     }
 
     var body: some View {
@@ -16,15 +38,27 @@ struct CodexUsageView: View {
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(visibleAccounts) { account in
+                ForEach(displayedAccounts) { account in
                     CodexAccountUsageRow(
                         account: account,
                         state: store.state(for: account.id),
                         onRefresh: { store.refresh(accountID: account.id) }
                     )
-                    if account.id != visibleAccounts.last?.id {
+                    if account.id != displayedAccounts.last?.id {
                         Divider()
                     }
+                }
+
+                if hiddenAccountCount > 0 {
+                    Divider()
+                    Button(showsAllAccounts ? "收起其他账号" : "显示其余 \(hiddenAccountCount) 个账号") {
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            showsAllAccounts.toggle()
+                        }
+                    }
+                    .buttonStyle(.link)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
@@ -35,6 +69,22 @@ struct CodexUsageView: View {
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 13))
+        .onAppear(perform: notifyDisplayCountChange)
+        .onChange(of: showsAllAccounts) { _ in
+            notifyDisplayCountChange()
+        }
+        .onChange(of: visibleAccounts.count) { count in
+            if count <= Self.collapsedAccountLimit {
+                showsAllAccounts = false
+            }
+            notifyDisplayCountChange()
+        }
+    }
+
+    private func notifyDisplayCountChange() {
+        DispatchQueue.main.async {
+            onDisplayCountChange(displayedAccounts.count)
+        }
     }
 
     private var header: some View {
@@ -144,7 +194,7 @@ private struct CodexAccountUsageRow: View {
                         .fixedSize()
                     Text("剩余 \(100 - used)%")
                         .font(.system(size: 9, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.green)
+                        .foregroundStyle(quotaColor(forRemaining: 100 - primary.usedPercent))
                         .fixedSize()
                     Spacer(minLength: 4)
                     if let resetsAt = primary.resetsAt {
@@ -162,7 +212,7 @@ private struct CodexAccountUsageRow: View {
 
                 ProgressView(value: min(100, max(0, 100 - primary.usedPercent)) / 100)
                     .controlSize(.mini)
-                    .tint(.green)
+                    .tint(quotaColor(forRemaining: 100 - primary.usedPercent))
 
                 if let secondary = snapshot.secondary {
                     HStack(spacing: 8) {
@@ -186,6 +236,14 @@ private struct CodexAccountUsageRow: View {
 
     private func percentage(_ value: Double) -> Int {
         Int(min(100, max(0, value)).rounded())
+    }
+
+    private func quotaColor(forRemaining remaining: Double) -> Color {
+        switch remaining {
+        case ..<20: return .red
+        case ...50: return .orange
+        default: return .green
+        }
     }
 
 }
