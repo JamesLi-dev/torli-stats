@@ -4,14 +4,17 @@ struct CodexUsageView: View {
     private static let collapsedAccountLimit = 2
 
     @ObservedObject var store: CodexAccountsUsageStore
+    let isPrivacyMode: Bool
     let onDisplayCountChange: (Int) -> Void
     @State private var showsAllAccounts = false
 
     init(
         store: CodexAccountsUsageStore,
+        isPrivacyMode: Bool = false,
         onDisplayCountChange: @escaping (Int) -> Void = { _ in }
     ) {
         self.store = store
+        self.isPrivacyMode = isPrivacyMode
         self.onDisplayCountChange = onDisplayCountChange
     }
 
@@ -42,6 +45,7 @@ struct CodexUsageView: View {
                     CodexAccountUsageRow(
                         account: account,
                         state: store.state(for: account.id),
+                        displayName: isPrivacyMode ? privateLabel(for: account) : nil,
                         onRefresh: { store.refresh(accountID: account.id) }
                     )
                     if account.id != displayedAccounts.last?.id {
@@ -81,6 +85,11 @@ struct CodexUsageView: View {
         }
     }
 
+    private func privateLabel(for account: CodexAccountConfiguration) -> String {
+        let index = visibleAccounts.firstIndex(where: { $0.id == account.id }) ?? 0
+        return "Codex \(index + 1)"
+    }
+
     private func notifyDisplayCountChange() {
         DispatchQueue.main.async {
             onDisplayCountChange(displayedAccounts.count)
@@ -108,12 +117,13 @@ struct CodexUsageView: View {
 private struct CodexAccountUsageRow: View {
     let account: CodexAccountConfiguration
     let state: CodexUsageState
+    let displayName: String?
     let onRefresh: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 7) {
-                Text(state.snapshot?.account.email ?? account.displayName)
+                Text(displayName ?? state.snapshot?.account.email ?? account.displayName)
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .lineLimit(1)
                     .minimumScaleFactor(0.55)

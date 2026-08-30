@@ -3,6 +3,13 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 APP="$ROOT/TorliStats.app"
+VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION")"
+BUILD_NUMBER="${BUILD_NUMBER:-$(git -C "$ROOT" rev-list --count HEAD)}"
+
+if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "VERSION must use MAJOR.MINOR.PATCH (found: $VERSION)" >&2
+  exit 1
+fi
 
 swift build -c release
 BIN_DIR="$(swift build -c release --show-bin-path)"
@@ -14,6 +21,8 @@ cp "$BIN_DIR/TorliStats" "$APP/Contents/MacOS/TorliStats"
 cp "$BIN_DIR/TorliStatsHelper" \
   "$APP/Contents/Library/LaunchServices/TorliStatsHelper"
 cp "$ROOT/Info.plist" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP/Contents/Info.plist"
 cp "$ROOT/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 for runner_asset in "$ROOT"/Resources/runner-*.png; do
   cp "$runner_asset" "$APP/Contents/Resources/$(basename "$runner_asset")"
