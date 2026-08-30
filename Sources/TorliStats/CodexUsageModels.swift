@@ -9,10 +9,20 @@ struct CodexAccountConfiguration: Codable, Identifiable, Equatable {
     var isDashboardVisible: Bool
     var isStatusBarIncluded: Bool
 
-    static func defaultAccount(homePath: String, isDashboardVisible: Bool, isStatusBarIncluded: Bool) -> Self {
+    var resolvedDisplayName: String {
+        let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Codex 账号" : trimmed
+    }
+
+    static func defaultAccount(
+        homePath: String,
+        displayName: String,
+        isDashboardVisible: Bool,
+        isStatusBarIncluded: Bool
+    ) -> Self {
         Self(
             id: defaultAccountID,
-            displayName: "默认账号",
+            displayName: displayName,
             homePath: homePath,
             isDashboardVisible: isDashboardVisible,
             isStatusBarIncluded: isStatusBarIncluded
