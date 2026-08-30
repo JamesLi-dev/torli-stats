@@ -257,8 +257,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let menu = NSMenu()
         menu.autoenablesItems = false
         menu.addItem(NSMenuItem(
+            title: "刷新全部数据",
+            action: #selector(refreshAllData),
+            keyEquivalent: "r"
+        ))
+
+        let privacyItem = NSMenuItem(
+            title: "隐私展示模式",
+            action: #selector(togglePrivacyMode),
+            keyEquivalent: ""
+        )
+        privacyItem.state = settings.privacyMode ? .on : .off
+        menu.addItem(privacyItem)
+
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(
             title: "打开设置",
             action: #selector(openSettings),
+            keyEquivalent: ","
+        ))
+        menu.addItem(NSMenuItem(
+            title: "关于 Torli Stats",
+            action: #selector(showAbout),
             keyEquivalent: ""
         ))
         menu.addItem(.separator())
@@ -274,6 +294,61 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             at: NSPoint(x: button.bounds.midX, y: button.bounds.minY - 4),
             in: button
         )
+    }
+
+    @objc private func refreshAllData() {
+        store.refreshNow()
+        codexUsageStore.refresh()
+    }
+
+    @objc private func togglePrivacyMode() {
+        settings.privacyMode.toggle()
+    }
+
+    @objc private func showAbout() {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "开发版本"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
+        let system = ProcessInfo.processInfo.operatingSystemVersion
+        let sensorStatus = settings.sensorHelperEnabled ? "已授权" : "未授权或不可用"
+        let alert = NSAlert()
+        alert.messageText = "Torli Stats"
+        alert.informativeText = "版本 \(version)（构建 \(build)）\n架构：\(appArchitecture)\n系统：macOS \(system.majorVersion).\(system.minorVersion).\(system.patchVersion)\n传感器辅助进程：\(sensorStatus)"
+        alert.addButton(withTitle: "好")
+        alert.addButton(withTitle: "复制诊断信息")
+        alert.addButton(withTitle: "第三方许可证")
+
+        switch alert.runModal() {
+        case .alertSecondButtonReturn:
+            copyDiagnosticInfo(version: version, build: build, sensorStatus: sensorStatus)
+        case .alertThirdButtonReturn:
+            if let noticeURL = Bundle.main.url(forResource: "THIRD_PARTY_NOTICES", withExtension: "md") {
+                NSWorkspace.shared.open(noticeURL)
+            }
+        default:
+            break
+        }
+    }
+
+    private var appArchitecture: String {
+        #if arch(arm64)
+        return "Apple Silicon"
+        #elseif arch(x86_64)
+        return "Intel"
+        #else
+        return "未知"
+        #endif
+    }
+
+    private func copyDiagnosticInfo(version: String, build: String, sensorStatus: String) {
+        let system = ProcessInfo.processInfo.operatingSystemVersion
+        let diagnostic = """
+        Torli Stats \(version) (\(build))
+        架构：\(appArchitecture)
+        系统：macOS \(system.majorVersion).\(system.minorVersion).\(system.patchVersion)
+        传感器辅助进程：\(sensorStatus)
+        """
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(diagnostic, forType: .string)
     }
 
     @objc private func openSettings() {
@@ -441,17 +516,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     private func codexStatusBarValues() -> [CodexStatusBarValue] {
-        let values = codexUsageStore.accounts.compactMap { account -> CodexStatusBarValue? in
-            guard account.isStatusBarIncluded,
-                  let snapshot = codexUsageStore.state(for: account.id).snapshot,
+        let statusBarAccounts = codexUsageStore.accounts.filter(\.isStatusBarIncluded)
+        let values = statusBarAccounts.enumerated().compactMap { index, account -> CodexStatusBarValue? in
+            guard let snapshot = codexUsageStore.state(for: account.id).snapshot,
                   let primary = snapshot.primary else {
                 return nil
             }
             return CodexStatusBarValue(
                 accountID: account.id,
-                prefix: snapshot.account.displayPrefix,
+                prefix: settings.privacyMode ? "COD\(index + 1)" : snapshot.account.displayPrefix,
                 usedPercent: primary.usedPercent,
-                email: snapshot.account.email
+                email: settings.privacyMode ? nil : snapshot.account.email
             )
         }
 
@@ -747,6 +822,9 @@ final class AppSettings: ObservableObject {
     @Published var statusBarRunner: StatusBarRunner {
         didSet { defaults.set(statusBarRunner.rawValue, forKey: "statusBarRunner") }
     }
+    @Published var privacyMode: Bool {
+        didSet { defaults.set(privacyMode, forKey: "privacyMode") }
+    }
     @Published var codexHomePath: String {
         didSet { defaults.set(codexHomePath, forKey: "codexHomePath") }
     }
@@ -810,6 +888,7 @@ final class AppSettings: ObservableObject {
         showStatusBarLogo = defaults.object(forKey: "showStatusBarLogo") as? Bool ?? true
         statusBarLogoAnimation = defaults.object(forKey: "statusBarLogoAnimation") as? Bool ?? true
         statusBarRunner = StatusBarRunner(rawValue: defaults.string(forKey: "statusBarRunner") ?? "") ?? .runCat
+        privacyMode = defaults.object(forKey: "privacyMode") as? Bool ?? false
         codexHomePath = defaults.string(forKey: "codexHomePath") ?? ""
         codexManagedAccounts = Self.loadCodexManagedAccounts(from: defaults.data(forKey: "codexManagedAccounts"))
         let savedInterval = defaults.integer(forKey: "refreshInterval")
@@ -1066,7 +1145,7 @@ final class AppSettings: ObservableObject {
             "showCPUCard", "showGPUCard", "showMemoryCard", "showDiskCard",
             "showNetworkCard", "showFanCard", "showPowerCard", "showProcessesCard",
             "showCodexCard", "showCodexStatusItem", "codexStatusMetric", "codexStatusBarMode", "statusBarMetricOrder",
-            "systemStatusBarStyle", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "codexHomePath", "codexManagedAccounts", "powerSavingMode", "processLimit", "processSort", "refreshInterval"
+            "systemStatusBarStyle", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "codexHomePath", "codexManagedAccounts", "powerSavingMode", "processLimit", "processSort", "refreshInterval"
         ].forEach { defaults.removeObject(forKey: $0) }
 
         theme = .system
@@ -1091,6 +1170,7 @@ final class AppSettings: ObservableObject {
         showStatusBarLogo = true
         statusBarLogoAnimation = true
         statusBarRunner = .runCat
+        privacyMode = false
         codexHomePath = ""
         codexManagedAccounts = []
         refreshInterval = 3
@@ -1353,6 +1433,11 @@ final class MetricsStore: ObservableObject {
         intervalSeconds = resolvedInterval
         workerIntervalSeconds = resolvedInterval
         startMonitoring()
+    }
+
+    func refreshNow() {
+        highMetricsQueue.async { [weak self] in self?.collectHighFrequency() }
+        lowMetricsQueue.async { [weak self] in self?.collectLowFrequency() }
     }
 
     func setRefreshInterval(_ seconds: Int) {
@@ -2213,7 +2298,7 @@ struct DashboardView: View {
 
     var body: some View {
         VStack(spacing: 4) {
-                DeviceInfoView(info: store.deviceInfo)
+                DeviceInfoView(info: store.deviceInfo, isPrivacyMode: settings.privacyMode)
 
             LazyVGrid(columns: columns, spacing: 4) {
                 if settings.showCPUCard {
@@ -2295,13 +2380,15 @@ struct DashboardView: View {
             if settings.showPowerCard {
                 PowerStatusView(
                     battery: store.battery,
-                    bluetoothBatteries: store.bluetoothBatteries
+                    bluetoothBatteries: store.bluetoothBatteries,
+                    isPrivacyMode: settings.privacyMode
                 )
             }
 
             if codexUsageStore.accounts.contains(where: \.isDashboardVisible) {
                 CodexUsageView(
                     store: codexUsageStore,
+                    isPrivacyMode: settings.privacyMode,
                     onDisplayCountChange: onCodexDisplayCountChange
                 )
             }
@@ -2379,6 +2466,7 @@ private struct ThinScrollViewConfigurator: NSViewRepresentable {
 struct PowerStatusView: View {
     let battery: BatterySnapshot
     let bluetoothBatteries: [BluetoothBatterySnapshot]
+    let isPrivacyMode: Bool
 
     private let columns = [
         GridItem(.adaptive(minimum: 155), spacing: 10, alignment: .leading)
@@ -2408,10 +2496,10 @@ struct PowerStatusView: View {
                     icon: "laptopcomputer"
                 )
 
-                ForEach(Array(bluetoothBatteries.enumerated()), id: \.offset) { _, device in
+                ForEach(Array(bluetoothBatteries.enumerated()), id: \.offset) { index, device in
                     BatteryRing(
                         value: device.percentage,
-                        title: device.name,
+                        title: isPrivacyMode ? "蓝牙设备 \(index + 1)" : device.name,
                         detail: device.detail,
                         icon: "airpodspro"
                     )
@@ -2510,6 +2598,7 @@ struct BatteryRing: View {
 
 struct DeviceInfoView: View {
     let info: DeviceInfo
+    let isPrivacyMode: Bool
 
     var body: some View {
         HStack(spacing: 8) {
@@ -2519,7 +2608,7 @@ struct DeviceInfoView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(info.model)
+                    Text(isPrivacyMode ? "此 Mac" : info.model)
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                     Text(info.system)
                         .font(.system(size: 8, weight: .medium, design: .monospaced))
