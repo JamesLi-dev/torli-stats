@@ -396,7 +396,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let accountID: UUID
         let prefix: String
         let usedPercent: Double
-        let email: String?
     }
 
     private func updateStatusTitle(_ line: StatusLine) {
@@ -445,7 +444,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             let details = codexValues.map { value in
                 let used = Int(min(100, max(0, value.usedPercent)).rounded())
                 let remaining = 100 - used
-                return "\(value.email ?? value.prefix) · 已使用 \(used)% · 剩余 \(remaining)%"
+                return "\(value.prefix) · 已使用 \(used)% · 剩余 \(remaining)%"
             }
             button.toolTip = "Torli Stats · Codex · \(details.joined(separator: "；"))"
         }
@@ -525,8 +524,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             return CodexStatusBarValue(
                 accountID: account.id,
                 prefix: settings.privacyMode ? "COD\(index + 1)" : snapshot.account.displayPrefix,
-                usedPercent: primary.usedPercent,
-                email: settings.privacyMode ? nil : snapshot.account.email
+                usedPercent: primary.usedPercent
             )
         }
 
@@ -535,7 +533,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             return values.filter { $0.accountID == CodexAccountConfiguration.defaultAccountID }
         case .lowestRemaining:
             guard let lowestRemaining = values.max(by: { $0.usedPercent < $1.usedPercent }) else { return [] }
-            return [CodexStatusBarValue(accountID: lowestRemaining.accountID, prefix: "COD", usedPercent: lowestRemaining.usedPercent, email: lowestRemaining.email)]
+            return [CodexStatusBarValue(accountID: lowestRemaining.accountID, prefix: "COD", usedPercent: lowestRemaining.usedPercent)]
         case .eachAccount:
             return values
         }
@@ -825,6 +823,9 @@ final class AppSettings: ObservableObject {
     @Published var privacyMode: Bool {
         didSet { defaults.set(privacyMode, forKey: "privacyMode") }
     }
+    @Published var codexDefaultAccountName: String {
+        didSet { defaults.set(codexDefaultAccountName, forKey: "codexDefaultAccountName") }
+    }
     @Published var codexHomePath: String {
         didSet { defaults.set(codexHomePath, forKey: "codexHomePath") }
     }
@@ -838,6 +839,7 @@ final class AppSettings: ObservableObject {
         [
             .defaultAccount(
                 homePath: codexHomePath,
+                displayName: resolvedCodexDisplayName(codexDefaultAccountName, fallback: "默认账号"),
                 isDashboardVisible: showCodexCard,
                 isStatusBarIncluded: showCodexStatusItem
             )
@@ -889,6 +891,7 @@ final class AppSettings: ObservableObject {
         statusBarLogoAnimation = defaults.object(forKey: "statusBarLogoAnimation") as? Bool ?? true
         statusBarRunner = StatusBarRunner(rawValue: defaults.string(forKey: "statusBarRunner") ?? "") ?? .runCat
         privacyMode = defaults.object(forKey: "privacyMode") as? Bool ?? false
+        codexDefaultAccountName = defaults.string(forKey: "codexDefaultAccountName") ?? "默认账号"
         codexHomePath = defaults.string(forKey: "codexHomePath") ?? ""
         codexManagedAccounts = Self.loadCodexManagedAccounts(from: defaults.data(forKey: "codexManagedAccounts"))
         let savedInterval = defaults.integer(forKey: "refreshInterval")
@@ -907,6 +910,11 @@ final class AppSettings: ObservableObject {
         sensorLastReadAt = nil
         sensorHelperMessage = nil
         probeSensorHelper()
+    }
+
+    private func resolvedCodexDisplayName(_ name: String, fallback: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? fallback : trimmed
     }
 
     func addCodexManagedAccount(named displayName: String) -> CodexAccountConfiguration? {
@@ -1145,7 +1153,7 @@ final class AppSettings: ObservableObject {
             "showCPUCard", "showGPUCard", "showMemoryCard", "showDiskCard",
             "showNetworkCard", "showFanCard", "showPowerCard", "showProcessesCard",
             "showCodexCard", "showCodexStatusItem", "codexStatusMetric", "codexStatusBarMode", "statusBarMetricOrder",
-            "systemStatusBarStyle", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "codexHomePath", "codexManagedAccounts", "powerSavingMode", "processLimit", "processSort", "refreshInterval"
+            "systemStatusBarStyle", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "codexDefaultAccountName", "codexHomePath", "codexManagedAccounts", "powerSavingMode", "processLimit", "processSort", "refreshInterval"
         ].forEach { defaults.removeObject(forKey: $0) }
 
         theme = .system
@@ -1171,6 +1179,7 @@ final class AppSettings: ObservableObject {
         statusBarLogoAnimation = true
         statusBarRunner = .runCat
         privacyMode = false
+        codexDefaultAccountName = "默认账号"
         codexHomePath = ""
         codexManagedAccounts = []
         refreshInterval = 3
@@ -1210,10 +1219,41 @@ struct BatterySnapshot {
     let powerSource: String
 }
 
+enum BluetoothDeviceKind {
+    case headphones
+    case keyboard
+    case trackpad
+    case mouse
+    case gameController
+    case generic
+
+    var icon: String {
+        switch self {
+        case .headphones: return "headphones"
+        case .keyboard: return "keyboard"
+        case .trackpad: return "rectangle.and.hand.point.up.left"
+        case .mouse: return "computermouse"
+        case .gameController: return "gamecontroller"
+        case .generic: return "bluetooth"
+        }
+    }
+
+    static func detect(name: String, majorType: String, minorType: String) -> Self {
+        let description = "\(majorType) \(minorType) \(name)".lowercased()
+        if description.contains("keyboard") || description.contains("键盘") { return .keyboard }
+        if description.contains("trackpad") || description.contains("触控板") { return .trackpad }
+        if description.contains("mouse") || description.contains("鼠标") { return .mouse }
+        if description.contains("gamepad") || description.contains("controller") { return .gameController }
+        if description.contains("headphone") || description.contains("headset") || description.contains("airpod") || description.contains("earbud") || description.contains("耳机") { return .headphones }
+        return .generic
+    }
+}
+
 struct BluetoothBatterySnapshot {
     let name: String
     let percentage: Double?
     let detail: String
+    let kind: BluetoothDeviceKind
 }
 
 struct DeviceInfo {
@@ -2099,6 +2139,8 @@ private enum BluetoothReader {
         var connectedSection = false
         var currentName: String?
         var currentConnected = false
+        var majorType = ""
+        var minorType = ""
         var left: Double?
         var right: Double?
         var single: Double?
@@ -2118,7 +2160,16 @@ private enum BluetoothReader {
             } else {
                 detail = "电量 \(Int(level))%"
             }
-            snapshots.append(BluetoothBatterySnapshot(name: currentName, percentage: level, detail: detail))
+            snapshots.append(BluetoothBatterySnapshot(
+                name: currentName,
+                percentage: level,
+                detail: detail,
+                kind: BluetoothDeviceKind.detect(
+                    name: currentName,
+                    majorType: majorType,
+                    minorType: minorType
+                )
+            ))
         }
 
         for rawLine in output.split(separator: "\n", omittingEmptySubsequences: false) {
@@ -2131,6 +2182,8 @@ private enum BluetoothReader {
                 flush()
                 currentName = nil
                 currentConnected = false
+                majorType = ""
+                minorType = ""
                 left = nil
                 right = nil
                 single = nil
@@ -2155,6 +2208,8 @@ private enum BluetoothReader {
                 flush()
                 currentName = String(value.dropLast()).trimmingCharacters(in: .whitespaces)
                 currentConnected = connectedSection
+                majorType = ""
+                minorType = ""
                 left = nil
                 right = nil
                 single = nil
@@ -2162,7 +2217,11 @@ private enum BluetoothReader {
             }
 
             guard currentName != nil else { continue }
-            if let connected = connectionValue(in: value) {
+            if let type = string(after: "Major Type:", in: value) {
+                majorType = type
+            } else if let type = string(after: "Minor Type:", in: value) {
+                minorType = type
+            } else if let connected = connectionValue(in: value) {
                 currentConnected = connected
             } else if let level = percentage(after: "Left Battery Level:", in: value) {
                 left = level
@@ -2200,6 +2259,11 @@ private enum BluetoothReader {
         case let (nil, right?): return right
         case (nil, nil): return nil
         }
+    }
+
+    private static func string(after key: String, in value: String) -> String? {
+        guard value.hasPrefix(key) else { return nil }
+        return String(value.dropFirst(key.count).trimmingCharacters(in: .whitespaces))
     }
 
     private static func percentage(after key: String, in value: String) -> Double? {
@@ -2485,9 +2549,9 @@ struct PowerStatusView: View {
                 }
             }
 
-            // Keep every device in a flexible two-column grid. Long device
-            // names can wrap instead of being clipped, and additional devices
-            // naturally continue on the next row.
+            // Keep every device in a flexible two-column grid. Long names use
+            // a single middle-truncated line so they do not turn a card into an
+            // uneven two-line layout; the full name remains available on hover.
             LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
                 BatteryRing(
                     value: battery.percentage,
@@ -2501,7 +2565,7 @@ struct PowerStatusView: View {
                         value: device.percentage,
                         title: isPrivacyMode ? "蓝牙设备 \(index + 1)" : device.name,
                         detail: device.detail,
-                        icon: "airpodspro"
+                        icon: device.kind.icon
                     )
                 }
             }
@@ -2579,8 +2643,10 @@ struct BatteryRing: View {
                 HStack(alignment: .top, spacing: 4) {
                     Image(systemName: icon)
                     Text(title)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .minimumScaleFactor(0.8)
+                        .help(title)
                 }
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -3019,9 +3085,11 @@ struct SettingsView: View {
                 SettingsSection(title: "Codex 账号") {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 3) {
+                            VStack(alignment: .leading, spacing: 5) {
                                 Text("默认账号")
                                     .font(.caption.weight(.semibold))
+                                TextField("显示名称", text: $settings.codexDefaultAccountName)
+                                    .textFieldStyle(.roundedBorder)
                                 Text(settings.codexHomePath.isEmpty ? "自动：CODEX_HOME / ~/.codex" : settings.codexHomePath)
                                     .font(.caption2.monospaced())
                                     .foregroundStyle(.secondary)
@@ -3046,7 +3114,7 @@ struct SettingsView: View {
                             ForEach($settings.codexManagedAccounts) { $account in
                                 VStack(alignment: .leading, spacing: 5) {
                                     HStack(spacing: 8) {
-                                        TextField("账号名称", text: $account.displayName)
+                                        TextField("显示名称", text: $account.displayName)
                                             .textFieldStyle(.roundedBorder)
                                         Toggle("面板", isOn: $account.isDashboardVisible)
                                             .toggleStyle(.checkbox)
@@ -3089,7 +3157,7 @@ struct SettingsView: View {
                             .buttonStyle(.bordered)
                         }
 
-                        Text(codexAccountMessage ?? "新增账号保存在 ~/.torli-stats-codex/<账号目录>；移除只删除本应用配置，不删除本地登录态。")
+                        Text(codexAccountMessage ?? "显示名称会用于 Dashboard、状态栏和提示信息；新增账号保存在 ~/.torli-stats-codex/<账号目录>，移除只删除本应用配置，不删除本地登录态。")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)

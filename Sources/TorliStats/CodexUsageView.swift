@@ -45,7 +45,7 @@ struct CodexUsageView: View {
                     CodexAccountUsageRow(
                         account: account,
                         state: store.state(for: account.id),
-                        displayName: isPrivacyMode ? privateLabel(for: account) : nil,
+                        displayName: isPrivacyMode ? privateLabel(for: account) : account.resolvedDisplayName,
                         onRefresh: { store.refresh(accountID: account.id) }
                     )
                     if account.id != displayedAccounts.last?.id {
@@ -117,13 +117,13 @@ struct CodexUsageView: View {
 private struct CodexAccountUsageRow: View {
     let account: CodexAccountConfiguration
     let state: CodexUsageState
-    let displayName: String?
+    let displayName: String
     let onRefresh: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 7) {
-                Text(displayName ?? state.snapshot?.account.email ?? account.displayName)
+                Text(displayName)
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .lineLimit(1)
                     .minimumScaleFactor(0.55)
@@ -154,7 +154,7 @@ private struct CodexAccountUsageRow: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-                .help("刷新 \(account.displayName)")
+                .help("刷新 \(displayName)")
             }
 
             switch state {
