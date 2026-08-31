@@ -30,6 +30,29 @@ struct CodexAccountConfiguration: Codable, Identifiable, Equatable {
     }
 }
 
+struct CodexRefreshSettings: Equatable {
+    let isEnabled: Bool
+    let intervalMinutes: Int
+}
+
+struct CodexHomeValidation {
+    let resolvedPath: String
+    let directoryExists: Bool
+    let authFileExists: Bool
+    let executablePath: String?
+
+    var isReady: Bool {
+        directoryExists && authFileExists && executablePath != nil
+    }
+
+    var summary: String {
+        if !directoryExists { return "Codex Home 目录不存在" }
+        if !authFileExists { return "未找到 auth.json，请先登录 Codex" }
+        if executablePath == nil { return "未找到可执行的 Codex CLI" }
+        return "Home、登录文件和 Codex CLI 已就绪"
+    }
+}
+
 enum CodexUsageError: Error, LocalizedError {
     case codexHomeNotFound
     case authFileNotFound

@@ -60,23 +60,25 @@ enum StatusBarRunner: String, CaseIterable, Identifiable {
 /// Artwork: Copyright 2026 Kyome22 (Takuto Nakamura), Apache-2.0.
 final class StatusBarLogoAnimator {
     private static let artworkHeight: CGFloat = 20
-    private static let titleGap: CGFloat = 2.5
 
-    private weak var button: NSStatusBarButton?
+    private let onFrameChange: (NSImage?) -> Void
     private let frames: [NSImage]
     private let isAnimated: Bool
     private var frameIndex = 0
     private var timer: Timer?
     private var frameInterval: TimeInterval?
 
-    init(button: NSStatusBarButton, runner: StatusBarRunner, animated: Bool, cpuUsage: Double) {
-        self.button = button
+    init(
+        runner: StatusBarRunner,
+        animated: Bool,
+        cpuUsage: Double,
+        onFrameChange: @escaping (NSImage?) -> Void
+    ) {
+        self.onFrameChange = onFrameChange
         frames = Self.makeFrames(for: runner)
         isAnimated = animated
 
-        button.image = frames.first
-        button.imagePosition = .imageLeading
-        button.imageScaling = .scaleProportionallyDown
+        renderCurrentFrame()
         setCPUUsage(cpuUsage)
     }
 
@@ -104,7 +106,11 @@ final class StatusBarLogoAnimator {
     private func advanceFrame() {
         guard !frames.isEmpty else { return }
         frameIndex = (frameIndex + 1) % frames.count
-        button?.image = frames[frameIndex]
+        renderCurrentFrame()
+    }
+
+    private func renderCurrentFrame() {
+        onFrameChange(frames.indices.contains(frameIndex) ? frames[frameIndex] : nil)
     }
 
     private static func makeFrames(for runner: StatusBarRunner) -> [NSImage] {
@@ -120,7 +126,10 @@ final class StatusBarLogoAnimator {
         let frameWidth = cgImage.width / runner.frameCount
         let aspectRatio = CGFloat(frameWidth) / CGFloat(cgImage.height)
         let artworkWidth = artworkHeight * aspectRatio
-        let imageSize = NSSize(width: artworkWidth + titleGap, height: artworkHeight)
+        // The status bar compositor supplies the same inter-item spacing for
+        // runners and metric groups, so runner frames should not include an
+        // additional transparent trailing gap of their own.
+        let imageSize = NSSize(width: artworkWidth, height: artworkHeight)
 
         return (0..<runner.frameCount).compactMap { index in
             let sourceRect = CGRect(
