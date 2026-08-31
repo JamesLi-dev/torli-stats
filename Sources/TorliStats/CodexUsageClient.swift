@@ -10,29 +10,47 @@ final class CodexUsageClient {
 
     func fetch(completion: @escaping (Result<CodexUsageSnapshot, CodexUsageError>) -> Void) {
         queue.async { [homePathProvider] in
-            guard let home = Self.resolveHome(path: homePathProvider()) else {
+            let validation = Self.validate(homePath: homePathProvider())
+            guard validation.directoryExists else {
                 completion(.failure(.codexHomeNotFound))
                 return
             }
-            guard FileManager.default.fileExists(atPath: home.appendingPathComponent("auth.json").path) else {
+            guard validation.authFileExists else {
                 completion(.failure(.authFileNotFound))
                 return
             }
-            guard let executable = Self.executableURL() else {
+            guard let executablePath = validation.executablePath else {
                 completion(.failure(.executableNotFound))
                 return
             }
 
             CodexServerSession(
-                executable: executable,
-                home: home,
+                executable: URL(fileURLWithPath: executablePath),
+                home: URL(fileURLWithPath: validation.resolvedPath),
                 completion: completion
             ).start()
         }
     }
 
-    private static func resolveHome(path: String?) -> URL? {
-        let fileManager = FileManager.default
+    static func validate(homePath: String?) -> CodexHomeValidation {
+        let home = resolvedHomeURL(path: homePath)
+        var isDirectory: ObjCBool = false
+        let directoryExists = FileManager.default.fileExists(
+            atPath: home.path,
+            isDirectory: &isDirectory
+        ) && isDirectory.boolValue
+        let authFileExists = directoryExists && FileManager.default.fileExists(
+            atPath: home.appendingPathComponent("auth.json").path
+        )
+        return CodexHomeValidation(
+            resolvedPath: home.path,
+            directoryExists: directoryExists,
+            authFileExists: authFileExists,
+            executablePath: executableURL()?.path
+        )
+    }
+
+    private static func resolvedHomeURL(path: String?) -> URL {
         let rawPath: String
         if let path, !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             rawPath = path
@@ -41,14 +59,8 @@ final class CodexUsageClient {
         } else {
             rawPath = "~/.codex"
         }
-
         let expanded = (rawPath as NSString).expandingTildeInPath
-        let url = URL(fileURLWithPath: expanded).standardizedFileURL
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else {
-            return nil
-        }
-        return url
+        return URL(fileURLWithPath: expanded).standardizedFileURL
     }
 
     static func executableURL() -> URL? {

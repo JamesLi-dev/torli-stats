@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import SwiftUI
+import UniformTypeIdentifiers
 import IOKit.ps
 import ServiceManagement
 import Darwin
@@ -30,13 +31,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var settingsWindow: NSWindow?
     private var cancellables = Set<AnyCancellable>()
     private var statusLogoAnimator: StatusBarLogoAnimator?
+    private var statusLogoImage: NSImage?
     private var appliedStatusLogoConfiguration: StatusBarLogoConfiguration?
 
     override init() {
         let appSettings = AppSettings()
         settings = appSettings
         store = MetricsStore(refreshInterval: appSettings.refreshInterval)
-        codexUsageStore = CodexAccountsUsageStore(configurationsProvider: { appSettings.codexAccounts })
+        codexUsageStore = CodexAccountsUsageStore(
+            configurationsProvider: { appSettings.codexAccounts },
+            refreshSettingsProvider: { appSettings.codexRefreshSettings }
+        )
         super.init()
         store.setProcessLimit(settings.processLimit)
         store.setProcessSort(settings.processSort)
@@ -170,18 +175,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         appliedStatusLogoConfiguration = configuration
         statusLogoAnimator = nil
 
+        button.image = nil
+        button.imagePosition = .noImage
+
         guard configuration.isVisible else {
-            button.image = nil
-            button.imagePosition = .noImage
+            statusLogoImage = nil
+            updateStatusTitle(store.statusLine)
             return
         }
 
         statusLogoAnimator = StatusBarLogoAnimator(
-            button: button,
             runner: configuration.runner,
             animated: configuration.isAnimated && !configuration.reduceMotion,
             cpuUsage: store.cpu
-        )
+        ) { [weak self] image in
+            guard let self else { return }
+            self.statusLogoImage = image
+            self.updateStatusTitle(self.store.statusLine)
+        }
     }
 
     private func updateStatusBarLogoSpeed() {
@@ -256,37 +267,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         let menu = NSMenu()
         menu.autoenablesItems = false
-        menu.addItem(NSMenuItem(
+        // Privacy mode previously used NSMenuItem.state, which makes AppKit
+        // reserve an empty state/checkmark column for every menu item. Use
+        // matching symbols instead so the leading edges stay compact.
+        menu.showsStateColumn = false
+
+        let aboutItem = NSMenuItem(
+            title: "关于 Torli Stats",
+            action: #selector(showAbout),
+            keyEquivalent: ""
+        )
+        aboutItem.image = menuSymbol("info.circle")
+        menu.addItem(aboutItem)
+
+        let settingsItem = NSMenuItem(
+            title: "打开设置",
+            action: #selector(openSettings),
+            keyEquivalent: ","
+        )
+        settingsItem.image = menuSymbol("gearshape")
+        menu.addItem(settingsItem)
+        menu.addItem(.separator())
+
+        let refreshItem = NSMenuItem(
             title: "刷新全部数据",
             action: #selector(refreshAllData),
             keyEquivalent: "r"
-        ))
+        )
+        refreshItem.image = menuSymbol("arrow.clockwise")
+        menu.addItem(refreshItem)
 
         let privacyItem = NSMenuItem(
             title: "隐私展示模式",
             action: #selector(togglePrivacyMode),
             keyEquivalent: ""
         )
-        privacyItem.state = settings.privacyMode ? .on : .off
+        privacyItem.image = menuSymbol(settings.privacyMode ? "eye.slash.fill" : "eye.slash")
         menu.addItem(privacyItem)
 
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(
-            title: "打开设置",
-            action: #selector(openSettings),
-            keyEquivalent: ","
-        ))
-        menu.addItem(NSMenuItem(
-            title: "关于 Torli Stats",
-            action: #selector(showAbout),
-            keyEquivalent: ""
-        ))
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(
+        let quitItem = NSMenuItem(
             title: "退出 Torli Stats",
             action: #selector(quitApplication),
             keyEquivalent: "q"
-        ))
+        )
+        quitItem.image = menuSymbol("power")
+        menu.addItem(quitItem)
         menu.items.forEach { $0.target = self }
 
         menu.popUp(
@@ -294,6 +320,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             at: NSPoint(x: button.bounds.midX, y: button.bounds.minY - 4),
             in: button
         )
+    }
+
+    private func menuSymbol(_ name: String) -> NSImage? {
+        let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)
+        image?.isTemplate = true
+        return image
     }
 
     @objc private func refreshAllData() {
@@ -360,12 +392,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         let settings = SettingsView(
             settings: self.settings,
+            codexUsageStore: codexUsageStore,
             onCodexRefresh: { [weak self] in
                 self?.codexUsageStore.refresh()
             }
         )
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 860, height: 560),
+            contentRect: NSRect(x: 0, y: 0, width: 860, height: 760),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
@@ -413,29 +446,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             .baselineOffset: -4
         ]
 
-        let groups = settings.statusBarMetricOrder.compactMap {
-            normalizedStatusBarGroup(
-                statusBarGroupContent(for: $0, line: line, attributes: commonAttributes),
-                attributes: commonAttributes
-            )
-        }
-        let firstLine = groups.compactMap(\.firstLine)
-        let secondLine = groups.compactMap(\.secondLine)
-        let attributedTitle = NSMutableAttributedString()
+        if let statusLogoImage,
+           settings.statusBarMetricOrder.contains(.logo),
+           let composite = makeStatusBarCompositeImage(
+               logoImage: statusLogoImage,
+               line: line,
+               attributes: commonAttributes,
+               appearance: button.effectiveAppearance
+           ) {
+            button.image = composite
+            button.imagePosition = .imageOnly
+            button.attributedTitle = NSAttributedString(string: "")
+        } else {
+            let groups = settings.statusBarMetricOrder.compactMap {
+                normalizedStatusBarGroup(
+                    statusBarGroupContent(for: $0, line: line, attributes: commonAttributes),
+                    attributes: commonAttributes
+                )
+            }
+            let firstLine = groups.compactMap(\.firstLine)
+            let secondLine = groups.compactMap(\.secondLine)
+            let attributedTitle = NSMutableAttributedString()
 
-        if !firstLine.isEmpty {
-            attributedTitle.append(joinStatusBarSegments(firstLine, attributes: commonAttributes, separator: "  "))
+            if !firstLine.isEmpty {
+                attributedTitle.append(joinStatusBarSegments(firstLine, attributes: commonAttributes, separator: "  "))
+            }
+            if !firstLine.isEmpty && !secondLine.isEmpty {
+                attributedTitle.append(NSAttributedString(string: "\n", attributes: commonAttributes))
+            }
+            if !secondLine.isEmpty {
+                attributedTitle.append(joinStatusBarSegments(secondLine, attributes: commonAttributes, separator: "  "))
+            }
+            if attributedTitle.length == 0 {
+                attributedTitle.append(NSAttributedString(string: "Torli", attributes: commonAttributes))
+            }
+            button.image = nil
+            button.imagePosition = .noImage
+            button.attributedTitle = attributedTitle
         }
-        if !firstLine.isEmpty && !secondLine.isEmpty {
-            attributedTitle.append(NSAttributedString(string: "\n", attributes: commonAttributes))
-        }
-        if !secondLine.isEmpty {
-            attributedTitle.append(joinStatusBarSegments(secondLine, attributes: commonAttributes, separator: "  "))
-        }
-        if attributedTitle.length == 0 {
-            attributedTitle.append(NSAttributedString(string: "Torli", attributes: commonAttributes))
-        }
-        button.attributedTitle = attributedTitle
 
         let codexValues = codexStatusBarValues()
         if codexValues.isEmpty {
@@ -448,6 +496,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
             button.toolTip = "Torli Stats · Codex · \(details.joined(separator: "；"))"
         }
+    }
+
+    private func makeStatusBarCompositeImage(
+        logoImage: NSImage,
+        line: StatusLine,
+        attributes: [NSAttributedString.Key: Any],
+        appearance: NSAppearance
+    ) -> NSImage? {
+        var segments: [(group: StatusBarMetricGroup, content: StatusBarGroupContent?, width: CGFloat)] = []
+
+        for group in settings.statusBarMetricOrder {
+            if group == .logo {
+                segments.append((group, nil, logoImage.size.width))
+                continue
+            }
+            guard let content = normalizedStatusBarGroup(
+                statusBarGroupContent(for: group, line: line, attributes: attributes),
+                attributes: attributes
+            ) else { continue }
+            let width = max(content.firstLine?.size().width ?? 0, content.secondLine?.size().width ?? 0)
+            segments.append((group, content, width))
+        }
+
+        guard !segments.isEmpty else { return nil }
+        // Keep status-bar groups compact while leaving a visible separation.
+        let spacing: CGFloat = 8
+        let totalWidth = segments.reduce(CGFloat.zero) { $0 + $1.width }
+            + CGFloat(max(0, segments.count - 1)) * spacing
+        guard totalWidth > 0 else { return nil }
+
+        let image = NSImage(size: NSSize(width: ceil(totalWidth), height: 20))
+        image.lockFocus()
+        var x: CGFloat = 0
+        appearance.performAsCurrentDrawingAppearance {
+            let labelColor = NSColor.labelColor
+            for segment in segments {
+                if segment.group == .logo {
+                    let logoRect = NSRect(x: x, y: 0, width: logoImage.size.width, height: 20)
+                    logoImage.draw(in: logoRect)
+                    NSGraphicsContext.current?.compositingOperation = .sourceIn
+                    labelColor.setFill()
+                    NSBezierPath(rect: logoRect).fill()
+                    NSGraphicsContext.current?.compositingOperation = .sourceOver
+                } else if let content = segment.content {
+                    content.firstLine?.draw(at: NSPoint(x: x, y: 10))
+                    content.secondLine?.draw(at: NSPoint(x: x, y: 0))
+                }
+                x += segment.width + spacing
+            }
+        }
+
+        image.unlockFocus()
+        image.isTemplate = false
+        return image
     }
 
     private func statusBarGroupContent(
@@ -483,6 +585,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 firstLine: settings.showUpload ? statusBarText("↑ \(rightAligned(line.upload, width: 8))", attributes: attributes) : nil,
                 secondLine: settings.showDownload ? statusBarText("↓ \(rightAligned(line.download, width: 8))", attributes: attributes) : nil
             )
+
+        case .logo:
+            // Logo is composed with the two-line text groups as one image in
+            // `updateStatusTitle`, allowing it to be placed at any position.
+            return StatusBarGroupContent(firstLine: nil, secondLine: nil)
 
         case .codex:
             let values = codexStatusBarValues()
@@ -677,6 +784,7 @@ enum StatusBarMetricGroup: String, CaseIterable, Codable, Identifiable {
     case system
     case network
     case codex
+    case logo
 
     var id: String { rawValue }
 
@@ -685,6 +793,7 @@ enum StatusBarMetricGroup: String, CaseIterable, Codable, Identifiable {
         case .system: return "系统（CPU / 内存）"
         case .network: return "网络（下载 / 上传）"
         case .codex: return "Codex 使用情况"
+        case .logo: return "状态栏 Logo"
         }
     }
 }
@@ -751,6 +860,7 @@ enum ProcessSortOption: String, CaseIterable, Identifiable {
 
 final class AppSettings: ObservableObject {
     static let supportedRefreshIntervals = [1, 3, 5, 10, 30]
+    static let supportedCodexRefreshIntervals = [1, 5, 10, 30]
 
     private let defaults = UserDefaults.standard
 
@@ -829,12 +939,25 @@ final class AppSettings: ObservableObject {
     @Published var codexHomePath: String {
         didSet { defaults.set(codexHomePath, forKey: "codexHomePath") }
     }
+    @Published var codexAutoRefresh: Bool {
+        didSet { defaults.set(codexAutoRefresh, forKey: "codexAutoRefresh") }
+    }
+    @Published var codexRefreshInterval: Int {
+        didSet { defaults.set(codexRefreshInterval, forKey: "codexRefreshInterval") }
+    }
     @Published var codexManagedAccounts: [CodexAccountConfiguration] {
         didSet {
             guard let data = try? JSONEncoder().encode(codexManagedAccounts) else { return }
             defaults.set(data, forKey: "codexManagedAccounts")
         }
     }
+    var codexRefreshSettings: CodexRefreshSettings {
+        CodexRefreshSettings(
+            isEnabled: codexAutoRefresh,
+            intervalMinutes: codexRefreshInterval
+        )
+    }
+
     var codexAccounts: [CodexAccountConfiguration] {
         [
             .defaultAccount(
@@ -893,6 +1016,11 @@ final class AppSettings: ObservableObject {
         privacyMode = defaults.object(forKey: "privacyMode") as? Bool ?? false
         codexDefaultAccountName = defaults.string(forKey: "codexDefaultAccountName") ?? "默认账号"
         codexHomePath = defaults.string(forKey: "codexHomePath") ?? ""
+        codexAutoRefresh = defaults.object(forKey: "codexAutoRefresh") as? Bool ?? true
+        let savedCodexRefreshInterval = defaults.integer(forKey: "codexRefreshInterval")
+        codexRefreshInterval = Self.supportedCodexRefreshIntervals.contains(savedCodexRefreshInterval)
+            ? savedCodexRefreshInterval
+            : 5
         codexManagedAccounts = Self.loadCodexManagedAccounts(from: defaults.data(forKey: "codexManagedAccounts"))
         let savedInterval = defaults.integer(forKey: "refreshInterval")
         refreshInterval = Self.supportedRefreshIntervals.contains(savedInterval) ? savedInterval : 3
@@ -1153,7 +1281,7 @@ final class AppSettings: ObservableObject {
             "showCPUCard", "showGPUCard", "showMemoryCard", "showDiskCard",
             "showNetworkCard", "showFanCard", "showPowerCard", "showProcessesCard",
             "showCodexCard", "showCodexStatusItem", "codexStatusMetric", "codexStatusBarMode", "statusBarMetricOrder",
-            "systemStatusBarStyle", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "codexDefaultAccountName", "codexHomePath", "codexManagedAccounts", "powerSavingMode", "processLimit", "processSort", "refreshInterval"
+            "systemStatusBarStyle", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "codexDefaultAccountName", "codexHomePath", "codexAutoRefresh", "codexRefreshInterval", "codexManagedAccounts", "powerSavingMode", "processLimit", "processSort", "refreshInterval"
         ].forEach { defaults.removeObject(forKey: $0) }
 
         theme = .system
@@ -1181,6 +1309,8 @@ final class AppSettings: ObservableObject {
         privacyMode = false
         codexDefaultAccountName = "默认账号"
         codexHomePath = ""
+        codexAutoRefresh = true
+        codexRefreshInterval = 5
         codexManagedAccounts = []
         refreshInterval = 3
         powerSavingMode = false
@@ -2549,9 +2679,9 @@ struct PowerStatusView: View {
                 }
             }
 
-            // Keep every device in a flexible two-column grid. Long names use
-            // a single middle-truncated line so they do not turn a card into an
-            // uneven two-line layout; the full name remains available on hover.
+            // Keep every device in a flexible two-column grid. With more than
+            // two Bluetooth devices, their compact rings keep the panel from
+            // growing into a long list while preserving the device type and charge.
             LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
                 BatteryRing(
                     value: battery.percentage,
@@ -2561,12 +2691,20 @@ struct PowerStatusView: View {
                 )
 
                 ForEach(Array(bluetoothBatteries.enumerated()), id: \.offset) { index, device in
-                    BatteryRing(
-                        value: device.percentage,
-                        title: isPrivacyMode ? "蓝牙设备 \(index + 1)" : device.name,
-                        detail: device.detail,
-                        icon: device.kind.icon
-                    )
+                    if bluetoothBatteries.count > 2 {
+                        CompactBluetoothBatteryRing(
+                            value: device.percentage,
+                            icon: device.kind.icon,
+                            accessibilityName: isPrivacyMode ? "蓝牙设备 \(index + 1)" : device.name
+                        )
+                    } else {
+                        BatteryRing(
+                            value: device.percentage,
+                            title: isPrivacyMode ? "蓝牙设备 \(index + 1)" : device.name,
+                            detail: device.detail,
+                            icon: device.kind.icon
+                        )
+                    }
                 }
             }
         }
@@ -2615,6 +2753,39 @@ struct TemperatureTag: View {
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .accessibilityLabel("温度")
             .accessibilityValue(value.map { String(format: "%.0f 摄氏度", $0) } ?? "不可用")
+    }
+}
+
+private struct CompactBluetoothBatteryRing: View {
+    let value: Double?
+    let icon: String
+    let accessibilityName: String
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.primary.opacity(0.12), lineWidth: 3.5)
+            Circle()
+                .trim(from: 0, to: CGFloat(max(0, min(100, value ?? 0)) / 100))
+                .stroke(
+                    value == nil ? Color.primary.opacity(0.18) : Color.green,
+                    style: StrokeStyle(lineWidth: 3.5, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+            VStack(spacing: 1) {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .semibold))
+                Text(value.map { "\(Int($0))%" } ?? "—")
+                    .font(.system(size: 8, weight: .bold, design: .monospaced))
+            }
+            .foregroundStyle(value == nil ? .secondary : .primary)
+        }
+        .frame(width: 48, height: 48)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .help(accessibilityName)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityName)
+        .accessibilityValue(value.map { "\(Int($0))%" } ?? "电量不可用")
     }
 }
 
@@ -2732,6 +2903,67 @@ private struct InfoTag: View {
     }
 }
 
+private struct SettingsFieldLabel: View {
+    let title: String
+
+    init(_ title: String) {
+        self.title = title
+    }
+
+    var body: some View {
+        Text(title)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(width: 72, alignment: .leading)
+            .lineLimit(1)
+    }
+}
+
+private struct SettingsSubsectionTitle: View {
+    let title: String
+
+    init(_ title: String) {
+        self.title = title
+    }
+
+    var body: some View {
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+    }
+}
+
+private struct StatusBarMetricGroupDropDelegate: DropDelegate {
+    let target: StatusBarMetricGroup
+    @Binding var groups: [StatusBarMetricGroup]
+    @Binding var draggedGroup: StatusBarMetricGroup?
+
+    func dropEntered(info: DropInfo) {
+        guard let draggedGroup,
+              draggedGroup != target,
+              let sourceIndex = groups.firstIndex(of: draggedGroup),
+              let destinationIndex = groups.firstIndex(of: target) else {
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 0.15)) {
+            groups.move(
+                fromOffsets: IndexSet(integer: sourceIndex),
+                toOffset: destinationIndex > sourceIndex ? destinationIndex + 1 : destinationIndex
+            )
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggedGroup = nil
+        return true
+    }
+}
+
 private struct SettingsColumnHeightPreferenceKey: PreferenceKey {
     static let defaultValue: [Int: CGFloat] = [:]
 
@@ -2742,17 +2974,22 @@ private struct SettingsColumnHeightPreferenceKey: PreferenceKey {
 
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
+    @ObservedObject var codexUsageStore: CodexAccountsUsageStore
     @State private var settingsColumnsHeight: CGFloat = 0
+    @State private var draggedStatusBarGroup: StatusBarMetricGroup?
     @State private var codexAccountMessage: String?
+    @State private var testingCodexAccountIDs = Set<UUID>()
     @State private var isAddingCodexAccount = false
     @State private var newCodexAccountName = ""
     let onCodexRefresh: () -> Void
 
     init(
         settings: AppSettings,
+        codexUsageStore: CodexAccountsUsageStore,
         onCodexRefresh: @escaping () -> Void
     ) {
         self.settings = settings
+        self.codexUsageStore = codexUsageStore
         self.onCodexRefresh = onCodexRefresh
     }
 
@@ -2763,15 +3000,6 @@ struct SettingsView: View {
 
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("偏好设置")
-                        .font(.title3.weight(.semibold))
-                    Spacer()
-                    Text("自动保存")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
                 // 外观与状态栏、系统位于左列；面板模块、监控位于右列，避免模块间出现大块空白。
                 HStack(alignment: .top, spacing: 16) {
                     VStack(alignment: .leading, spacing: 16) {
@@ -2779,30 +3007,37 @@ struct SettingsView: View {
                             title: "外观与状态栏",
                             cardMinHeight: max(470, settingsColumnsHeight - 28)
                         ) {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Picker("", selection: $settings.theme) {
-                                    ForEach(ThemePreference.allCases) { theme in
-                                        Text(theme.title).tag(theme)
+                            VStack(alignment: .leading, spacing: 14) {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    HStack(spacing: 12) {
+                                        SettingsFieldLabel("主题")
+                                        Picker("", selection: $settings.theme) {
+                                            ForEach(ThemePreference.allCases) { theme in
+                                                Text(theme.title).tag(theme)
+                                            }
+                                        }
+                                        .labelsHidden()
+                                        .pickerStyle(.segmented)
+                                        .frame(width: 240)
                                     }
-                                }
-                                .pickerStyle(.segmented)
-                                .frame(width: 240, alignment: .leading)
-                                .offset(x: -8)
 
-                                Divider()
+                                    Divider()
 
-                                LazyVGrid(columns: [
-                                    GridItem(.flexible(), alignment: .leading),
-                                    GridItem(.flexible(), alignment: .leading)
-                                ], alignment: .leading, spacing: 10) {
-                                    Toggle("CPU", isOn: $settings.showCPU)
-                                    Toggle("内存", isOn: $settings.showMemory)
-                                    Toggle("下载", isOn: $settings.showDownload)
-                                    Toggle("上传", isOn: $settings.showUpload)
-                                    Toggle("Codex 进度", isOn: $settings.showCodexStatusItem)
-                                    HStack(spacing: 5) {
-                                        Text("Codex")
-                                            .lineLimit(1)
+                                    SettingsSubsectionTitle("菜单栏显示内容")
+                                    LazyVGrid(columns: [
+                                        GridItem(.flexible(), alignment: .leading),
+                                        GridItem(.flexible(), alignment: .leading),
+                                        GridItem(.flexible(), alignment: .leading),
+                                        GridItem(.flexible(), alignment: .leading)
+                                    ], alignment: .leading, spacing: 10) {
+                                        Toggle("CPU", isOn: $settings.showCPU)
+                                        Toggle("内存", isOn: $settings.showMemory)
+                                        Toggle("下载", isOn: $settings.showDownload)
+                                        Toggle("上传", isOn: $settings.showUpload)
+                                    }
+                                    HStack(spacing: 12) {
+                                        Toggle("Codex 进度", isOn: $settings.showCodexStatusItem)
+                                            .frame(width: 140, alignment: .leading)
                                         Picker("", selection: $settings.codexStatusMetric) {
                                             ForEach(CodexStatusMetric.allCases) { metric in
                                                 Text(metric.title).tag(metric)
@@ -2810,52 +3045,46 @@ struct SettingsView: View {
                                         }
                                         .labelsHidden()
                                         .pickerStyle(.menu)
-                                        .frame(width: 74)
+                                        .frame(width: 90)
                                     }
-                                }
-
-                                HStack(spacing: 8) {
-                                    Text("Codex 菜单栏")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                    Picker("", selection: $settings.codexStatusBarMode) {
-                                        ForEach(CodexStatusBarMode.allCases) { mode in
-                                            Text(mode.title).tag(mode)
+                                    HStack(spacing: 12) {
+                                        SettingsFieldLabel("Codex 展示")
+                                        Picker("", selection: $settings.codexStatusBarMode) {
+                                            ForEach(CodexStatusBarMode.allCases) { mode in
+                                                Text(mode.title).tag(mode)
+                                            }
                                         }
+                                        .labelsHidden()
+                                        .pickerStyle(.segmented)
+                                        .frame(width: 210)
                                     }
-                                    .labelsHidden()
-                                    .pickerStyle(.segmented)
-                                    .frame(width: 210, alignment: .leading)
-                                }
 
-                                Divider()
+                                    Divider()
 
-                                LazyVGrid(columns: [
-                                    GridItem(.flexible(), alignment: .leading),
-                                    GridItem(.flexible(), alignment: .leading)
-                                ], alignment: .leading, spacing: 8) {
-                                    Text("系统指标样式")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                    Picker("", selection: $settings.systemStatusBarStyle) {
-                                        ForEach(SystemStatusBarStyle.allCases) { style in
-                                            Text(style.title).tag(style)
+                                    SettingsSubsectionTitle("系统指标样式")
+                                    HStack(spacing: 12) {
+                                        SettingsFieldLabel("显示方式")
+                                        Picker("", selection: $settings.systemStatusBarStyle) {
+                                            ForEach(SystemStatusBarStyle.allCases) { style in
+                                                Text(style.title).tag(style)
+                                            }
                                         }
+                                        .labelsHidden()
+                                        .pickerStyle(.segmented)
+                                        .frame(width: 132)
                                     }
-                                    .labelsHidden()
-                                    .pickerStyle(.segmented)
-                                    .frame(width: 132, alignment: .leading)
-                                }
 
-                                Divider()
+                                    Divider()
 
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Toggle("显示状态栏 Logo", isOn: $settings.showStatusBarLogo)
-
-                                    HStack(spacing: 8) {
-                                        Text("动画样式")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                    HStack(spacing: 14) {
+                                        Toggle("显示 Logo", isOn: $settings.showStatusBarLogo)
+                                            .fixedSize(horizontal: true, vertical: false)
+                                        Toggle("随 CPU 加速", isOn: $settings.statusBarLogoAnimation)
+                                            .toggleStyle(.switch)
+                                            .fixedSize(horizontal: true, vertical: false)
+                                            .disabled(!settings.showStatusBarLogo)
+                                        SettingsFieldLabel("动画样式")
+                                            .fixedSize(horizontal: true, vertical: false)
                                         Picker("", selection: $settings.statusBarRunner) {
                                             ForEach(StatusBarRunner.allCases) { runner in
                                                 Text(runner.title).tag(runner)
@@ -2863,15 +3092,9 @@ struct SettingsView: View {
                                         }
                                         .labelsHidden()
                                         .pickerStyle(.menu)
-                                        .frame(width: 118, alignment: .leading)
+                                        .frame(width: 130)
                                         .disabled(!settings.showStatusBarLogo)
-
-                                        Spacer(minLength: 0)
-                                        Toggle("随 CPU 加速", isOn: $settings.statusBarLogoAnimation)
-                                            .toggleStyle(.switch)
-                                            .disabled(!settings.showStatusBarLogo)
                                     }
-
                                     Text("内置 9 种 RunCatNeo / RunnerGallery 动画（Apache-2.0）；系统启用“减少动态效果”时自动显示静态图标。")
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
@@ -2880,38 +3103,44 @@ struct SettingsView: View {
 
                                 Divider()
 
-                                VStack(alignment: .leading, spacing: 9) {
-                                    Text("菜单栏指标顺序")
+                                VStack(alignment: .leading, spacing: 7) {
+                                    SettingsSubsectionTitle("菜单栏项目顺序")
+                                    Text("拖动项目调整状态栏显示顺序；Logo 也可以自由排序。")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
 
-                                    ForEach(settings.statusBarMetricOrder.indices, id: \.self) { index in
-                                        let group = settings.statusBarMetricOrder[index]
-                                        HStack(spacing: 8) {
-                                            Image(systemName: "line.3.horizontal")
-                                                .foregroundStyle(.secondary)
-                                                .font(.callout)
-                                            Text(group.title)
-                                                .font(.callout)
-                                                .padding(.vertical, 2)
-                                            Spacer(minLength: 0)
-                                            Button {
-                                                settings.moveStatusBarMetricGroup(from: index, by: -1)
-                                            } label: {
-                                                Image(systemName: "chevron.up")
+                                    LazyVGrid(
+                                        columns: [GridItem(.adaptive(minimum: 185), alignment: .leading)],
+                                        alignment: .leading,
+                                        spacing: 8
+                                    ) {
+                                        ForEach(settings.statusBarMetricOrder) { group in
+                                            HStack(spacing: 8) {
+                                                Image(systemName: group == .logo ? "figure.run" : "line.3.horizontal")
+                                                    .foregroundStyle(.secondary)
+                                                    .font(.callout)
+                                                Text(group.title)
+                                                    .font(.callout)
+                                                    .lineLimit(1)
+                                                Spacer(minLength: 0)
+                                                Image(systemName: "arrow.up.and.down")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.tertiary)
                                             }
-                                            .buttonStyle(.borderless)
-                                            .disabled(index == 0)
-                                            .accessibilityLabel("将\(group.title)上移")
-
-                                            Button {
-                                                settings.moveStatusBarMetricGroup(from: index, by: 1)
-                                            } label: {
-                                                Image(systemName: "chevron.down")
+                                            .padding(.vertical, 4)
+                                            .contentShape(Rectangle())
+                                            .onDrag {
+                                                draggedStatusBarGroup = group
+                                                return NSItemProvider(object: group.rawValue as NSString)
                                             }
-                                            .buttonStyle(.borderless)
-                                            .disabled(index == settings.statusBarMetricOrder.count - 1)
-                                            .accessibilityLabel("将\(group.title)下移")
+                                            .onDrop(
+                                                of: [UTType.text],
+                                                delegate: StatusBarMetricGroupDropDelegate(
+                                                    target: group,
+                                                    groups: $settings.statusBarMetricOrder,
+                                                    draggedGroup: $draggedStatusBarGroup
+                                                )
+                                            )
                                         }
                                     }
 
@@ -2932,16 +3161,16 @@ struct SettingsView: View {
                             value: [0: proxy.size.height]
                         )
                     })
-                    .frame(minHeight: max(settingsColumnsHeight, 400), alignment: .top)
+                    .frame(minWidth: 400, maxWidth: .infinity, minHeight: max(settingsColumnsHeight, 400), alignment: .top)
+                    .layoutPriority(1)
 
                     VStack(alignment: .leading, spacing: 16) {
                         SettingsSection(title: "面板模块") {
                             LazyVGrid(columns: [
                                 GridItem(.flexible(), alignment: .leading),
                                 GridItem(.flexible(), alignment: .leading),
-                                GridItem(.flexible(), alignment: .leading),
                                 GridItem(.flexible(), alignment: .leading)
-                            ], alignment: .leading, spacing: 8) {
+                            ], alignment: .leading, spacing: 10) {
                                 Toggle("CPU", isOn: $settings.showCPUCard)
                                 Toggle("GPU", isOn: $settings.showGPUCard)
                                 Toggle("内存", isOn: $settings.showMemoryCard)
@@ -2955,12 +3184,12 @@ struct SettingsView: View {
                         }
 
                         SettingsSection(title: "监控") {
-                            LazyVGrid(columns: [
-                                GridItem(.flexible(), alignment: .leading),
-                                GridItem(.flexible(), alignment: .leading)
-                            ], alignment: .leading, spacing: 10) {
-                                HStack(spacing: 6) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack(spacing: 10) {
                                     Text("更新间隔")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 60, alignment: .leading)
                                     Picker("", selection: $settings.refreshInterval) {
                                         ForEach(AppSettings.supportedRefreshIntervals, id: \.self) { interval in
                                             Text("\(interval) 秒").tag(interval)
@@ -2968,11 +3197,14 @@ struct SettingsView: View {
                                     }
                                     .labelsHidden()
                                     .pickerStyle(.menu)
+                                    .frame(width: 80)
+                                    Toggle("省电模式", isOn: $settings.powerSavingMode)
                                 }
-                                .fixedSize(horizontal: true, vertical: false)
-                                Toggle("省电模式", isOn: $settings.powerSavingMode)
-                                HStack(spacing: 6) {
+                                HStack(spacing: 10) {
                                     Text("进程数量")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 60, alignment: .leading)
                                     Picker("", selection: $settings.processLimit) {
                                         Text("3 个").tag(3)
                                         Text("5 个").tag(5)
@@ -2982,10 +3214,10 @@ struct SettingsView: View {
                                     }
                                     .labelsHidden()
                                     .pickerStyle(.menu)
-                                }
-                                .fixedSize(horizontal: true, vertical: false)
-                                HStack(spacing: 6) {
-                                    Text("进程排序")
+                                    .frame(width: 80)
+                                    Text("排序")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
                                     Picker("", selection: $settings.processSort) {
                                         ForEach(ProcessSortOption.allCases) { option in
                                             Text(option.title).tag(option)
@@ -2993,8 +3225,8 @@ struct SettingsView: View {
                                     }
                                     .labelsHidden()
                                     .pickerStyle(.menu)
+                                    .frame(width: 80)
                                 }
-                                .fixedSize(horizontal: true, vertical: false)
                             }
                         }
 
@@ -3072,7 +3304,7 @@ struct SettingsView: View {
                             value: [1: proxy.size.height]
                         )
                     })
-                    .frame(minHeight: max(settingsColumnsHeight, 400), alignment: .top)
+                    .frame(minWidth: 310, idealWidth: 360, maxWidth: 440, minHeight: max(settingsColumnsHeight, 400), alignment: .top)
                 }
                 .frame(maxWidth: .infinity, alignment: .top)
                 .onPreferenceChange(SettingsColumnHeightPreferenceKey.self) { heights in
@@ -3084,26 +3316,65 @@ struct SettingsView: View {
 
                 SettingsSection(title: "Codex 账号") {
                     VStack(alignment: .leading, spacing: 10) {
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 5) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 10) {
                                 Text("默认账号")
                                     .font(.caption.weight(.semibold))
+                                    .frame(width: 64, alignment: .leading)
                                 TextField("显示名称", text: $settings.codexDefaultAccountName)
                                     .textFieldStyle(.roundedBorder)
-                                Text(settings.codexHomePath.isEmpty ? "自动：CODEX_HOME / ~/.codex" : settings.codexHomePath)
+                                    .frame(maxWidth: 260)
+                                Spacer(minLength: 0)
+                            }
+
+                            HStack(spacing: 10) {
+                                Text("Codex Home")
+                                    .font(.caption.weight(.semibold))
+                                    .frame(width: 64, alignment: .leading)
+                                Text(displayCodexHomePath(defaultCodexAccount.homePath))
                                     .font(.caption2.monospaced())
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
                                     .truncationMode(.middle)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .help(CodexUsageClient.validate(homePath: defaultCodexAccount.homePath).resolvedPath)
+                                Button("选择") {
+                                    chooseCodexHome()
+                                }
+                                .buttonStyle(.bordered)
+                                Button("测试连接") {
+                                    testCodexConnection(for: defaultCodexAccount)
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(testingCodexAccountIDs.contains(defaultCodexAccount.id))
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                            Button("选择") {
-                                chooseCodexHome()
+                            HStack(spacing: 10) {
+                                Color.clear.frame(width: 64)
+                                CodexHomeStatusView(
+                                    account: defaultCodexAccount,
+                                    codexUsageStore: codexUsageStore
+                                )
                             }
-                            .buttonStyle(.bordered)
                         }
 
+                        Divider()
+
+                        HStack(spacing: 10) {
+                            Text("自动刷新")
+                                .font(.caption.weight(.semibold))
+                                .frame(width: 64, alignment: .leading)
+                            Toggle("启用 Codex 自动刷新", isOn: $settings.codexAutoRefresh)
+                            Picker("", selection: $settings.codexRefreshInterval) {
+                                ForEach(AppSettings.supportedCodexRefreshIntervals, id: \.self) { interval in
+                                    Text("每 \(interval) 分钟").tag(interval)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .disabled(!settings.codexAutoRefresh)
+                            Spacer(minLength: 0)
+                        }
 
                         if !settings.codexManagedAccounts.isEmpty {
                             Divider()
@@ -3113,9 +3384,11 @@ struct SettingsView: View {
 
                             ForEach($settings.codexManagedAccounts) { $account in
                                 VStack(alignment: .leading, spacing: 5) {
-                                    HStack(spacing: 8) {
+                                    HStack(spacing: 10) {
                                         TextField("显示名称", text: $account.displayName)
                                             .textFieldStyle(.roundedBorder)
+                                            .frame(maxWidth: 260)
+                                        Spacer(minLength: 0)
                                         Toggle("面板", isOn: $account.isDashboardVisible)
                                             .toggleStyle(.checkbox)
                                         Toggle("状态栏", isOn: $account.isStatusBarIncluded)
@@ -3126,20 +3399,33 @@ struct SettingsView: View {
                                         .buttonStyle(.borderless)
                                     }
                                     HStack(spacing: 8) {
-                                        Text(account.homePath)
+                                        Text(displayCodexHomePath(account.homePath))
                                             .font(.caption2.monospaced())
                                             .foregroundStyle(.secondary)
                                             .lineLimit(1)
                                             .truncationMode(.middle)
-                                        Spacer(minLength: 0)
-                                        Button("登录 / 重新登录") {
-                                            let didStart = settings.startCodexLogin(for: account)
-                                            codexAccountMessage = didStart
-                                                ? "已在终端打开 \(account.displayName) 的 Codex 登录。完成后点击“刷新全部”验证。"
-                                                : "无法启动 Codex 登录。请确认 Codex CLI 已安装。"
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .help(account.homePath)
+                                        HStack(spacing: 6) {
+                                            Button("测试连接") {
+                                                testCodexConnection(for: account)
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .disabled(testingCodexAccountIDs.contains(account.id))
+                                            Button("登录 / 重新登录") {
+                                                let didStart = settings.startCodexLogin(for: account)
+                                                codexAccountMessage = didStart
+                                                    ? "已在终端打开 \(account.displayName) 的 Codex 登录。完成后点击“刷新全部”验证。"
+                                                    : "无法启动 Codex 登录。请确认 Codex CLI 已安装。"
+                                            }
+                                            .buttonStyle(.bordered)
                                         }
-                                        .buttonStyle(.bordered)
+                                        .fixedSize()
                                     }
+                                    CodexHomeStatusView(
+                                        account: account,
+                                        codexUsageStore: codexUsageStore
+                                    )
                                 }
                             }
                         }
@@ -3176,7 +3462,7 @@ struct SettingsView: View {
         .sheet(isPresented: $isAddingCodexAccount) {
             addCodexAccountSheet
         }
-        .frame(minWidth: 820, idealWidth: 860, minHeight: 520, idealHeight: 560)
+        .frame(minWidth: 820, idealWidth: 860, minHeight: 680, idealHeight: 760)
         .background(AppColors.background)
         .preferredColorScheme(settings.theme.colorScheme)
     }
@@ -3215,6 +3501,50 @@ struct SettingsView: View {
         .frame(width: 390)
     }
 
+    private var defaultCodexAccount: CodexAccountConfiguration {
+        settings.codexAccounts.first { $0.id == CodexAccountConfiguration.defaultAccountID }
+            ?? CodexAccountConfiguration.defaultAccount(
+                homePath: settings.codexHomePath,
+                displayName: settings.codexDefaultAccountName,
+                isDashboardVisible: settings.showCodexCard,
+                isStatusBarIncluded: settings.showCodexStatusItem
+            )
+    }
+
+    private func testCodexConnection(for account: CodexAccountConfiguration) {
+        let validation = CodexUsageClient.validate(homePath: account.homePath)
+        guard validation.isReady else {
+            codexAccountMessage = "\(account.resolvedDisplayName)：\(validation.summary)。"
+            return
+        }
+
+        testingCodexAccountIDs.insert(account.id)
+        codexAccountMessage = "正在测试 \(account.resolvedDisplayName) 的 Codex 连接…"
+        codexUsageStore.testConnection(for: account) { result in
+            DispatchQueue.main.async {
+                testingCodexAccountIDs.remove(account.id)
+                switch result {
+                case .success:
+                    codexAccountMessage = "\(account.resolvedDisplayName)：连接正常，已成功读取使用情况。"
+                case let .failure(error):
+                    codexAccountMessage = "\(account.resolvedDisplayName)：连接失败，\(error.localizedDescription)。"
+                }
+            }
+        }
+    }
+
+    private func displayCodexHomePath(_ path: String) -> String {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "自动：CODEX_HOME / ~/.codex" }
+
+        let home = NSHomeDirectory()
+        if trimmed == home { return "~" }
+        if trimmed.hasPrefix(home + "/") {
+            return "~/" + String(trimmed.dropFirst(home.count + 1))
+        }
+        return trimmed
+    }
+
     private func chooseCodexHome() {
         let panel = NSOpenPanel()
         panel.title = "选择 Codex Home"
@@ -3226,6 +3556,33 @@ struct SettingsView: View {
         if panel.runModal() == .OK, let url = panel.url {
             settings.codexHomePath = url.path
         }
+    }
+}
+
+private struct CodexHomeStatusView: View {
+    let account: CodexAccountConfiguration
+    @ObservedObject var codexUsageStore: CodexAccountsUsageStore
+
+    private var validation: CodexHomeValidation {
+        CodexUsageClient.validate(homePath: account.homePath)
+    }
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: validation.isReady ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .foregroundStyle(validation.isReady ? .green : .orange)
+            Text(validation.summary)
+            Spacer(minLength: 4)
+            if let lastRefresh = codexUsageStore.lastSuccessfulRefresh(for: account.id) {
+                Text("上次成功刷新：\(lastRefresh, style: .time)")
+            } else {
+                Text("尚未成功刷新")
+            }
+        }
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .help("Codex Home：\(validation.resolvedPath)")
     }
 }
 

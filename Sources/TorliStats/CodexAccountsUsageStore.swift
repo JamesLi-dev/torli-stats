@@ -5,11 +5,16 @@ final class CodexAccountsUsageStore: ObservableObject {
     let objectWillChange = ObservableObjectPublisher()
 
     private let configurationsProvider: () -> [CodexAccountConfiguration]
+    private let refreshSettingsProvider: () -> CodexRefreshSettings
     private var stores: [UUID: CodexUsageStore] = [:]
     private var storeCancellables: [UUID: AnyCancellable] = [:]
 
-    init(configurationsProvider: @escaping () -> [CodexAccountConfiguration]) {
+    init(
+        configurationsProvider: @escaping () -> [CodexAccountConfiguration],
+        refreshSettingsProvider: @escaping () -> CodexRefreshSettings
+    ) {
         self.configurationsProvider = configurationsProvider
+        self.refreshSettingsProvider = refreshSettingsProvider
         synchronize()
     }
 
@@ -35,6 +40,17 @@ final class CodexAccountsUsageStore: ObservableObject {
         stores[accountID]?.refresh()
     }
 
+    func lastSuccessfulRefresh(for accountID: UUID) -> Date? {
+        state(for: accountID).snapshot?.fetchedAt
+    }
+
+    func testConnection(
+        for account: CodexAccountConfiguration,
+        completion: @escaping (Result<CodexUsageSnapshot, CodexUsageError>) -> Void
+    ) {
+        CodexUsageClient(homePathProvider: { account.homePath }).fetch(completion: completion)
+    }
+
     func synchronize() {
         let configurations = configurationsProvider()
         // Do not launch a Codex app-server for accounts that are not shown
@@ -49,18 +65,23 @@ final class CodexAccountsUsageStore: ObservableObject {
             storeCancellables[id] = nil
         }
 
-        for configuration in configurations where stores[configuration.id] == nil {
+        let refreshSettings = refreshSettingsProvider()
+        for configuration in configurations where activeIDs.contains(configuration.id) && stores[configuration.id] == nil {
             let accountID = configuration.id
-            let store = CodexUsageStore { [weak self] in
-                self?.configurationsProvider()
-                    .first(where: { $0.id == accountID })?
-                    .homePath
-            }
+            let store = CodexUsageStore(
+                homePathProvider: { [weak self] in
+                    self?.configurationsProvider()
+                        .first(where: { $0.id == accountID })?
+                        .homePath
+                },
+                refreshSettings: refreshSettings
+            )
             stores[accountID] = store
             storeCancellables[accountID] = store.objectWillChange.sink { [weak self] _ in
                 self?.objectWillChange.send()
             }
         }
+        stores.values.forEach { $0.setRefreshSettings(refreshSettings) }
         objectWillChange.send()
     }
 }

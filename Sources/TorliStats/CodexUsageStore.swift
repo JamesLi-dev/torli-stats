@@ -8,9 +8,14 @@ final class CodexUsageStore: ObservableObject {
     private let client: CodexUsageClient
     private var refreshTimer: DispatchSourceTimer?
     private var refreshInFlight = false
+    private var refreshSettings: CodexRefreshSettings
 
-    init(homePathProvider: @escaping () -> String?) {
+    init(
+        homePathProvider: @escaping () -> String?,
+        refreshSettings: CodexRefreshSettings
+    ) {
         client = CodexUsageClient(homePathProvider: homePathProvider)
+        self.refreshSettings = refreshSettings
         installRefreshTimer()
         DispatchQueue.main.async { [weak self] in
             self?.refresh()
@@ -43,9 +48,19 @@ final class CodexUsageStore: ObservableObject {
         }
     }
 
+    func setRefreshSettings(_ settings: CodexRefreshSettings) {
+        guard refreshSettings != settings else { return }
+        refreshSettings = settings
+        refreshTimer?.cancel()
+        refreshTimer = nil
+        installRefreshTimer()
+    }
+
     private func installRefreshTimer() {
+        guard refreshSettings.isEnabled else { return }
+        let seconds = max(1, refreshSettings.intervalMinutes) * 60
         let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now() + 300, repeating: 300, leeway: .seconds(5))
+        timer.schedule(deadline: .now() + .seconds(seconds), repeating: .seconds(seconds), leeway: .seconds(5))
         timer.setEventHandler { [weak self] in
             self?.refresh()
         }
