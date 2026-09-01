@@ -10,7 +10,7 @@
 - [x] 新增传感器设置区域：辅助进程状态、风扇/CPU 温度/GPU 温度能力、最近读取时间、重新检测、重新安装和卸载。
 - [x] Dashboard 的 Codex 账号默认展示前 2 个，其余账号按需展开。
 - [x] Codex 剩余额度按阈值使用绿色、橙色和红色提示。
-- [x] 新增状态栏 Logo 设置：可关闭或启用随 CPU 加速的 RunCatNeo / RunnerGallery 动效，内置 9 种 Apache-2.0 动画并保留归属说明。
+- [x] 新增状态栏 Logo 设置：可关闭或启用随 CPU 加速的 RunCatNeo / RunnerGallery 动效，内置 13 种 Apache-2.0 动画并保留归属说明。
 
 ## 第一优先级：稳定性与基础体验
 

@@ -5,16 +5,19 @@ struct CodexUsageView: View {
 
     @ObservedObject var store: CodexAccountsUsageStore
     let isPrivacyMode: Bool
+    let density: DashboardDensity
     let onDisplayCountChange: (Int) -> Void
     @State private var showsAllAccounts = false
 
     init(
         store: CodexAccountsUsageStore,
         isPrivacyMode: Bool = false,
+        density: DashboardDensity = .standard,
         onDisplayCountChange: @escaping (Int) -> Void = { _ in }
     ) {
         self.store = store
         self.isPrivacyMode = isPrivacyMode
+        self.density = density
         self.onDisplayCountChange = onDisplayCountChange
     }
 
@@ -22,14 +25,22 @@ struct CodexUsageView: View {
         store.accounts.filter(\.isDashboardVisible)
     }
 
+    private var collapsedLimit: Int {
+        switch density {
+        case .compact: return 1
+        case .standard: return Self.collapsedAccountLimit
+        case .detailed: return 3
+        }
+    }
+
     private var displayedAccounts: [CodexAccountConfiguration] {
         showsAllAccounts
             ? visibleAccounts
-            : Array(visibleAccounts.prefix(Self.collapsedAccountLimit))
+            : Array(visibleAccounts.prefix(collapsedLimit))
     }
 
     private var hiddenAccountCount: Int {
-        max(0, visibleAccounts.count - Self.collapsedAccountLimit)
+        max(0, visibleAccounts.count - collapsedLimit)
     }
 
     var body: some View {
@@ -46,6 +57,7 @@ struct CodexUsageView: View {
                         account: account,
                         state: store.state(for: account.id),
                         displayName: isPrivacyMode ? privateLabel(for: account) : account.resolvedDisplayName,
+                        density: density,
                         onRefresh: { store.refresh(accountID: account.id) }
                     )
                     if account.id != displayedAccounts.last?.id {
@@ -66,7 +78,7 @@ struct CodexUsageView: View {
                 }
             }
         }
-        .padding(10)
+        .padding(density == .compact ? 8 : 10)
         .background(AppColors.card)
         .overlay(
             RoundedRectangle(cornerRadius: 13)
@@ -78,7 +90,7 @@ struct CodexUsageView: View {
             notifyDisplayCountChange()
         }
         .onChange(of: visibleAccounts.count) { count in
-            if count <= Self.collapsedAccountLimit {
+            if count <= collapsedLimit {
                 showsAllAccounts = false
             }
             notifyDisplayCountChange()
@@ -118,6 +130,7 @@ private struct CodexAccountUsageRow: View {
     let account: CodexAccountConfiguration
     let state: CodexUsageState
     let displayName: String
+    let density: DashboardDensity
     let onRefresh: () -> Void
 
     var body: some View {
@@ -144,7 +157,7 @@ private struct CodexAccountUsageRow: View {
                         .clipShape(RoundedRectangle(cornerRadius: 5))
                 }
                 Spacer(minLength: 0)
-                if let snapshot = state.snapshot {
+                if density == .detailed, let snapshot = state.snapshot {
                     Text("更新 \(snapshot.fetchedAt, style: .time)")
                         .font(.system(size: 8, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
@@ -224,7 +237,7 @@ private struct CodexAccountUsageRow: View {
                     .controlSize(.mini)
                     .tint(quotaColor(forRemaining: 100 - primary.usedPercent))
 
-                if let secondary = snapshot.secondary {
+                if density != .compact, let secondary = snapshot.secondary {
                     HStack(spacing: 8) {
                         Text("周使用量 \(percentage(secondary.usedPercent))%")
                         if let resetsAt = secondary.resetsAt {

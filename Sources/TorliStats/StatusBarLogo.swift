@@ -10,6 +10,10 @@ enum StatusBarRunner: String, CaseIterable, Identifiable {
     case horse
     case rabbit
     case rubberDuck
+    case classicCat
+    case goldenRetriever
+    case wallBreaker
+    case dojoPanda
 
     var id: String { rawValue }
 
@@ -24,6 +28,10 @@ enum StatusBarRunner: String, CaseIterable, Identifiable {
         case .horse: return "马"
         case .rabbit: return "兔"
         case .rubberDuck: return "橡皮鸭"
+        case .classicCat: return "经典猫"
+        case .goldenRetriever: return "金毛寻回犬"
+        case .wallBreaker: return "破墙者"
+        case .dojoPanda: return "道场熊猫"
         }
     }
 
@@ -38,6 +46,10 @@ enum StatusBarRunner: String, CaseIterable, Identifiable {
         case .horse: return "runner-horse"
         case .rabbit: return "runner-rabbit"
         case .rubberDuck: return "runner-rubberduck"
+        case .classicCat: return "runner-classic-cat"
+        case .goldenRetriever: return "runner-golden-retriever"
+        case .wallBreaker: return "runner-wall-breaker"
+        case .dojoPanda: return "runner-dojo-panda"
         }
     }
 
@@ -52,12 +64,24 @@ enum StatusBarRunner: String, CaseIterable, Identifiable {
         case .horse: return 6
         case .rabbit: return 5
         case .rubberDuck: return 6
+        case .classicCat: return 5
+        case .goldenRetriever: return 8
+        case .wallBreaker: return 16
+        case .dojoPanda: return 12
+        }
+    }
+
+    fileprivate var usesTemplateRendering: Bool {
+        switch self {
+        case .wallBreaker, .dojoPanda: return false
+        default: return true
         }
     }
 }
 
-/// Renders bundled RunCatNeo and RunnerGallery sprite sheets as macOS template images.
-/// Artwork: Copyright 2026 Kyome22 (Takuto Nakamura), Apache-2.0.
+/// Renders bundled RunCatNeo and RunnerGallery sprite sheets. Monochrome
+/// runners use menu-bar template rendering; color runners retain their artwork.
+/// See THIRD_PARTY_NOTICES.md for Apache-2.0 attribution.
 final class StatusBarLogoAnimator {
     private static let artworkHeight: CGFloat = 20
 
@@ -146,7 +170,7 @@ final class StatusBarLogoAnimator {
             NSImage(cgImage: cropped, size: NSSize(width: artworkWidth, height: artworkHeight))
                 .draw(in: NSRect(x: 0, y: 0, width: artworkWidth, height: artworkHeight))
             frame.unlockFocus()
-            frame.isTemplate = true
+            frame.isTemplate = runner.usesTemplateRendering
             return frame
         }
     }

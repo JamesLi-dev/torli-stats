@@ -407,7 +407,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         window.titlebarAppearsTransparent = true
         window.backgroundColor = AppColors.backgroundNSColor
         window.appearance = self.settings.theme.windowAppearance
-        window.minSize = NSSize(width: 820, height: 420)
+        window.minSize = NSSize(width: 860, height: 420)
         window.isReleasedWhenClosed = false
         window.contentViewController = NSHostingController(rootView: settings)
         window.center()
@@ -535,10 +535,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 if segment.group == .logo {
                     let logoRect = NSRect(x: x, y: 0, width: logoImage.size.width, height: 20)
                     logoImage.draw(in: logoRect)
-                    NSGraphicsContext.current?.compositingOperation = .sourceIn
-                    labelColor.setFill()
-                    NSBezierPath(rect: logoRect).fill()
-                    NSGraphicsContext.current?.compositingOperation = .sourceOver
+                    if logoImage.isTemplate {
+                        NSGraphicsContext.current?.compositingOperation = .sourceIn
+                        labelColor.setFill()
+                        NSBezierPath(rect: logoRect).fill()
+                        NSGraphicsContext.current?.compositingOperation = .sourceOver
+                    }
                 } else if let content = segment.content {
                     content.firstLine?.draw(at: NSPoint(x: x, y: 10))
                     content.secondLine?.draw(at: NSPoint(x: x, y: 0))
@@ -844,6 +846,57 @@ enum ThemePreference: String, CaseIterable, Identifiable {
     }
 }
 
+enum DashboardDensity: String, CaseIterable, Identifiable {
+    case compact
+    case standard
+    case detailed
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .compact: return "紧凑"
+        case .standard: return "标准"
+        case .detailed: return "详细"
+        }
+    }
+}
+
+enum DashboardModule: String, CaseIterable, Codable, Identifiable {
+    case cpu
+    case gpu
+    case memory
+    case disk
+    case network
+    case fan
+    case power
+    case codex
+    case processes
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .cpu: return "CPU"
+        case .gpu: return "GPU"
+        case .memory: return "内存"
+        case .disk: return "磁盘"
+        case .network: return "网络"
+        case .fan: return "风扇"
+        case .power: return "电源"
+        case .codex: return "Codex"
+        case .processes: return "进程"
+        }
+    }
+
+    var isMetric: Bool {
+        switch self {
+        case .cpu, .gpu, .memory, .disk, .network, .fan: return true
+        case .power, .codex, .processes: return false
+        }
+    }
+}
+
 enum ProcessSortOption: String, CaseIterable, Identifiable {
     case cpu
     case memory
@@ -905,6 +958,12 @@ final class AppSettings: ObservableObject {
     }
     @Published var showCodexCard: Bool {
         didSet { defaults.set(showCodexCard, forKey: "showCodexCard") }
+    }
+    @Published var dashboardDensity: DashboardDensity {
+        didSet { defaults.set(dashboardDensity.rawValue, forKey: "dashboardDensity") }
+    }
+    @Published var dashboardModuleOrder: [DashboardModule] {
+        didSet { defaults.set(dashboardModuleOrder.map(\.rawValue), forKey: "dashboardModuleOrder") }
     }
     @Published var showCodexStatusItem: Bool {
         didSet { defaults.set(showCodexStatusItem, forKey: "showCodexStatusItem") }
@@ -982,11 +1041,19 @@ final class AppSettings: ObservableObject {
     }
     @Published private(set) var launchAtLogin: Bool
     @Published private(set) var sensorHelperEnabled: Bool
+    @Published private(set) var sensorHelperReachable: Bool
     @Published private(set) var sensorHelperChecking: Bool
     @Published private(set) var sensorFanAvailable: Bool
     @Published private(set) var sensorCPUTemperatureAvailable: Bool
     @Published private(set) var sensorGPUTemperatureAvailable: Bool
     @Published private(set) var sensorLastReadAt: Date?
+    @Published private(set) var sensorHelperVersion: String?
+    @Published private(set) var sensorProtocolVersion: Int?
+    @Published private(set) var sensorSignatureMessage: String?
+    @Published private(set) var sensorFanReason: String
+    @Published private(set) var sensorCPUTemperatureReason: String
+    @Published private(set) var sensorGPUTemperatureReason: String
+    @Published private(set) var sensorOperationDiagnostic: String?
     @Published private(set) var sensorHelperMessage: String?
     private let sensorClient = SensorClient()
 
@@ -1005,6 +1072,8 @@ final class AppSettings: ObservableObject {
         showPowerCard = defaults.object(forKey: "showPowerCard") as? Bool ?? true
         showProcessesCard = defaults.object(forKey: "showProcessesCard") as? Bool ?? true
         showCodexCard = defaults.object(forKey: "showCodexCard") as? Bool ?? true
+        dashboardDensity = DashboardDensity(rawValue: defaults.string(forKey: "dashboardDensity") ?? "") ?? .standard
+        dashboardModuleOrder = Self.validDashboardModuleOrder(defaults.stringArray(forKey: "dashboardModuleOrder"))
         showCodexStatusItem = defaults.object(forKey: "showCodexStatusItem") as? Bool ?? true
         codexStatusMetric = CodexStatusMetric(rawValue: defaults.string(forKey: "codexStatusMetric") ?? "") ?? .remaining
         codexStatusBarMode = CodexStatusBarMode(rawValue: defaults.string(forKey: "codexStatusBarMode") ?? "") ?? .defaultAccount
@@ -1031,11 +1100,19 @@ final class AppSettings: ObservableObject {
         processSort = ProcessSortOption(rawValue: defaults.string(forKey: "processSort") ?? "") ?? .cpu
         launchAtLogin = SMAppService.mainApp.status == .enabled
         sensorHelperEnabled = false
+        sensorHelperReachable = false
         sensorHelperChecking = true
         sensorFanAvailable = false
         sensorCPUTemperatureAvailable = false
         sensorGPUTemperatureAvailable = false
         sensorLastReadAt = nil
+        sensorHelperVersion = nil
+        sensorProtocolVersion = nil
+        sensorSignatureMessage = nil
+        sensorFanReason = "尚未检测。"
+        sensorCPUTemperatureReason = "尚未检测。"
+        sensorGPUTemperatureReason = "尚未检测。"
+        sensorOperationDiagnostic = nil
         sensorHelperMessage = nil
         probeSensorHelper()
     }
@@ -1161,6 +1238,20 @@ final class AppSettings: ObservableObject {
         statusBarMetricOrder = StatusBarMetricGroup.allCases
     }
 
+    func resetDashboardModuleOrder() {
+        dashboardModuleOrder = DashboardModule.allCases
+    }
+
+    private static func validDashboardModuleOrder(_ savedOrder: [String]?) -> [DashboardModule] {
+        let savedModules = (savedOrder ?? []).compactMap(DashboardModule.init(rawValue:))
+        let uniqueModules = savedModules.reduce(into: [DashboardModule]()) { result, module in
+            if !result.contains(module) {
+                result.append(module)
+            }
+        }
+        return uniqueModules + DashboardModule.allCases.filter { !uniqueModules.contains($0) }
+    }
+
     private static func validStatusBarMetricOrder(_ savedOrder: [String]?) -> [StatusBarMetricGroup] {
         let savedGroups = (savedOrder ?? []).compactMap(StatusBarMetricGroup.init(rawValue:))
         let uniqueGroups = savedGroups.reduce(into: [StatusBarMetricGroup]()) { result, group in
@@ -1188,10 +1279,18 @@ final class AppSettings: ObservableObject {
             successMessage: "传感器辅助进程已卸载。"
         ) { [weak self] in
             self?.sensorHelperEnabled = false
+            self?.sensorHelperReachable = false
             self?.sensorFanAvailable = false
             self?.sensorCPUTemperatureAvailable = false
             self?.sensorGPUTemperatureAvailable = false
             self?.sensorLastReadAt = nil
+            self?.sensorHelperVersion = nil
+            self?.sensorProtocolVersion = nil
+            self?.sensorSignatureMessage = nil
+            self?.sensorFanReason = "辅助进程已卸载。"
+            self?.sensorCPUTemperatureReason = "辅助进程已卸载。"
+            self?.sensorGPUTemperatureReason = "辅助进程已卸载。"
+            self?.sensorOperationDiagnostic = nil
         }
     }
 
@@ -1206,10 +1305,12 @@ final class AppSettings: ObservableObject {
     ) {
         guard let scriptURL = Bundle.main.url(forResource: name, withExtension: "sh") else {
             sensorHelperMessage = "找不到传感器安装脚本。"
+            sensorOperationDiagnostic = "应用包中缺少 \(name).sh。请重新安装 Torli Stats。"
             return
         }
 
         sensorHelperChecking = true
+        sensorOperationDiagnostic = nil
         sensorHelperMessage = "正在处理传感器辅助进程…"
         let scriptPath = escapeForAppleScript(scriptURL.path)
         let appPath = escapeForAppleScript(Bundle.main.bundlePath)
@@ -1219,24 +1320,32 @@ final class AppSettings: ObservableObject {
             let task = Process()
             task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
             task.arguments = ["-e", appleScript]
+            let outputPipe = Pipe()
+            let errorPipe = Pipe()
+            task.standardOutput = outputPipe
+            task.standardError = errorPipe
             do {
                 try task.run()
                 task.waitUntilExit()
+                let output = outputPipe.fileHandleForReading.readDataToEndOfFile()
+                let errorOutput = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                let diagnostic = Self.sensorOperationOutput(output, errorOutput: errorOutput)
                 DispatchQueue.main.async {
                     guard let self else { return }
+                    self.sensorHelperChecking = false
                     if task.terminationStatus == 0 {
-                        self.sensorHelperChecking = false
                         self.sensorHelperMessage = successMessage
                         onSuccess()
                     } else {
-                        self.sensorHelperChecking = false
-                        self.sensorHelperMessage = "传感器辅助进程操作未完成。"
+                        self.sensorOperationDiagnostic = diagnostic ?? "osascript 以退出码 \(task.terminationStatus) 结束。"
+                        self.sensorHelperMessage = "传感器辅助进程操作失败：\(Self.sensorOperationSummary(self.sensorOperationDiagnostic!))"
                     }
                 }
             } catch {
                 DispatchQueue.main.async {
                     self?.sensorHelperChecking = false
-                    self?.sensorHelperMessage = "操作失败：\(error.localizedDescription)"
+                    self?.sensorOperationDiagnostic = "无法启动授权操作：\(error.localizedDescription)"
+                    self?.sensorHelperMessage = "传感器辅助进程操作失败。"
                 }
             }
         }
@@ -1244,25 +1353,97 @@ final class AppSettings: ObservableObject {
 
     private func probeSensorHelper() {
         sensorHelperChecking = true
-        sensorClient.read { [weak self] values in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                self.sensorHelperChecking = false
-                self.sensorHelperEnabled = values.isAvailable
-                self.sensorFanAvailable = values.isAvailable && values.fanRPM != nil
-                self.sensorCPUTemperatureAvailable = values.isAvailable && values.cpuTemperature != nil
-                self.sensorGPUTemperatureAvailable = values.isAvailable && values.gpuTemperature != nil
-                if values.isAvailable {
-                    self.sensorLastReadAt = Date()
-                    self.sensorHelperMessage = "传感器辅助进程已运行。"
-                } else {
-                    self.sensorFanAvailable = false
-                    self.sensorCPUTemperatureAvailable = false
-                    self.sensorGPUTemperatureAvailable = false
-                    self.sensorHelperMessage = "未检测到正在运行的传感器辅助进程。"
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let installation = SensorHelperInstallationStatus.inspect()
+            self?.sensorClient.read { [weak self] values in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    let protocolIsCompatible = values.protocolVersion == SensorServiceConstants.protocolVersion
+                    let helperIsVerified = values.isHelperReachable && installation.signatureIsValid && protocolIsCompatible
+
+                    self.sensorHelperChecking = false
+                    self.sensorHelperReachable = values.isHelperReachable
+                    self.sensorHelperEnabled = helperIsVerified
+                    self.sensorHelperVersion = values.helperVersion
+                    self.sensorProtocolVersion = values.protocolVersion
+                    self.sensorSignatureMessage = installation.signatureMessage
+                    self.sensorFanReason = values.fanReason
+                    self.sensorCPUTemperatureReason = values.cpuTemperatureReason
+                    self.sensorGPUTemperatureReason = values.gpuTemperatureReason
+                    self.sensorFanAvailable = helperIsVerified && values.isAvailable && values.fanRPM != nil
+                    self.sensorCPUTemperatureAvailable = helperIsVerified && values.isAvailable && values.cpuTemperature != nil
+                    self.sensorGPUTemperatureAvailable = helperIsVerified && values.isAvailable && values.gpuTemperature != nil
+
+                    if helperIsVerified && values.isAvailable {
+                        self.sensorLastReadAt = Date()
+                        self.sensorHelperMessage = "辅助进程已运行，版本和签名验证通过。"
+                    } else if !values.isHelperReachable {
+                        self.sensorLastReadAt = nil
+                        self.sensorHelperMessage = values.diagnosticMessage
+                    } else if !protocolIsCompatible {
+                        self.sensorLastReadAt = nil
+                        self.sensorHelperMessage = "辅助进程版本不兼容，请重新安装。"
+                    } else if !installation.signatureIsValid {
+                        self.sensorLastReadAt = nil
+                        self.sensorHelperMessage = installation.signatureMessage
+                    } else {
+                        self.sensorLastReadAt = nil
+                        self.sensorHelperMessage = values.diagnosticMessage ?? "SMC 传感器当前不可用。"
+                    }
                 }
             }
         }
+    }
+
+    private static var currentArchitecture: String {
+        #if arch(arm64)
+        "Apple Silicon (arm64)"
+        #elseif arch(x86_64)
+        "Intel (x86_64)"
+        #else
+        "未知"
+        #endif
+    }
+
+    func copySensorDiagnostics() {
+        let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "未知"
+        let helperVersion = sensorHelperVersion ?? "未读取"
+        let protocolVersion = sensorProtocolVersion.map(String.init) ?? "未读取"
+        let report = """
+        Torli Stats 传感器诊断（不包含设备名称、序列号或账号信息）
+        App 版本：\(appVersion)
+        macOS：\(ProcessInfo.processInfo.operatingSystemVersionString)
+        架构：\(Self.currentArchitecture)
+        辅助进程连接：\(sensorHelperEnabled ? "正常" : "不可用或未验证")
+        Helper 版本：\(helperVersion)
+        协议版本：\(protocolVersion)（期望 \(SensorServiceConstants.protocolVersion)）
+        签名：\(sensorSignatureMessage ?? "未检测")
+        风扇：\(sensorFanAvailable ? "可用" : "不可用")；\(sensorFanReason)
+        CPU 温度：\(sensorCPUTemperatureAvailable ? "可用" : "不可用")；\(sensorCPUTemperatureReason)
+        GPU 温度：\(sensorGPUTemperatureAvailable ? "可用" : "不可用")；\(sensorGPUTemperatureReason)
+        最近成功读取：\(sensorLastReadAt?.formatted(date: .numeric, time: .standard) ?? "无")
+        最近操作诊断：\(sensorOperationDiagnostic.map(Self.sanitizedSensorDiagnostic) ?? "无")
+        """
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(report, forType: .string)
+        sensorHelperMessage = "已复制脱敏传感器诊断信息。"
+    }
+
+    private static func sensorOperationOutput(_ output: Data, errorOutput: Data) -> String? {
+        let combined = [output, errorOutput]
+            .compactMap { String(data: $0, encoding: .utf8) }
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return combined.isEmpty ? nil : sanitizedSensorDiagnostic(combined)
+    }
+
+    private static func sensorOperationSummary(_ diagnostic: String) -> String {
+        let firstLine = diagnostic.split(whereSeparator: \.isNewline).first.map(String.init) ?? diagnostic
+        return String(firstLine.prefix(100))
+    }
+
+    private static func sanitizedSensorDiagnostic(_ value: String) -> String {
+        value.replacingOccurrences(of: NSHomeDirectory(), with: "~")
     }
 
     private func escapeForAppleScript(_ value: String) -> String {
@@ -1280,7 +1461,7 @@ final class AppSettings: ObservableObject {
             "themePreference", "showCPU", "showMemory", "showDownload", "showUpload",
             "showCPUCard", "showGPUCard", "showMemoryCard", "showDiskCard",
             "showNetworkCard", "showFanCard", "showPowerCard", "showProcessesCard",
-            "showCodexCard", "showCodexStatusItem", "codexStatusMetric", "codexStatusBarMode", "statusBarMetricOrder",
+            "showCodexCard", "dashboardDensity", "dashboardModuleOrder", "showCodexStatusItem", "codexStatusMetric", "codexStatusBarMode", "statusBarMetricOrder",
             "systemStatusBarStyle", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "codexDefaultAccountName", "codexHomePath", "codexAutoRefresh", "codexRefreshInterval", "codexManagedAccounts", "powerSavingMode", "processLimit", "processSort", "refreshInterval"
         ].forEach { defaults.removeObject(forKey: $0) }
 
@@ -1298,6 +1479,8 @@ final class AppSettings: ObservableObject {
         showPowerCard = true
         showProcessesCard = true
         showCodexCard = true
+        dashboardDensity = .standard
+        dashboardModuleOrder = DashboardModule.allCases
         showCodexStatusItem = true
         codexStatusMetric = .remaining
         codexStatusBarMode = .defaultAccount
@@ -2479,6 +2662,18 @@ private enum ProcessReader {
 
 // MARK: - Dashboard
 
+private enum DashboardLayoutBlock: Identifiable {
+    case metrics([DashboardModule])
+    case module(DashboardModule)
+
+    var id: String {
+        switch self {
+        case let .metrics(modules): return "metrics-\(modules.map(\.rawValue).joined(separator: "-"))"
+        case let .module(module): return "module-\(module.rawValue)"
+        }
+    }
+}
+
 struct DashboardView: View {
     @ObservedObject var store: MetricsStore
     @ObservedObject var settings: AppSettings
@@ -2491,110 +2686,152 @@ struct DashboardView: View {
     ]
 
     var body: some View {
-        VStack(spacing: 4) {
-                DeviceInfoView(info: store.deviceInfo, isPrivacyMode: settings.privacyMode)
+        VStack(spacing: settings.dashboardDensity == .compact ? 3 : 4) {
+            DeviceInfoView(
+                info: store.deviceInfo,
+                isPrivacyMode: settings.privacyMode,
+                density: settings.dashboardDensity
+            )
 
-            LazyVGrid(columns: columns, spacing: 4) {
-                if settings.showCPUCard {
-                    MetricCard(title: "CPU", icon: "cpu", value: "\(Int(store.cpu))%", badge: "\(store.cpuPerCore.count) 核") {
-                    CPUBarChart(values: store.cpuPerCore)
-                } footer: {
-                    TemperatureTag(value: settings.sensorHelperEnabled ? store.cpuTemperature : nil)
+            ForEach(layoutBlocks) { block in
+                switch block {
+                case let .metrics(modules):
+                    LazyVGrid(columns: columns, spacing: settings.dashboardDensity == .compact ? 3 : 4) {
+                        ForEach(modules) { module in
+                            metricCard(for: module)
+                        }
                     }
-                }
-
-                if settings.showGPUCard {
-                    MetricCard(
-                    title: "GPU",
-                    icon: "display",
-                    value: "\(Int(store.gpu))%",
-                    badge: store.deviceInfo.gpuCores.map { "\($0) 核" } ?? "—"
-                ) {
-                    Sparkline(values: store.gpuHistory, color: .orange)
-                } footer: {
-                    HStack(spacing: 6) {
-                        Text(store.deviceInfo.gpuModel)
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        TemperatureTag(value: settings.sensorHelperEnabled ? store.gpuTemperature : nil)
-                    }
-                    }
-                }
-
-                if settings.showMemoryCard {
-                    MetricCard(title: "内存", icon: "memorychip", value: "\(Int(store.memory))%", badge: "已使用") {
-                    Sparkline(values: store.memoryHistory, color: .yellow)
-                } footer: {
-                    Text("已使用 \(store.memoryUsed) / \(store.memoryTotal)")
-                    }
-                }
-
-                if settings.showDiskCard {
-                    MetricCard(title: "磁盘", icon: "internaldrive", value: "\(Int(store.diskUsage))%", badge: store.diskTotal) {
-                    ProgressView(value: store.diskUsage / 100)
-                        .tint(.blue)
-                } footer: {
-                    Text("可用  \(store.diskFree)")
-                    }
-                }
-
-                if settings.showNetworkCard {
-                    MetricCard(title: "网络", icon: "network", value: formatRate(store.download), badge: "实时") {
-                    NetworkChart(download: store.networkDownloadHistory, upload: store.networkUploadHistory)
-                } footer: {
-                    HStack(spacing: 14) {
-                        Text("↑  \(formatRate(store.upload))")
-                        Text("↓  \(formatRate(store.download))")
-                    }
-                    }
-                }
-
-                if settings.showFanCard {
-                    MetricCard(
-                    title: "风扇",
-                    icon: "fanblades.fill",
-                    value: store.fanRPM.map { String($0) } ?? "—",
-                    badge: "RPM"
-                ) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "gauge.with.dots.needle.67percent")
-                        Text(settings.sensorHelperEnabled
-                            ? (store.fanRPM == nil ? "传感器暂不可用" : "当前转速")
-                            : "需要授权读取风扇")
-                    }
-                    .foregroundStyle(.secondary)
-                } footer: {
-                    Text(settings.sensorHelperEnabled
-                        ? (store.fanRPM == nil ? "当前机型未提供 RPM" : "风扇转速")
-                        : "需要授权读取风扇")
-                }
+                case let .module(module):
+                    moduleView(for: module)
                 }
             }
-
-            if settings.showPowerCard {
-                PowerStatusView(
-                    battery: store.battery,
-                    bluetoothBatteries: store.bluetoothBatteries,
-                    isPrivacyMode: settings.privacyMode
-                )
-            }
-
-            if codexUsageStore.accounts.contains(where: \.isDashboardVisible) {
-                CodexUsageView(
-                    store: codexUsageStore,
-                    isPrivacyMode: settings.privacyMode,
-                    onDisplayCountChange: onCodexDisplayCountChange
-                )
-            }
-
-            if settings.showProcessesCard {
-                ProcessListView(processes: store.processes)
-            }
-            }
-            .padding(8)
+        }
+        .padding(settings.dashboardDensity == .compact ? 6 : 8)
         .frame(width: 360, alignment: .top)
         .background(AppColors.background)
         .preferredColorScheme(settings.theme.colorScheme)
+    }
+
+    private var layoutBlocks: [DashboardLayoutBlock] {
+        var blocks: [DashboardLayoutBlock] = []
+        var metricBuffer: [DashboardModule] = []
+
+        func flushMetrics() {
+            guard !metricBuffer.isEmpty else { return }
+            blocks.append(.metrics(metricBuffer))
+            metricBuffer.removeAll()
+        }
+
+        for module in settings.dashboardModuleOrder where isModuleVisible(module) {
+            if module.isMetric {
+                metricBuffer.append(module)
+            } else {
+                flushMetrics()
+                blocks.append(.module(module))
+            }
+        }
+        flushMetrics()
+        return blocks
+    }
+
+    private func isModuleVisible(_ module: DashboardModule) -> Bool {
+        switch module {
+        case .cpu: return settings.showCPUCard
+        case .gpu: return settings.showGPUCard
+        case .memory: return settings.showMemoryCard
+        case .disk: return settings.showDiskCard
+        case .network: return settings.showNetworkCard
+        case .fan: return settings.showFanCard
+        case .power: return settings.showPowerCard
+        case .codex:
+            return settings.showCodexCard && codexUsageStore.accounts.contains(where: \.isDashboardVisible)
+        case .processes: return settings.showProcessesCard
+        }
+    }
+
+    @ViewBuilder
+    private func metricCard(for module: DashboardModule) -> some View {
+        switch module {
+        case .cpu:
+            MetricCard(title: "CPU", icon: "cpu", value: "\(Int(store.cpu))%", badge: "\(store.cpuPerCore.count) 核", density: settings.dashboardDensity, valueColor: highUsageColor(store.cpu, warning: 70, critical: 90)) {
+                CPUBarChart(values: store.cpuPerCore)
+            } footer: {
+                TemperatureTag(value: settings.sensorHelperEnabled ? store.cpuTemperature : nil)
+            }
+        case .gpu:
+            MetricCard(title: "GPU", icon: "display", value: "\(Int(store.gpu))%", badge: store.deviceInfo.gpuCores.map { "\($0) 核" } ?? "—", density: settings.dashboardDensity) {
+                Sparkline(values: store.gpuHistory, color: .orange)
+            } footer: {
+                HStack(spacing: 6) {
+                    Text(store.deviceInfo.gpuModel)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    TemperatureTag(value: settings.sensorHelperEnabled ? store.gpuTemperature : nil)
+                }
+            }
+        case .memory:
+            MetricCard(title: "内存", icon: "memorychip", value: "\(Int(store.memory))%", badge: "已使用", density: settings.dashboardDensity, valueColor: highUsageColor(store.memory, warning: 75, critical: 90)) {
+                Sparkline(values: store.memoryHistory, color: .yellow)
+            } footer: {
+                Text("已使用 \(store.memoryUsed) / \(store.memoryTotal)")
+            }
+        case .disk:
+            MetricCard(title: "磁盘", icon: "internaldrive", value: "\(Int(store.diskUsage))%", badge: store.diskTotal, density: settings.dashboardDensity, valueColor: highUsageColor(store.diskUsage, warning: 80, critical: 90)) {
+                ProgressView(value: store.diskUsage / 100)
+                    .tint(.blue)
+            } footer: {
+                Text("可用  \(store.diskFree)")
+            }
+        case .network:
+            MetricCard(title: "网络", icon: "network", value: formatRate(store.download), badge: "实时", density: settings.dashboardDensity) {
+                NetworkChart(download: store.networkDownloadHistory, upload: store.networkUploadHistory)
+            } footer: {
+                HStack(spacing: 14) {
+                    Text("↑  \(formatRate(store.upload))")
+                    Text("↓  \(formatRate(store.download))")
+                }
+            }
+        case .fan:
+            MetricCard(title: "风扇", icon: "fanblades.fill", value: store.fanRPM.map(String.init) ?? "—", badge: "RPM", density: settings.dashboardDensity) {
+                HStack(spacing: 6) {
+                    Image(systemName: "gauge.with.dots.needle.67percent")
+                    Text(settings.sensorHelperEnabled
+                        ? (store.fanRPM == nil ? "传感器暂不可用" : "当前转速")
+                        : "需要授权读取风扇")
+                }
+                .foregroundStyle(.secondary)
+            } footer: {
+                Text(settings.sensorHelperEnabled
+                    ? (store.fanRPM == nil ? "当前机型未提供 RPM" : "风扇转速")
+                    : "需要授权读取风扇")
+            }
+        case .power, .codex, .processes:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func moduleView(for module: DashboardModule) -> some View {
+        switch module {
+        case .power:
+            PowerStatusView(
+                battery: store.battery,
+                bluetoothBatteries: store.bluetoothBatteries,
+                isPrivacyMode: settings.privacyMode,
+                density: settings.dashboardDensity
+            )
+        case .codex:
+            CodexUsageView(
+                store: codexUsageStore,
+                isPrivacyMode: settings.privacyMode,
+                density: settings.dashboardDensity,
+                onDisplayCountChange: onCodexDisplayCountChange
+            )
+        case .processes:
+            ProcessListView(processes: store.processes, density: settings.dashboardDensity)
+        case .cpu, .gpu, .memory, .disk, .network, .fan:
+            EmptyView()
+        }
     }
 
     static func preferredHeight(for settings: AppSettings, codexAccountCount: Int = 1) -> CGFloat {
@@ -2608,21 +2845,52 @@ struct DashboardView: View {
         ].filter { $0 }.count
         let metricRows = CGFloat((metricCount + 1) / 2)
 
-        var height: CGFloat = 8 + 42 // outer padding + device information
-        if metricRows > 0 {
-            height += metricRows * 100 + max(0, metricRows - 1) * 4
+        let metricCardHeight: CGFloat
+        switch settings.dashboardDensity {
+        case .compact: metricCardHeight = 58
+        case .standard: metricCardHeight = 100
+        case .detailed: metricCardHeight = 114
         }
-        if settings.showPowerCard { height += 92 + 4 }
+
+        var height: CGFloat = (settings.dashboardDensity == .compact ? 6 : 8) + 42 // outer padding + device information
+        if metricRows > 0 {
+            height += metricRows * metricCardHeight + max(0, metricRows - 1) * 4
+        }
+        let powerHeight: CGFloat
+        let codexBaseHeight: CGFloat
+        let processRowCount: Int
+        switch settings.dashboardDensity {
+        case .compact:
+            powerHeight = 68
+            codexBaseHeight = 76
+            processRowCount = min(settings.processLimit, 3)
+        case .standard:
+            powerHeight = 92
+            codexBaseHeight = 112
+            processRowCount = settings.processLimit
+        case .detailed:
+            powerHeight = 102
+            codexBaseHeight = 122
+            processRowCount = settings.processLimit
+        }
+
+        if settings.showPowerCard { height += powerHeight + 4 }
         if codexAccountCount > 0 {
-            height += 112 + CGFloat(max(0, codexAccountCount - 1)) * 80 + 4
+            height += codexBaseHeight + CGFloat(max(0, codexAccountCount - 1)) * 80 + 4
         }
         if settings.showProcessesCard {
-            height += 42 + CGFloat(settings.processLimit) * 18 + 4
+            height += 42 + CGFloat(processRowCount) * 18 + 4
         }
 
         // The popover height follows the enabled modules and process count;
         // only the minimum keeps an empty or partially loaded panel usable.
         return max(height, 160)
+    }
+
+    private func highUsageColor(_ value: Double, warning: Int, critical: Int) -> Color {
+        if value >= Double(max(warning, critical)) { return .red }
+        if value >= Double(min(warning, critical)) { return .orange }
+        return .primary
     }
 
     private func formatRate(_ bytes: Double) -> String {
@@ -2661,10 +2929,25 @@ struct PowerStatusView: View {
     let battery: BatterySnapshot
     let bluetoothBatteries: [BluetoothBatterySnapshot]
     let isPrivacyMode: Bool
+    let density: DashboardDensity
 
     private let columns = [
         GridItem(.adaptive(minimum: 155), spacing: 10, alignment: .leading)
     ]
+
+    private var batteryColor: Color {
+        let percentage = battery.percentage
+        if percentage <= 10 { return .red }
+        if percentage <= 20 { return .orange }
+        return .green
+    }
+
+    private var healthColor: Color {
+        guard let health = battery.health else { return .secondary }
+        if health <= 70 { return .red }
+        if health <= 80 { return .orange }
+        return .green
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -2673,37 +2956,57 @@ struct PowerStatusView: View {
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(.secondary)
                 Spacer()
-                HStack(spacing: 5) {
-                    PowerTag(text: battery.health.map { "健康 \(Int($0))%" } ?? "健康 —")
-                    PowerTag(text: battery.cycleCount.map { "循环 \($0) 次" } ?? "循环 —")
+                if density != .compact {
+                    HStack(spacing: 5) {
+                        PowerTag(text: battery.health.map { "健康 \(Int($0))%" } ?? "健康 —", color: healthColor)
+                        PowerTag(text: battery.cycleCount.map { "循环 \($0) 次" } ?? "循环 —")
+                    }
                 }
             }
 
-            // Keep every device in a flexible two-column grid. With more than
-            // two Bluetooth devices, their compact rings keep the panel from
-            // growing into a long list while preserving the device type and charge.
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
-                BatteryRing(
-                    value: battery.percentage,
-                    title: "MacBook",
-                    detail: battery.adapterWatts.map { "\(battery.powerSource)  \($0) W" } ?? battery.powerSource,
-                    icon: "laptopcomputer"
-                )
-
-                ForEach(Array(bluetoothBatteries.enumerated()), id: \.offset) { index, device in
-                    if bluetoothBatteries.count > 2 {
+            if density == .compact {
+                HStack(spacing: 8) {
+                    CompactBluetoothBatteryRing(
+                        value: battery.percentage,
+                        icon: "laptopcomputer",
+                        accessibilityName: "MacBook"
+                    )
+                    ForEach(Array(bluetoothBatteries.prefix(4).enumerated()), id: \.offset) { index, device in
                         CompactBluetoothBatteryRing(
                             value: device.percentage,
                             icon: device.kind.icon,
                             accessibilityName: isPrivacyMode ? "蓝牙设备 \(index + 1)" : device.name
                         )
-                    } else {
-                        BatteryRing(
-                            value: device.percentage,
-                            title: isPrivacyMode ? "蓝牙设备 \(index + 1)" : device.name,
-                            detail: device.detail,
-                            icon: device.kind.icon
-                        )
+                    }
+                    Spacer(minLength: 0)
+                }
+            } else {
+                // Keep every device in a flexible two-column grid. With more than
+                // two Bluetooth devices, compact rings prevent a long device list.
+                LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+                    BatteryRing(
+                        value: battery.percentage,
+                        title: "MacBook",
+                        detail: battery.adapterWatts.map { "\(battery.powerSource)  \($0) W" } ?? battery.powerSource,
+                        icon: "laptopcomputer",
+                        color: batteryColor
+                    )
+
+                    ForEach(Array(bluetoothBatteries.enumerated()), id: \.offset) { index, device in
+                        if bluetoothBatteries.count > 2 {
+                            CompactBluetoothBatteryRing(
+                                value: device.percentage,
+                                icon: device.kind.icon,
+                                accessibilityName: isPrivacyMode ? "蓝牙设备 \(index + 1)" : device.name
+                            )
+                        } else {
+                            BatteryRing(
+                                value: device.percentage,
+                                title: isPrivacyMode ? "蓝牙设备 \(index + 1)" : device.name,
+                                detail: device.detail,
+                                icon: device.kind.icon
+                            )
+                        }
                     }
                 }
             }
@@ -2720,15 +3023,38 @@ struct PowerStatusView: View {
 
 struct PowerTag: View {
     let text: String
+    var color: Color = Color.primary.opacity(0.78)
 
     var body: some View {
         Text(text)
             .font(.system(size: 9, weight: .medium, design: .monospaced))
-            .foregroundStyle(Color.primary.opacity(0.78))
+            .foregroundStyle(color)
             .padding(.horizontal, 6)
             .padding(.vertical, 4)
             .background(AppColors.badge)
             .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+}
+
+private struct SensorCapabilityRow: View {
+    let title: String
+    let isAvailable: Bool
+    let reason: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: isAvailable ? "checkmark.circle.fill" : "minus.circle")
+                .foregroundStyle(isAvailable ? .green : .secondary)
+            Text(title)
+                .font(.caption.weight(.medium))
+                .frame(width: 58, alignment: .leading)
+            Text(reason)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .help(reason)
     }
 }
 
@@ -2794,6 +3120,7 @@ struct BatteryRing: View {
     let title: String
     let detail: String
     let icon: String
+    var color: Color = .green
 
     var body: some View {
         HStack(spacing: 8) {
@@ -2802,7 +3129,7 @@ struct BatteryRing: View {
                     .stroke(Color.primary.opacity(0.12), lineWidth: 3.5)
                 Circle()
                     .trim(from: 0, to: CGFloat(max(0, min(100, value ?? 0)) / 100))
-                    .stroke(value == nil ? Color.primary.opacity(0.18) : Color.green, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+                    .stroke(value == nil ? Color.primary.opacity(0.18) : color, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                 Text(value.map { "\(Int($0))%" } ?? "—")
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
@@ -2836,6 +3163,7 @@ struct BatteryRing: View {
 struct DeviceInfoView: View {
     let info: DeviceInfo
     let isPrivacyMode: Bool
+    let density: DashboardDensity
 
     var body: some View {
         HStack(spacing: 8) {
@@ -2856,20 +3184,24 @@ struct DeviceInfoView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 5))
                     Spacer(minLength: 0)
                 }
-                HStack(spacing: 6) {
-                    InfoTag(text: "CPU  \(displayCPUModel)")
-                    InfoTag(text: "内存  \(info.memory)")
+                if density != .compact {
+                    HStack(spacing: 6) {
+                        InfoTag(text: "CPU  \(displayCPUModel)")
+                        InfoTag(text: "内存  \(info.memory)")
+                    }
                 }
             }
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("运行时间")
-                    .font(.system(size: 9, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-                Text(info.uptime)
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+            if density != .compact {
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("运行时间")
+                        .font(.system(size: 9, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                    Text(info.uptime)
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                }
             }
         }
         .padding(8)
@@ -2964,19 +3296,41 @@ private struct StatusBarMetricGroupDropDelegate: DropDelegate {
     }
 }
 
-private struct SettingsColumnHeightPreferenceKey: PreferenceKey {
-    static let defaultValue: [Int: CGFloat] = [:]
+private struct DashboardModuleDropDelegate: DropDelegate {
+    let target: DashboardModule
+    @Binding var modules: [DashboardModule]
+    @Binding var draggedModule: DashboardModule?
 
-    static func reduce(value: inout [Int: CGFloat], nextValue: () -> [Int: CGFloat]) {
-        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    func dropEntered(info: DropInfo) {
+        guard let draggedModule,
+              draggedModule != target,
+              let sourceIndex = modules.firstIndex(of: draggedModule),
+              let destinationIndex = modules.firstIndex(of: target) else {
+            return
+        }
+        withAnimation(.easeInOut(duration: 0.15)) {
+            modules.move(
+                fromOffsets: IndexSet(integer: sourceIndex),
+                toOffset: destinationIndex > sourceIndex ? destinationIndex + 1 : destinationIndex
+            )
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggedModule = nil
+        return true
     }
 }
 
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var codexUsageStore: CodexAccountsUsageStore
-    @State private var settingsColumnsHeight: CGFloat = 0
     @State private var draggedStatusBarGroup: StatusBarMetricGroup?
+    @State private var draggedDashboardModule: DashboardModule?
     @State private var codexAccountMessage: String?
     @State private var testingCodexAccountIDs = Set<UUID>()
     @State private var isAddingCodexAccount = false
@@ -3003,13 +3357,8 @@ struct SettingsView: View {
                 // 外观与状态栏、系统位于左列；面板模块、监控位于右列，避免模块间出现大块空白。
                 HStack(alignment: .top, spacing: 16) {
                     VStack(alignment: .leading, spacing: 16) {
-                        SettingsSection(
-                            title: "外观与状态栏",
-                            cardMinHeight: max(470, settingsColumnsHeight - 28)
-                        ) {
-                            VStack(alignment: .leading, spacing: 14) {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    HStack(spacing: 12) {
+                        SettingsSection(title: "外观") {
+                            HStack(spacing: 12) {
                                         SettingsFieldLabel("主题")
                                         Picker("", selection: $settings.theme) {
                                             ForEach(ThemePreference.allCases) { theme in
@@ -3019,11 +3368,12 @@ struct SettingsView: View {
                                         .labelsHidden()
                                         .pickerStyle(.segmented)
                                         .frame(width: 240)
-                                    }
+                            }
+                        }
 
-                                    Divider()
-
-                                    SettingsSubsectionTitle("菜单栏显示内容")
+                        SettingsSection(title: "状态栏") {
+                            VStack(alignment: .leading, spacing: 12) {
+                                SettingsSubsectionTitle("菜单栏显示内容")
                                     LazyVGrid(columns: [
                                         GridItem(.flexible(), alignment: .leading),
                                         GridItem(.flexible(), alignment: .leading),
@@ -3076,35 +3426,37 @@ struct SettingsView: View {
 
                                     Divider()
 
-                                    HStack(spacing: 14) {
-                                        Toggle("显示 Logo", isOn: $settings.showStatusBarLogo)
-                                            .fixedSize(horizontal: true, vertical: false)
-                                        Toggle("随 CPU 加速", isOn: $settings.statusBarLogoAnimation)
-                                            .toggleStyle(.switch)
-                                            .fixedSize(horizontal: true, vertical: false)
-                                            .disabled(!settings.showStatusBarLogo)
-                                        SettingsFieldLabel("动画样式")
-                                            .fixedSize(horizontal: true, vertical: false)
-                                        Picker("", selection: $settings.statusBarRunner) {
-                                            ForEach(StatusBarRunner.allCases) { runner in
-                                                Text(runner.title).tag(runner)
-                                            }
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        HStack(spacing: 14) {
+                                            Toggle("显示 Logo", isOn: $settings.showStatusBarLogo)
+                                                .fixedSize(horizontal: true, vertical: false)
+                                            Toggle("随 CPU 加速", isOn: $settings.statusBarLogoAnimation)
+                                                .toggleStyle(.switch)
+                                                .fixedSize(horizontal: true, vertical: false)
+                                                .disabled(!settings.showStatusBarLogo)
                                         }
-                                        .labelsHidden()
-                                        .pickerStyle(.menu)
-                                        .frame(width: 130)
-                                        .disabled(!settings.showStatusBarLogo)
+                                        HStack(spacing: 12) {
+                                            SettingsFieldLabel("动画样式")
+                                            Picker("", selection: $settings.statusBarRunner) {
+                                                ForEach(StatusBarRunner.allCases) { runner in
+                                                    Text(runner.title).tag(runner)
+                                                }
+                                            }
+                                            .labelsHidden()
+                                            .pickerStyle(.menu)
+                                            .frame(width: 130)
+                                            .disabled(!settings.showStatusBarLogo)
+                                        }
                                     }
-                                    Text("内置 9 种 RunCatNeo / RunnerGallery 动画（Apache-2.0）；系统启用“减少动态效果”时自动显示静态图标。")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
+                                Text("内置 13 种 RunCatNeo / RunnerGallery 动画（Apache-2.0）；系统启用“减少动态效果”时自动显示静态图标。")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
 
-                                Divider()
-
-                                VStack(alignment: .leading, spacing: 7) {
-                                    SettingsSubsectionTitle("菜单栏项目顺序")
+                        SettingsSection(title: "菜单栏项目顺序") {
+                            VStack(alignment: .leading, spacing: 7) {
                                     Text("拖动项目调整状态栏显示顺序；Logo 也可以自由排序。")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
@@ -3151,37 +3503,6 @@ struct SettingsView: View {
                                     .font(.caption)
                                 }
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-
-                    }
-                    .background(GeometryReader { proxy in
-                        Color.clear.preference(
-                            key: SettingsColumnHeightPreferenceKey.self,
-                            value: [0: proxy.size.height]
-                        )
-                    })
-                    .frame(minWidth: 400, maxWidth: .infinity, minHeight: max(settingsColumnsHeight, 400), alignment: .top)
-                    .layoutPriority(1)
-
-                    VStack(alignment: .leading, spacing: 16) {
-                        SettingsSection(title: "面板模块") {
-                            LazyVGrid(columns: [
-                                GridItem(.flexible(), alignment: .leading),
-                                GridItem(.flexible(), alignment: .leading),
-                                GridItem(.flexible(), alignment: .leading)
-                            ], alignment: .leading, spacing: 10) {
-                                Toggle("CPU", isOn: $settings.showCPUCard)
-                                Toggle("GPU", isOn: $settings.showGPUCard)
-                                Toggle("内存", isOn: $settings.showMemoryCard)
-                                Toggle("磁盘", isOn: $settings.showDiskCard)
-                                Toggle("网络", isOn: $settings.showNetworkCard)
-                                Toggle("风扇", isOn: $settings.showFanCard)
-                                Toggle("电源", isOn: $settings.showPowerCard)
-                                Toggle("进程", isOn: $settings.showProcessesCard)
-                                Toggle("Codex", isOn: $settings.showCodexCard)
-                            }
-                        }
 
                         SettingsSection(title: "监控") {
                             VStack(alignment: .leading, spacing: 12) {
@@ -3230,13 +3551,102 @@ struct SettingsView: View {
                             }
                         }
 
+                    }
+                    .frame(minWidth: 400, idealWidth: 444, maxWidth: .infinity, alignment: .top)
+
+                    VStack(alignment: .leading, spacing: 16) {
+                        SettingsSection(title: "面板模块") {
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack(spacing: 10) {
+                                    Text("显示密度")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 60, alignment: .leading)
+                                    Picker("", selection: $settings.dashboardDensity) {
+                                        ForEach(DashboardDensity.allCases) { density in
+                                            Text(density.title).tag(density)
+                                        }
+                                    }
+                                    .labelsHidden()
+                                    .pickerStyle(.segmented)
+                                }
+
+                                Divider()
+
+                                LazyVGrid(columns: [
+                                    GridItem(.flexible(), alignment: .leading),
+                                    GridItem(.flexible(), alignment: .leading),
+                                    GridItem(.flexible(), alignment: .leading)
+                                ], alignment: .leading, spacing: 10) {
+                                    Toggle("CPU", isOn: $settings.showCPUCard)
+                                    Toggle("GPU", isOn: $settings.showGPUCard)
+                                    Toggle("内存", isOn: $settings.showMemoryCard)
+                                    Toggle("磁盘", isOn: $settings.showDiskCard)
+                                    Toggle("网络", isOn: $settings.showNetworkCard)
+                                    Toggle("风扇", isOn: $settings.showFanCard)
+                                    Toggle("电源", isOn: $settings.showPowerCard)
+                                    Toggle("进程", isOn: $settings.showProcessesCard)
+                                    Toggle("Codex", isOn: $settings.showCodexCard)
+                                }
+                            }
+                        }
+
+                        SettingsSection(title: "面板项目顺序") {
+                            VStack(alignment: .leading, spacing: 7) {
+                                Text("拖动项目调整 Dashboard 显示顺序。")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+
+                                LazyVGrid(
+                                    columns: [GridItem(.adaptive(minimum: 130), alignment: .leading)],
+                                    alignment: .leading,
+                                    spacing: 6
+                                ) {
+                                    ForEach(settings.dashboardModuleOrder) { module in
+                                        HStack(spacing: 7) {
+                                            Image(systemName: "line.3.horizontal")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                            Text(module.title)
+                                                .font(.caption)
+                                                .lineLimit(1)
+                                            Spacer(minLength: 0)
+                                            Image(systemName: "arrow.up.and.down")
+                                                .font(.caption2)
+                                                .foregroundStyle(.tertiary)
+                                        }
+                                        .padding(.vertical, 3)
+                                        .contentShape(Rectangle())
+                                        .onDrag {
+                                            draggedDashboardModule = module
+                                            return NSItemProvider(object: module.rawValue as NSString)
+                                        }
+                                        .onDrop(
+                                            of: [UTType.text],
+                                            delegate: DashboardModuleDropDelegate(
+                                                target: module,
+                                                modules: $settings.dashboardModuleOrder,
+                                                draggedModule: $draggedDashboardModule
+                                            )
+                                        )
+                                    }
+                                }
+
+                                Button("恢复默认顺序") {
+                                    settings.resetDashboardModuleOrder()
+                                }
+                                .buttonStyle(.link)
+                                .font(.caption)
+                            }
+                        }
+
                         SettingsSection(title: "传感器") {
                             VStack(alignment: .leading, spacing: 10) {
                                 HStack(spacing: 8) {
                                     Image(systemName: settings.sensorHelperEnabled ? "checkmark.shield.fill" : "exclamationmark.shield")
-                                        .foregroundStyle(settings.sensorHelperEnabled ? .green : .secondary)
+                                        .foregroundStyle(settings.sensorHelperEnabled ? .green : (settings.sensorHelperReachable ? .orange : .secondary))
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(settings.sensorHelperEnabled ? "辅助进程运行中" : "未授权或不可用")
+                                        Text(settings.sensorHelperEnabled ? "辅助进程运行中" : (settings.sensorHelperReachable ? "辅助进程需要重新安装" : "未授权或不可用"))
                                             .font(.callout.weight(.semibold))
                                         Text(settings.sensorHelperMessage ?? "需要管理员授权后读取风扇和温度。")
                                             .font(.caption)
@@ -3250,10 +3660,42 @@ struct SettingsView: View {
                                     }
                                 }
 
+                                if let diagnostic = settings.sensorOperationDiagnostic {
+                                    Text(diagnostic)
+                                        .font(.caption2.monospaced())
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                        .truncationMode(.middle)
+                                        .textSelection(.enabled)
+                                        .help(diagnostic)
+                                }
+
                                 HStack(spacing: 6) {
-                                    PowerTag(text: "风扇 \(settings.sensorFanAvailable ? "可用" : "不可用")")
-                                    PowerTag(text: "CPU 温度 \(settings.sensorCPUTemperatureAvailable ? "可用" : "不可用")")
-                                    PowerTag(text: "GPU 温度 \(settings.sensorGPUTemperatureAvailable ? "可用" : "不可用")")
+                                    PowerTag(text: "Helper \(settings.sensorHelperVersion ?? "—")")
+                                    PowerTag(text: "协议 \(settings.sensorProtocolVersion.map(String.init) ?? "—")")
+                                }
+
+                                Text(settings.sensorSignatureMessage ?? "尚未验证辅助进程签名。")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    SensorCapabilityRow(
+                                        title: "风扇",
+                                        isAvailable: settings.sensorFanAvailable,
+                                        reason: settings.sensorFanReason
+                                    )
+                                    SensorCapabilityRow(
+                                        title: "CPU 温度",
+                                        isAvailable: settings.sensorCPUTemperatureAvailable,
+                                        reason: settings.sensorCPUTemperatureReason
+                                    )
+                                    SensorCapabilityRow(
+                                        title: "GPU 温度",
+                                        isAvailable: settings.sensorGPUTemperatureAvailable,
+                                        reason: settings.sensorGPUTemperatureReason
+                                    )
                                 }
 
                                 if let lastReadAt = settings.sensorLastReadAt {
@@ -3263,7 +3705,7 @@ struct SettingsView: View {
                                 }
 
                                 HStack(spacing: 8) {
-                                    Button(settings.sensorHelperEnabled ? "重新安装" : "授权读取") {
+                                    Button(settings.sensorHelperReachable ? "重新安装" : "授权读取") {
                                         settings.installSensorHelper()
                                     }
                                     .disabled(settings.sensorHelperChecking)
@@ -3273,7 +3715,12 @@ struct SettingsView: View {
                                     }
                                     .disabled(settings.sensorHelperChecking)
 
-                                    if settings.sensorHelperEnabled {
+                                    Button("复制诊断") {
+                                        settings.copySensorDiagnostics()
+                                    }
+                                    .disabled(settings.sensorHelperChecking)
+
+                                    if settings.sensorHelperReachable {
                                         Button("卸载", role: .destructive) {
                                             settings.uninstallSensorHelper()
                                         }
@@ -3298,21 +3745,9 @@ struct SettingsView: View {
                             }
                         }
                     }
-                    .background(GeometryReader { proxy in
-                        Color.clear.preference(
-                            key: SettingsColumnHeightPreferenceKey.self,
-                            value: [1: proxy.size.height]
-                        )
-                    })
-                    .frame(minWidth: 310, idealWidth: 360, maxWidth: 440, minHeight: max(settingsColumnsHeight, 400), alignment: .top)
+                    .frame(width: 360, alignment: .top)
                 }
-                .frame(maxWidth: .infinity, alignment: .top)
-                .onPreferenceChange(SettingsColumnHeightPreferenceKey.self) { heights in
-                    let height = max(heights.values.max() ?? 0, 400)
-                    if abs(settingsColumnsHeight - height) > 0.5 {
-                        settingsColumnsHeight = height
-                    }
-                }
+                .frame(minWidth: 776, maxWidth: .infinity, alignment: .topLeading)
 
                 SettingsSection(title: "Codex 账号") {
                     VStack(alignment: .leading, spacing: 10) {
@@ -3458,11 +3893,11 @@ struct SettingsView: View {
             .background(ThinScrollViewConfigurator())
         }
         .scrollIndicators(.hidden)
-    }
+        }
         .sheet(isPresented: $isAddingCodexAccount) {
             addCodexAccountSheet
         }
-        .frame(minWidth: 820, idealWidth: 860, minHeight: 680, idealHeight: 760)
+        .frame(minWidth: 860, idealWidth: 860, minHeight: 680, idealHeight: 760)
         .background(AppColors.background)
         .preferredColorScheme(settings.theme.colorScheme)
     }
@@ -3625,20 +4060,40 @@ struct MetricCard<Content: View, Footer: View>: View {
     let icon: String
     let value: String
     let badge: String
+    let density: DashboardDensity
+    let valueColor: Color
     let content: Content
     let footer: Footer
 
-    init(title: String, icon: String, value: String, badge: String, @ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer = { EmptyView() }) {
+    init(title: String, icon: String, value: String, badge: String, density: DashboardDensity = .standard, valueColor: Color = .primary, @ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer = { EmptyView() }) {
         self.title = title
         self.icon = icon
         self.value = value
         self.badge = badge
+        self.density = density
+        self.valueColor = valueColor
         self.content = content()
         self.footer = footer()
     }
 
+    private var chartHeight: CGFloat {
+        switch density {
+        case .compact: return 0
+        case .standard: return 24
+        case .detailed: return 38
+        }
+    }
+
+    private var minimumHeight: CGFloat {
+        switch density {
+        case .compact: return 58
+        case .standard: return 100
+        case .detailed: return 114
+        }
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: density == .compact ? 3 : 6) {
             HStack {
                 Label(title, systemImage: icon)
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -3655,19 +4110,21 @@ struct MetricCard<Content: View, Footer: View>: View {
 
             Text(value)
                 .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
+                .foregroundStyle(valueColor)
 
-            content
-                .font(.system(size: 10, weight: .medium, design: .rounded))
-                .frame(height: 24)
+            if density != .compact {
+                content
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .frame(height: chartHeight)
 
-            footer
-                .font(.system(size: 9, weight: .medium, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+                footer
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         }
-        .padding(6)
-        .frame(minHeight: 100, alignment: .top)
+        .padding(density == .compact ? 6 : 6)
+        .frame(minHeight: minimumHeight, alignment: .top)
         .background(AppColors.card)
         .overlay(
             RoundedRectangle(cornerRadius: 13)
@@ -3679,6 +4136,14 @@ struct MetricCard<Content: View, Footer: View>: View {
 
 struct ProcessListView: View {
     let processes: [ProcessRow]
+    let density: DashboardDensity
+
+    private var displayedProcesses: [ProcessRow] {
+        switch density {
+        case .compact: return Array(processes.prefix(3))
+        case .standard, .detailed: return processes
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -3687,7 +4152,7 @@ struct ProcessListView: View {
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("CPU          内存")
+                Text(density == .detailed ? "PID     CPU          内存" : "CPU          内存")
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
@@ -3696,11 +4161,16 @@ struct ProcessListView: View {
                 Text("正在读取进程…")
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(processes) { process in
+                ForEach(displayedProcesses) { process in
                     HStack(spacing: 8) {
                         Text(process.name)
                             .lineLimit(1)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                        if density == .detailed {
+                            Text(String(format: "%5d", process.id))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 42, alignment: .trailing)
+                        }
                         Text(String(format: "%5.1f%%", process.cpu))
                             .foregroundStyle(process.cpu > 20 ? .orange : .secondary)
                             .frame(width: 62, alignment: .trailing)

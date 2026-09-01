@@ -2,71 +2,67 @@
 
 All notable changes to Torli Stats are documented here.
 
-## [1.1.0] — 2026-08-31
+## [1.1.1] — 2026-09-01
 
-<!-- ai-changelog:34a1a150dc45 -->
-### 2026-08-31
+<!-- ai-changelog:1c9db62fb11f -->
+### 2026-09-01
 
 ### English
 
-- Added Codex account management improvements, status-bar Logo reordering, refreshed settings UI, and compact Bluetooth battery indicators; bumped `CFBundleShortVersionString` to `1.1.0`.
+- Adds dashboard customization, denser layouts, improved sensor-helper diagnostics, four runner assets, and the `1.1.1` application version.
 
-- Codex usage and account management:
-  - Added persisted `codexAutoRefresh` and `codexRefreshInterval` settings, with supported intervals of 1, 5, 10, and 30 minutes; reset-to-defaults restores automatic refresh every 5 minutes.
-  - Propagated `CodexRefreshSettings` through `CodexAccountsUsageStore` into each `CodexUsageStore`, while creating usage stores only for accounts visible in the Dashboard or status bar.
-  - Added per-account “测试连接” handling through `CodexAccountsUsageStore.testConnection(for:completion:)`, including `CodexUsageClient.validate(homePath:)` checks before fetching.
-  - Added Codex Home validation status, resolved-path display, and last successful refresh timestamps to the settings view.
-  - Added managed-account directory creation under `~/.torli-stats-codex` with POSIX permissions `0o700`. Existing account removal continues to remove only application configuration according to the settings text.
-  - Increased the settings window and Codex account sheet layout to accommodate account status, refresh controls, and connection actions.
-  - `CodexUsageClient.fetch` now uses the validation result when checking the Codex Home directory, `auth.json`, and the executable path.
+- **Dashboard customization**
+  - Adds `DashboardDensity` modes: `compact`, `standard`, and `detailed`.
+  - Adds configurable `DashboardModule` ordering for CPU, GPU, memory, disk, network, fan, power, Codex, and processes.
+  - Adds drag-and-drop ordering in the settings window through `DashboardModuleDropDelegate`, plus a default-order reset action.
+  - Persists `dashboardDensity` and `dashboardModuleOrder` in `UserDefaults`. Missing, invalid, duplicate, or incomplete saved orders are normalized by `validDashboardModuleOrder`; existing installations fall back to `.standard` and `DashboardModule.allCases`.
+  - Groups metric modules into grids while rendering power, Codex, and process modules separately according to the configured order.
+  - Compact mode reduces padding and estimated panel height, hides selected device and power details, limits displayed Bluetooth battery rings to four, and limits the estimated process rows to three.
+  - CPU, memory, and disk values now use warning and critical colors at their corresponding usage thresholds.
+  - Battery and health indicators now use severity colors; compact power mode shows compact rings instead of health and cycle-count tags.
+  - Expands the settings window minimum width from `820` to `860`.
 
-- Status-bar display:
-  - Added `StatusBarMetricGroup.logo`, allowing the Logo to participate in `statusBarMetricOrder` and be placed among system, network, and Codex groups.
-  - Reworked status-bar composition to render the Logo and metric groups into one `NSImage`, preserving the selected order and applying the current `NSAppearance`.
-  - The animated Logo now supplies updated images through a callback; Logo visibility, CPU-driven animation, and reduce-motion handling remain tied to `StatusBarLogoConfiguration`.
-  - Replaced the privacy-mode menu checkmark state with SF Symbols, disabled the menu state column, and added symbols to the About, Settings, Refresh, Privacy, and Quit items.
-  - Replaced manual up/down ordering buttons with drag-and-drop using `UTType.text`, while retaining “恢复默认顺序”.
+- **Sensor helper diagnostics and validation**
+  - Tracks helper reachability separately from verified availability through `sensorHelperReachable`.
+  - A helper is considered verified only when it is reachable, `SensorHelperInstallationStatus.inspect()` reports a valid signature, and the reported protocol matches `SensorServiceConstants.protocolVersion`.
+  - Displays helper version, protocol version, signature status, per-capability reasons for fan, CPU temperature, and GPU temperature, and the latest operation diagnostic.
+  - Captures `stdout` and `stderr` from `/usr/bin/osascript` operations, reports non-zero termination details, and sanitizes occurrences of `NSHomeDirectory()` to `~`.
+  - Adds a “复制诊断” action that copies a diagnostic report stating that it excludes device name, serial number, and account information.
+  - Sensor installation and uninstallation continue to run through `/usr/bin/osascript` with administrator privileges. Uninstallation now clears helper metadata, capability state, and diagnostics.
+  - Reachable helpers with an incompatible protocol or invalid signature are surfaced as requiring reinstallation.
 
-- Settings organization:
-  - Reorganized the settings window into two columns with grouped labels and subsections for appearance, status-bar content, system metric style, monitoring, sensors, and system options.
-  - Added explicit field labels and adjusted minimum/ideal window sizing to support the expanded layout.
-
-- Power panel:
-  - When more than two Bluetooth devices are present, displays compact 48×48 battery rings with device-type icons and charge percentages instead of full `BatteryRing` rows.
-  - Preserves device names through `.help` and accessibility labels, including privacy-mode names and unavailable battery values.
-
-- Platform and packaging:
-  - `Info.plist` continues to declare `LSMinimumSystemVersion` as macOS `13.0`.
-  - The sensor-helper workflow continues to use administrator privileges where required by the existing installation flow.
+- **Status-bar and resources**
+  - Status-bar logo tinting now applies only when `logoImage.isTemplate` is true, preserving the original colors of non-template images.
+  - Adds `Resources/runner-classic-cat.png`, `Resources/runner-dojo-panda.png`, `Resources/runner-golden-retriever.png`, and `Resources/runner-wall-breaker.png`.
+  - Updates the settings text from 9 to 13 built-in RunCatNeo / RunnerGallery animations.
+  - `Info.plist` updates `CFBundleShortVersionString` from `1.1.0` to `1.1.1`; `LSMinimumSystemVersion` remains `13.0`.
 
 ### 中文
 
-- 新增 Codex 账号管理改进、状态栏 Logo 排序、设置界面重组和紧凑型蓝牙电量显示；`CFBundleShortVersionString` 更新为 `1.1.0`。
+- 新增 Dashboard 自定义、密度布局、传感器辅助进程诊断、4 个 runner 资源，并将应用版本更新为 `1.1.1`。
 
-- Codex 用量与账号管理：
-  - 新增持久化设置 `codexAutoRefresh` 和 `codexRefreshInterval`，支持 1、5、10、30 分钟间隔；恢复默认设置后为启用自动刷新、每 5 分钟刷新。
-  - 将 `CodexRefreshSettings` 从 `CodexAccountsUsageStore` 传递至各个 `CodexUsageStore`，并且只为显示在 Dashboard 或状态栏中的账号创建 usage store。
-  - 新增基于 `CodexAccountsUsageStore.testConnection(for:completion:)` 的“测试连接”操作，在读取前通过 `CodexUsageClient.validate(homePath:)` 执行检查。
-  - 在设置界面显示 Codex Home 校验状态、解析后的路径和每个账号上次成功刷新的时间。
-  - 受管理账号创建在 `~/.torli-stats-codex` 下的独立目录，并设置 POSIX 权限 `0o700`。根据设置界面现有说明，移除账号仍只删除应用配置。
-  - 扩大设置窗口和 Codex 账号弹窗布局，以容纳账号状态、刷新设置和连接操作。
-  - `CodexUsageClient.fetch` 现在使用校验结果检查 Codex Home 目录、`auth.json` 和 executable path。
+- **Dashboard 自定义**
+  - 新增 `DashboardDensity`：`compact`、`standard` 和 `detailed`。
+  - 新增可配置的 `DashboardModule` 顺序，覆盖 CPU、GPU、内存、磁盘、网络、风扇、电源、Codex 和进程。
+  - 在设置窗口中通过 `DashboardModuleDropDelegate` 支持拖放排序，并提供恢复默认顺序操作。
+  - 使用 `UserDefaults` 持久化 `dashboardDensity` 和 `dashboardModuleOrder`。缺失、无效、重复或不完整的已保存顺序会由 `validDashboardModuleOrder` 规范化；已有安装在没有这些设置时回退到 `.standard` 和 `DashboardModule.allCases`。
+  - 按配置顺序将指标模块组合到网格中，并单独渲染电源、Codex 和进程模块。
+  - 紧凑模式会减少边距和面板高度估算，隐藏部分设备与电源详情，最多显示 4 个蓝牙电量环，并将进程高度估算限制为 3 行。
+  - CPU、内存和磁盘数值现在会根据对应的警告和严重使用率阈值显示颜色。
+  - 电池电量和健康度指标现在使用严重程度颜色；紧凑电源模式使用紧凑环形指标替代健康度和循环次数标签。
+  - 设置窗口最小宽度从 `820` 增加到 `860`。
 
-- 状态栏显示：
-  - 新增 `StatusBarMetricGroup.logo`，允许 Logo 加入 `statusBarMetricOrder`，并在系统、网络和 Codex 项目之间自由排序。
-  - 重构状态栏合成逻辑，将 Logo 和指标组按选择的顺序绘制到同一个 `NSImage` 中，并使用当前 `NSAppearance`。
-  - 动态 Logo 通过 callback 提供更新后的图像；Logo 显示、随 CPU 加速和减少动态效果处理仍由 `StatusBarLogoConfiguration` 控制。
-  - 隐私模式菜单项不再使用 `NSMenuItem` 的勾选状态，改为 SF Symbols，并关闭菜单状态列；关于、设置、刷新、隐私和退出菜单项均新增对应图标。
-  - 使用基于 `UTType.text` 的拖放操作替代手动上下移动按钮，同时保留“恢复默认顺序”。
+- **传感器辅助进程诊断与验证**
+  - 通过 `sensorHelperReachable` 将辅助进程可连接状态与已验证可用状态分开记录。
+  - 只有在辅助进程可连接、`SensorHelperInstallationStatus.inspect()` 报告签名有效，并且协议版本与 `SensorServiceConstants.protocolVersion` 一致时，辅助进程才会被视为已验证。
+  - 设置界面显示辅助进程版本、协议版本、签名状态，以及风扇、CPU 温度和 GPU 温度各项能力的具体原因。
+  - 捕获 `/usr/bin/osascript` 操作的 `stdout` 和 `stderr`，报告非零退出状态，并将 `NSHomeDirectory()` 中出现的路径替换为 `~`。
+  - 新增“复制诊断”操作，复制的诊断报告明确说明不包含设备名称、序列号或账号信息。
+  - 传感器安装和卸载仍通过带有管理员权限的 `/usr/bin/osascript` 执行；卸载后会清除辅助进程元数据、能力状态和诊断信息。
+  - 对于可连接但协议不兼容或签名无效的辅助进程，界面会提示需要重新安装。
 
-- 设置界面整理：
-  - 将设置窗口重组为两列，并按外观、状态栏内容、系统指标样式、监控、传感器和系统选项进行分组。
-  - 新增明确的字段标签，并调整窗口的最小尺寸和理想尺寸以适应扩展后的布局。
-
-- 电源面板：
-  - 当蓝牙设备超过两个时，使用紧凑的 48×48 电量环显示设备类型图标和电量百分比，不再为每个设备显示完整的 `BatteryRing` 行。
-  - 通过 `.help` 和无障碍标签保留设备名称；隐私模式和电量不可用状态也分别提供对应文本。
-
-- 平台与打包：
-  - `Info.plist` 继续声明最低系统版本为 macOS `13.0`。
-  - 传感器辅助进程流程继续在现有安装流程要求时使用管理员权限。
+- **状态栏与资源**
+  - 只有在 `logoImage.isTemplate` 为 `true` 时才对状态栏 Logo 应用模板着色，非模板图片会保留原始颜色。
+  - 新增 `Resources/runner-classic-cat.png`、`Resources/runner-dojo-panda.png`、`Resources/runner-golden-retriever.png` 和 `Resources/runner-wall-breaker.png`。
+  - 设置界面中的内置 RunCatNeo / RunnerGallery 动画数量说明从 9 种更新为 13 种。
+  - `Info.plist` 将 `CFBundleShortVersionString` 从 `1.1.0` 更新为 `1.1.1`；`LSMinimumSystemVersion` 仍为 `13.0`。
