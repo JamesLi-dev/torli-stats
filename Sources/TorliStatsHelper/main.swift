@@ -47,7 +47,18 @@ private enum SMCReader {
     private static var lastGPUTemperature: Double?
 
     static func snapshot() -> NSDictionary {
-        guard smc.open() else { return ["available": false] }
+        guard smc.open() else {
+            return [
+                "available": false,
+                "helperVersion": SensorServiceConstants.helperVersion,
+                "protocolVersion": SensorServiceConstants.protocolVersion,
+                "smcAvailable": false,
+                "diagnosticMessage": smc.openFailureDescription ?? "无法打开 AppleSMC 服务。",
+                "fanReason": "SMC 服务不可用。",
+                "cpuTemperatureReason": "SMC 服务不可用。",
+                "gpuTemperatureReason": "SMC 服务不可用。"
+            ]
+        }
 
         let discovered = smc.discoverKeys()
         let cpuKeys = unique(fallbackCPUKeys + appleSiliconCPUKeys + discovered.filter {
@@ -64,7 +75,12 @@ private enum SMCReader {
             $0.count == 4 && $0.first == "F" && $0.hasSuffix("Ac")
         })
 
-        var result: [String: NSNumber] = ["available": true]
+        var result: [String: Any] = [
+            "available": true,
+            "helperVersion": SensorServiceConstants.helperVersion,
+            "protocolVersion": SensorServiceConstants.protocolVersion,
+            "smcAvailable": true
+        ]
 
         // Zero is a valid reading: a MacBook fan can be stopped. Only an
         // absent/unreadable key should be treated as missing.
@@ -72,6 +88,9 @@ private enum SMCReader {
             .filter { $0 >= 0 && $0 < 20_000 }
         if let rpm = fanValues.max() {
             lastFanRPM = Int(rpm.rounded())
+            result["fanReason"] = "已读取风扇转速。"
+        } else {
+            result["fanReason"] = "此 Mac 未暴露可读取的风扇转速。"
         }
 
         // Ignore implausibly low values. Those are usually non-temperature /
@@ -99,6 +118,9 @@ private enum SMCReader {
                 ?? median(cpuReadings.map { $0.1 })
             if let temperature { lastCPUTemperature = temperature }
         }
+        result["cpuTemperatureReason"] = lastCPUTemperature == nil
+            ? "未发现可读取的 CPU 温度传感器。"
+            : "已读取 CPU 温度。"
 
         let gpuReadings = gpuKeys.compactMap { key -> (String, Double)? in
             guard let value = smc.readNumber(key), value >= 10, value <= 125 else { return nil }
@@ -110,6 +132,9 @@ private enum SMCReader {
         if let temperature = gpuReadings.map({ $0.1 }).max() {
             lastGPUTemperature = temperature
         }
+        result["gpuTemperatureReason"] = lastGPUTemperature == nil
+            ? "未发现可读取的 GPU 温度传感器。"
+            : "已读取 GPU 温度。"
 
         if let lastFanRPM { result["fanRPM"] = NSNumber(value: lastFanRPM) }
         if let lastCPUTemperature { result["cpuTemperature"] = NSNumber(value: lastCPUTemperature) }
@@ -141,20 +166,33 @@ private enum SMCReader {
 private final class SMCConnection {
     private var connection: io_connect_t = 0
     private var isOpen = false
+    private(set) var openFailureDescription: String?
     private var keyInfoCache: [String: (type: UInt32, size: UInt32)?] = [:]
     private var discoveredKeysCache: [String]?
 
     func open() -> Bool {
         if isOpen { return true }
+        var didFindService = false
+        var lastStatus: kern_return_t?
         for serviceName in ["AppleSMC", "AppleSMCKeysEndpoint"] {
             let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching(serviceName))
             guard service != 0 else { continue }
+            didFindService = true
             let status = IOServiceOpen(service, mach_task_self_, 0, &connection)
             IOObjectRelease(service)
             if status == kIOReturnSuccess {
                 isOpen = true
+                openFailureDescription = nil
                 return true
             }
+            lastStatus = status
+        }
+        if !didFindService {
+            openFailureDescription = "未找到 AppleSMC 服务；此 Mac 或当前系统可能不提供可访问的 SMC 传感器。"
+        } else if let lastStatus {
+            openFailureDescription = "无法打开 AppleSMC 服务（IOKit 错误 \(lastStatus)）。"
+        } else {
+            openFailureDescription = "无法打开 AppleSMC 服务。"
         }
         return false
     }

@@ -2,10 +2,17 @@ import Foundation
 import TorliStatsShared
 
 struct PrivilegedSensorValues {
+    let isHelperReachable: Bool
     let isAvailable: Bool
     let fanRPM: Int?
     let cpuTemperature: Double?
     let gpuTemperature: Double?
+    let helperVersion: String?
+    let protocolVersion: Int?
+    let diagnosticMessage: String?
+    let fanReason: String
+    let cpuTemperatureReason: String
+    let gpuTemperatureReason: String
 }
 
 /// Serializes XPC sensor reads off the main thread. The helper can block while
@@ -55,10 +62,17 @@ final class SensorClient {
             guard let self else { return }
             self.callbackQueue.async {
                 let sensorValues = PrivilegedSensorValues(
+                    isHelperReachable: true,
                     isAvailable: (values["available"] as? NSNumber)?.boolValue ?? false,
                     fanRPM: (values["fanRPM"] as? NSNumber)?.intValue,
                     cpuTemperature: (values["cpuTemperature"] as? NSNumber)?.doubleValue,
-                    gpuTemperature: (values["gpuTemperature"] as? NSNumber)?.doubleValue
+                    gpuTemperature: (values["gpuTemperature"] as? NSNumber)?.doubleValue,
+                    helperVersion: values["helperVersion"] as? String,
+                    protocolVersion: (values["protocolVersion"] as? NSNumber)?.intValue,
+                    diagnosticMessage: values["diagnosticMessage"] as? String,
+                    fanReason: values["fanReason"] as? String ?? "未返回风扇诊断信息。",
+                    cpuTemperatureReason: values["cpuTemperatureReason"] as? String ?? "未返回 CPU 温度诊断信息。",
+                    gpuTemperatureReason: values["gpuTemperatureReason"] as? String ?? "未返回 GPU 温度诊断信息。"
                 )
                 finish(sensorValues)
             }
@@ -84,9 +98,16 @@ final class SensorClient {
     }
 
     private static let unavailableValues = PrivilegedSensorValues(
+        isHelperReachable: false,
         isAvailable: false,
         fanRPM: nil,
         cpuTemperature: nil,
-        gpuTemperature: nil
+        gpuTemperature: nil,
+        helperVersion: nil,
+        protocolVersion: nil,
+        diagnosticMessage: "无法连接传感器辅助进程；请确认已授权安装并正在运行。",
+        fanReason: "无法连接传感器辅助进程。",
+        cpuTemperatureReason: "无法连接传感器辅助进程。",
+        gpuTemperatureReason: "无法连接传感器辅助进程。"
     )
 }
