@@ -8,28 +8,34 @@ final class CodexUsageClient {
         self.homePathProvider = homePathProvider
     }
 
-    func fetch(completion: @escaping (Result<CodexUsageSnapshot, CodexUsageError>) -> Void) {
+    @discardableResult
+    func fetch(completion: @escaping (Result<CodexUsageSnapshot, CodexUsageError>) -> Void) -> CodexUsageRequest {
+        let request = CodexUsageRequest(completion: completion)
         queue.async { [homePathProvider] in
+            guard !request.isCancelled else { return }
             let validation = Self.validate(homePath: homePathProvider())
             guard validation.directoryExists else {
-                completion(.failure(.codexHomeNotFound))
+                request.complete(.failure(.codexHomeNotFound))
                 return
             }
             guard validation.authFileExists else {
-                completion(.failure(.authFileNotFound))
+                request.complete(.failure(.authFileNotFound))
                 return
             }
             guard let executablePath = validation.executablePath else {
-                completion(.failure(.executableNotFound))
+                request.complete(.failure(.executableNotFound))
                 return
             }
 
-            CodexServerSession(
+            let session = CodexServerSession(
                 executable: URL(fileURLWithPath: executablePath),
                 home: URL(fileURLWithPath: validation.resolvedPath),
-                completion: completion
-            ).start()
+                completion: { result in request.complete(result) }
+            )
+            guard request.attach(session) else { return }
+            session.start()
         }
+        return request
     }
 
     static func validate(homePath: String?) -> CodexHomeValidation {
@@ -84,7 +90,61 @@ final class CodexUsageClient {
     }
 }
 
-private final class CodexServerSession {
+final class CodexUsageRequest {
+    private let lock = NSLock()
+    private let completion: (Result<CodexUsageSnapshot, CodexUsageError>) -> Void
+    private var session: CodexServerSession?
+    private var cancelled = false
+    private var completed = false
+
+    init(completion: @escaping (Result<CodexUsageSnapshot, CodexUsageError>) -> Void) {
+        self.completion = completion
+    }
+
+    var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelled
+    }
+
+    func cancel() {
+        lock.lock()
+        guard !cancelled, !completed else {
+            lock.unlock()
+            return
+        }
+        cancelled = true
+        let session = session
+        lock.unlock()
+        session?.cancel()
+    }
+
+    func attach(_ session: CodexServerSession) -> Bool {
+        lock.lock()
+        guard !cancelled, !completed else {
+            lock.unlock()
+            session.cancel()
+            return false
+        }
+        self.session = session
+        lock.unlock()
+        return true
+    }
+
+    func complete(_ result: Result<CodexUsageSnapshot, CodexUsageError>) {
+        lock.lock()
+        guard !cancelled, !completed else {
+            lock.unlock()
+            return
+        }
+        completed = true
+        session = nil
+        lock.unlock()
+        completion(result)
+    }
+}
+
+final class CodexServerSession {
     private let executable: URL
     private let home: URL
     private let completion: (Result<CodexUsageSnapshot, CodexUsageError>) -> Void
@@ -112,6 +172,7 @@ private final class CodexServerSession {
     }
 
     func start() {
+        guard !isFinished else { return }
         process.executableURL = executable
         process.arguments = ["app-server", "--stdio"]
         process.standardInput = inputPipe
@@ -149,6 +210,10 @@ private final class CodexServerSession {
         DispatchQueue.global(qos: .utility).async {
             self.readResponses()
         }
+    }
+
+    func cancel() {
+        finish(.failure(.processExited))
     }
 
     private func sendInitialize() {

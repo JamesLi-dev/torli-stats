@@ -179,6 +179,13 @@ private struct CodexAccountUsageRow: View {
                 } else {
                     loadingContent
                 }
+            case let .retrying(error, snapshot, attempt, retryAt):
+                if let snapshot {
+                    snapshotContent(snapshot, isRefreshing: false)
+                }
+                Text("\(error.localizedDescription)，\(retryAt, style: .relative) 后重试（\(attempt)/2）")
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .foregroundStyle(.orange)
             case let .available(snapshot):
                 snapshotContent(snapshot, isRefreshing: false)
             case let .unavailable(error, snapshot):
@@ -208,6 +215,11 @@ private struct CodexAccountUsageRow: View {
 
     private func snapshotContent(_ snapshot: CodexUsageSnapshot, isRefreshing: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
+            if snapshot.isStale() {
+                Label("数据可能已过期", systemImage: "clock.badge.exclamationmark")
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.orange)
+            }
             if let primary = snapshot.primary {
                 let used = percentage(primary.usedPercent)
                 HStack(alignment: .firstTextBaseline, spacing: 7) {

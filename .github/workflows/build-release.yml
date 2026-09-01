@@ -4,80 +4,115 @@ on:
   push:
     branches:
       - main
-    tags:
-      - "v*"
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  build:
+  release:
     runs-on: macos-14
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine release version
+        id: version
+        shell: bash
+        run: |
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "VERSION must be a semantic version (major.minor.patch); got: $VERSION" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "archive=TorliStats-$VERSION-macos-arm64.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether this version is already released
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "$TAG is already released; skipping publication. Bump VERSION for the next release."
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build app
+        if: steps.release.outputs.publish == 'true'
         env:
           CODE_SIGN_IDENTITY: "-"
           SKIP_INSTALL: "1"
         run: ./build-app.sh
 
       - name: Archive app
+        if: steps.release.outputs.publish == 'true'
         env:
-          ARCHIVE_NAME: TorliStats-${{ github.ref_name }}-macos-arm64.zip
+          ARCHIVE_NAME: ${{ steps.version.outputs.archive }}
         run: ditto -c -k --sequesterRsrc --keepParent TorliStats.app "$ARCHIVE_NAME"
 
       - name: Upload build artifact
+        if: steps.release.outputs.publish == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: TorliStats-${{ github.ref_name }}-macos-arm64
-          path: TorliStats-${{ github.ref_name }}-macos-arm64.zip
+          name: TorliStats-${{ steps.version.outputs.version }}-macos-arm64
+          path: ${{ steps.version.outputs.archive }}
           if-no-files-found: error
           retention-days: 30
 
-      - name: Create GitHub Release
-        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+      - name: Create version tag
+        if: steps.release.outputs.publish == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
-          ARCHIVE_NAME: TorliStats-${{ github.ref_name }}-macos-arm64.zip
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
-            # Every successful main build gets a unique prerelease. Version tags
-            # remain available for stable releases such as v0.1.0.
-            RELEASE_TAG="main-${GITHUB_RUN_NUMBER}"
-            RELEASE_TITLE="Main build #${GITHUB_RUN_NUMBER}"
-            RELEASE_FLAGS=(--prerelease --target "$GITHUB_SHA")
-          else
-            RELEASE_TAG="$GITHUB_REF_NAME"
-            RELEASE_TITLE="$RELEASE_TAG"
-            RELEASE_FLAGS=(--verify-tag)
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            git fetch origin "refs/tags/$TAG:refs/tags/$TAG"
+            if [[ "$(git rev-list -n 1 "$TAG")" != "$GITHUB_SHA" ]]; then
+              echo "Existing tag $TAG does not point to this commit; refusing to publish." >&2
+              exit 1
+            fi
+            echo "Tag $TAG already exists for this commit."
+            exit 0
           fi
 
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Torli Stats $TAG"
+          git push origin "$TAG"
+
+      - name: Create GitHub Release
+        if: steps.release.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          ARCHIVE_NAME: ${{ steps.version.outputs.archive }}
+        run: |
           NOTES_FILE="$RUNNER_TEMP/release-notes.md"
-          awk -v tag="$RELEASE_TAG" '
-            $0 == "## [" tag "]" { inside=1; next }
+          awk -v version="$VERSION" '
+            $0 ~ "^## \\[" version "\\]" { inside=1; next }
             inside && /^## / { exit }
             inside { print }
           ' CHANGELOG.md > "$NOTES_FILE"
 
-          if [[ ! -s "$NOTES_FILE" ]]; then
-            awk '
-              /^## \[Unreleased\]/ { inside=1; next }
-              inside && /^## / { exit }
-              inside { print }
-            ' CHANGELOG.md > "$NOTES_FILE"
-          fi
-
           if [[ -s "$NOTES_FILE" ]]; then
-            gh release create "$RELEASE_TAG" "$ARCHIVE_NAME" \
-              --title "$RELEASE_TITLE" \
+            gh release create "$TAG" "$ARCHIVE_NAME" \
+              --title "Torli Stats $VERSION" \
               --notes-file "$NOTES_FILE" \
-              "${RELEASE_FLAGS[@]}"
+              --verify-tag
           else
-            gh release create "$RELEASE_TAG" "$ARCHIVE_NAME" \
-              --title "$RELEASE_TITLE" \
+            gh release create "$TAG" "$ARCHIVE_NAME" \
+              --title "Torli Stats $VERSION" \
               --generate-notes \
-              "${RELEASE_FLAGS[@]}"
+              --verify-tag
           fi
