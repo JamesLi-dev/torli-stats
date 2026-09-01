@@ -67,6 +67,15 @@ enum CodexUsageError: Error, LocalizedError {
     case unsupportedAuthMode
     case processExited
 
+    var isRetryable: Bool {
+        switch self {
+        case .timeout, .networkUnavailable, .processLaunchFailed, .processExited:
+            return true
+        case .codexHomeNotFound, .authFileNotFound, .executableNotFound, .initializeFailed, .unauthorized, .protocolError, .invalidResponse, .unsupportedAuthMode:
+            return false
+        }
+    }
+
     var errorDescription: String? {
         switch self {
         case .codexHomeNotFound: return "未找到 Codex Home"
@@ -110,11 +119,16 @@ struct CodexUsageSnapshot {
     let credits: CodexCredits?
     let rateLimitReachedType: String?
     let fetchedAt: Date
+
+    func isStale(referenceDate: Date = Date(), maximumAge: TimeInterval = 15 * 60) -> Bool {
+        referenceDate.timeIntervalSince(fetchedAt) > maximumAge
+    }
 }
 
 enum CodexUsageState {
     case idle
     case loading(CodexUsageSnapshot?)
+    case retrying(CodexUsageError, CodexUsageSnapshot?, attempt: Int, retryAt: Date)
     case available(CodexUsageSnapshot)
     case unavailable(CodexUsageError, CodexUsageSnapshot?)
 
@@ -122,6 +136,7 @@ enum CodexUsageState {
         switch self {
         case .idle: return nil
         case let .loading(snapshot): return snapshot
+        case let .retrying(_, snapshot, _, _): return snapshot
         case let .available(snapshot): return snapshot
         case let .unavailable(_, snapshot): return snapshot
         }

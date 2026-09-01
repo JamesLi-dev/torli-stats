@@ -28,6 +28,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let settings: AppSettings
     private let store: MetricsStore
     private let codexUsageStore: CodexAccountsUsageStore
+    private let updateChecker = AppUpdateChecker()
+    private var announcedUpdateVersion: String?
     private var settingsWindow: NSWindow?
     private var cancellables = Set<AnyCancellable>()
     private var statusLogoAnimator: StatusBarLogoAnimator?
@@ -131,6 +133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         updateStatusBarLogo()
         updateStatusTitle(store.statusLine)
+        checkForUpdatesIfNeeded()
     }
 
     @objc private func handleStatusItemClick() {
@@ -393,8 +396,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let settings = SettingsView(
             settings: self.settings,
             codexUsageStore: codexUsageStore,
+            updateChecker: updateChecker,
             onCodexRefresh: { [weak self] in
                 self?.codexUsageStore.refresh()
+            },
+            onCheckForUpdates: { [weak self] in
+                self?.checkForUpdates()
             }
         )
         let window = NSWindow(
@@ -416,6 +423,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    private func checkForUpdatesIfNeeded() {
+        updateChecker.checkIfNeeded(isEnabled: settings.automaticUpdateChecks) { [weak self] release in
+            self?.announceAvailableUpdate(release)
+        }
+    }
+
+    private func checkForUpdates() {
+        updateChecker.check { [weak self] release in
+            self?.announceAvailableUpdate(release)
+        }
+    }
+
+    private func announceAvailableUpdate(_ release: AppUpdateRelease?) {
+        guard let release, announcedUpdateVersion != release.version else { return }
+        announcedUpdateVersion = release.version
+
+        let alert = NSAlert()
+        alert.messageText = "Torli Stats \(release.version) 已可更新"
+        alert.informativeText = "当前版本可在 GitHub Releases 页面下载。"
+        alert.addButton(withTitle: "查看下载")
+        alert.addButton(withTitle: "稍后")
+        if alert.runModal() == .alertFirstButtonReturn {
+            NSWorkspace.shared.open(release.downloadURL)
+        }
+    }
+
     @objc private func quitApplication() {
         NSApp.terminate(nil)
     }
@@ -429,6 +462,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let accountID: UUID
         let prefix: String
         let usedPercent: Double
+        let isStale: Bool
     }
 
     private func updateStatusTitle(_ line: StatusLine) {
@@ -598,7 +632,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             guard !values.isEmpty else {
                 return StatusBarGroupContent(firstLine: nil, secondLine: nil)
             }
-            let labels = values.map { statusBarText($0.prefix, attributes: attributes) }
+            let labels = values.map { statusBarText($0.isStale ? "\($0.prefix)!" : $0.prefix, attributes: attributes) }
             let percentages = values.map { value in
                 let used = Int(min(100, max(0, value.usedPercent)).rounded())
                 let remaining = 100 - used
@@ -606,7 +640,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 return statusBarText(
                     "\(displayed)%",
                     attributes: attributes.merging([
-                        .foregroundColor: codexStatusColor(usedPercent: value.usedPercent)
+                        .foregroundColor: value.isStale ? NSColor.systemOrange : codexStatusColor(usedPercent: value.usedPercent)
                     ]) { _, new in new }
                 )
             }
@@ -633,7 +667,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             return CodexStatusBarValue(
                 accountID: account.id,
                 prefix: settings.privacyMode ? "COD\(index + 1)" : snapshot.account.displayPrefix,
-                usedPercent: primary.usedPercent
+                usedPercent: primary.usedPercent,
+                isStale: snapshot.isStale()
             )
         }
 
@@ -642,7 +677,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             return values.filter { $0.accountID == CodexAccountConfiguration.defaultAccountID }
         case .lowestRemaining:
             guard let lowestRemaining = values.max(by: { $0.usedPercent < $1.usedPercent }) else { return [] }
-            return [CodexStatusBarValue(accountID: lowestRemaining.accountID, prefix: "COD", usedPercent: lowestRemaining.usedPercent)]
+            return [CodexStatusBarValue(accountID: lowestRemaining.accountID, prefix: "COD", usedPercent: lowestRemaining.usedPercent, isStale: lowestRemaining.isStale)]
         case .eachAccount:
             return values
         }
@@ -992,6 +1027,9 @@ final class AppSettings: ObservableObject {
     @Published var privacyMode: Bool {
         didSet { defaults.set(privacyMode, forKey: "privacyMode") }
     }
+    @Published var automaticUpdateChecks: Bool {
+        didSet { defaults.set(automaticUpdateChecks, forKey: "automaticUpdateChecks") }
+    }
     @Published var codexDefaultAccountName: String {
         didSet { defaults.set(codexDefaultAccountName, forKey: "codexDefaultAccountName") }
     }
@@ -1083,6 +1121,7 @@ final class AppSettings: ObservableObject {
         statusBarLogoAnimation = defaults.object(forKey: "statusBarLogoAnimation") as? Bool ?? true
         statusBarRunner = StatusBarRunner(rawValue: defaults.string(forKey: "statusBarRunner") ?? "") ?? .runCat
         privacyMode = defaults.object(forKey: "privacyMode") as? Bool ?? false
+        automaticUpdateChecks = defaults.object(forKey: "automaticUpdateChecks") as? Bool ?? true
         codexDefaultAccountName = defaults.string(forKey: "codexDefaultAccountName") ?? "默认账号"
         codexHomePath = defaults.string(forKey: "codexHomePath") ?? ""
         codexAutoRefresh = defaults.object(forKey: "codexAutoRefresh") as? Bool ?? true
@@ -1462,7 +1501,7 @@ final class AppSettings: ObservableObject {
             "showCPUCard", "showGPUCard", "showMemoryCard", "showDiskCard",
             "showNetworkCard", "showFanCard", "showPowerCard", "showProcessesCard",
             "showCodexCard", "dashboardDensity", "dashboardModuleOrder", "showCodexStatusItem", "codexStatusMetric", "codexStatusBarMode", "statusBarMetricOrder",
-            "systemStatusBarStyle", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "codexDefaultAccountName", "codexHomePath", "codexAutoRefresh", "codexRefreshInterval", "codexManagedAccounts", "powerSavingMode", "processLimit", "processSort", "refreshInterval"
+            "systemStatusBarStyle", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "automaticUpdateChecks", "codexDefaultAccountName", "codexHomePath", "codexAutoRefresh", "codexRefreshInterval", "codexManagedAccounts", "powerSavingMode", "processLimit", "processSort", "refreshInterval"
         ].forEach { defaults.removeObject(forKey: $0) }
 
         theme = .system
@@ -1490,6 +1529,7 @@ final class AppSettings: ObservableObject {
         statusBarLogoAnimation = true
         statusBarRunner = .runCat
         privacyMode = false
+        automaticUpdateChecks = true
         codexDefaultAccountName = "默认账号"
         codexHomePath = ""
         codexAutoRefresh = true
@@ -3329,6 +3369,7 @@ private struct DashboardModuleDropDelegate: DropDelegate {
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var codexUsageStore: CodexAccountsUsageStore
+    @ObservedObject var updateChecker: AppUpdateChecker
     @State private var draggedStatusBarGroup: StatusBarMetricGroup?
     @State private var draggedDashboardModule: DashboardModule?
     @State private var codexAccountMessage: String?
@@ -3336,15 +3377,20 @@ struct SettingsView: View {
     @State private var isAddingCodexAccount = false
     @State private var newCodexAccountName = ""
     let onCodexRefresh: () -> Void
+    let onCheckForUpdates: () -> Void
 
     init(
         settings: AppSettings,
         codexUsageStore: CodexAccountsUsageStore,
-        onCodexRefresh: @escaping () -> Void
+        updateChecker: AppUpdateChecker,
+        onCodexRefresh: @escaping () -> Void,
+        onCheckForUpdates: @escaping () -> Void
     ) {
         self.settings = settings
         self.codexUsageStore = codexUsageStore
+        self.updateChecker = updateChecker
         self.onCodexRefresh = onCodexRefresh
+        self.onCheckForUpdates = onCheckForUpdates
     }
 
     var body: some View {
@@ -3731,17 +3777,32 @@ struct SettingsView: View {
                         }
 
                         SettingsSection(title: "系统") {
-                            HStack(spacing: 16) {
-                                Toggle("开机启动", isOn: Binding(
-                                    get: { settings.launchAtLogin },
-                                    set: { settings.setLaunchAtLogin($0) }
-                                ))
-
-                                Spacer(minLength: 0)
-
-                                Button("恢复默认设置", role: .destructive) {
-                                    settings.resetToDefaults()
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack {
+                                    Toggle("开机启动", isOn: Binding(
+                                        get: { settings.launchAtLogin },
+                                        set: { settings.setLaunchAtLogin($0) }
+                                    ))
+                                    Spacer(minLength: 0)
+                                    Button("恢复默认设置", role: .destructive) {
+                                        settings.resetToDefaults()
+                                    }
                                 }
+
+                                Divider()
+
+                                HStack(spacing: 8) {
+                                    Toggle("自动检查更新", isOn: $settings.automaticUpdateChecks)
+                                    Spacer(minLength: 0)
+                                    Button("检查更新") {
+                                        onCheckForUpdates()
+                                    }
+                                    .disabled(updateChecker.status == .checking)
+                                }
+                                Text(updateChecker.status.description)
+                                    .font(.caption2)
+                                    .foregroundStyle(updateChecker.status == .failed ? .secondary : .secondary)
+
                             }
                         }
                     }
