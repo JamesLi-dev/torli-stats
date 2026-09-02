@@ -108,6 +108,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         store.setProcessLimit(settings.processLimit)
         store.setProcessSort(settings.processSort)
         store.setPowerSavingMode(settings.powerSavingMode)
+        store.setPowerPolicy(
+            batteryRefreshInterval: settings.batteryRefreshInterval,
+            enablesLowBatterySaving: settings.lowBatterySavingEnabled,
+            lowBatteryThreshold: settings.lowBatteryThreshold
+        )
         store.setSensorHelperEnabled(settings.sensorHelperEnabled)
         store.setGPUMonitoringEnabled(settings.showGPUCard)
     }
@@ -167,6 +172,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                     self.store.setProcessLimit(self.settings.processLimit)
                     self.store.setProcessSort(self.settings.processSort)
                     self.store.setPowerSavingMode(self.settings.powerSavingMode)
+                    self.store.setPowerPolicy(
+                        batteryRefreshInterval: self.settings.batteryRefreshInterval,
+                        enablesLowBatterySaving: self.settings.lowBatterySavingEnabled,
+                        lowBatteryThreshold: self.settings.lowBatteryThreshold
+                    )
                     self.store.setSensorHelperEnabled(self.settings.sensorHelperEnabled)
                     self.store.setGPUMonitoringEnabled(self.settings.showGPUCard)
                     self.typingStats.setEnabled(self.settings.typingStatsEnabled)
@@ -1268,6 +1278,15 @@ final class AppSettings: ObservableObject {
     @Published var powerSavingMode: Bool {
         didSet { defaults.set(powerSavingMode, forKey: "powerSavingMode") }
     }
+    @Published var batteryRefreshInterval: Int {
+        didSet { defaults.set(batteryRefreshInterval, forKey: "batteryRefreshInterval") }
+    }
+    @Published var lowBatterySavingEnabled: Bool {
+        didSet { defaults.set(lowBatterySavingEnabled, forKey: "lowBatterySavingEnabled") }
+    }
+    @Published var lowBatteryThreshold: Int {
+        didSet { defaults.set(lowBatteryThreshold, forKey: "lowBatteryThreshold") }
+    }
     @Published var processLimit: Int {
         didSet { defaults.set(processLimit, forKey: "processLimit") }
     }
@@ -1333,6 +1352,11 @@ final class AppSettings: ObservableObject {
         let savedInterval = defaults.integer(forKey: "refreshInterval")
         refreshInterval = Self.supportedRefreshIntervals.contains(savedInterval) ? savedInterval : 3
         powerSavingMode = defaults.object(forKey: "powerSavingMode") as? Bool ?? false
+        let savedBatteryInterval = defaults.integer(forKey: "batteryRefreshInterval")
+        batteryRefreshInterval = Self.supportedRefreshIntervals.contains(savedBatteryInterval) ? savedBatteryInterval : 10
+        lowBatterySavingEnabled = defaults.object(forKey: "lowBatterySavingEnabled") as? Bool ?? true
+        let savedLowBatteryThreshold = defaults.integer(forKey: "lowBatteryThreshold")
+        lowBatteryThreshold = [10, 20, 30].contains(savedLowBatteryThreshold) ? savedLowBatteryThreshold : 20
 
         let savedLimit = defaults.integer(forKey: "processLimit")
         processLimit = [3, 5, 8, 10, 15].contains(savedLimit) ? savedLimit : 5
@@ -1701,7 +1725,7 @@ final class AppSettings: ObservableObject {
             "showCPUCard", "showGPUCard", "showMemoryCard", "showDiskCard",
             "showNetworkCard", "showFanCard", "showTypingCard", "showPowerCard", "showProcessesCard",
             "showCodexCard", "dashboardDensity", "dashboardModuleOrder", "showCodexStatusItem", "showTypingStatusItem", "codexStatusMetric", "codexStatusBarMode", "statusBarMetricOrder",
-            "systemStatusBarStyle", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "automaticUpdateChecks", "typingStatsEnabled", "codexDefaultAccountName", "codexHomePath", "codexAutoRefresh", "codexRefreshInterval", "codexManagedAccounts", "powerSavingMode", "processLimit", "processSort", "refreshInterval"
+            "systemStatusBarStyle", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "automaticUpdateChecks", "typingStatsEnabled", "codexDefaultAccountName", "codexHomePath", "codexAutoRefresh", "codexRefreshInterval", "codexManagedAccounts", "powerSavingMode", "batteryRefreshInterval", "lowBatterySavingEnabled", "lowBatteryThreshold", "processLimit", "processSort", "refreshInterval"
         ].forEach { defaults.removeObject(forKey: $0) }
 
         theme = .system
@@ -1740,6 +1764,9 @@ final class AppSettings: ObservableObject {
         codexManagedAccounts = []
         refreshInterval = 3
         powerSavingMode = false
+        batteryRefreshInterval = 10
+        lowBatterySavingEnabled = true
+        lowBatteryThreshold = 20
         processLimit = 5
         processSort = .cpu
     }
@@ -2019,6 +2046,11 @@ final class MetricsStore: ObservableObject {
     private var workerDownloadHistory = Array(repeating: 0.0, count: 24)
     private var workerUploadHistory = Array(repeating: 0.0, count: 24)
     private var workerIntervalSeconds = 3
+    private var batteryRefreshIntervalSeconds = 10
+    private var lowBatterySavingEnabled = true
+    private var lowBatteryThreshold = 20
+    private var isUsingBatteryPower = false
+    private var batteryPercentage = 100.0
     private var processLimit = 5
     private var processSort: ProcessSortOption = .cpu
     private var powerSavingMode = false
@@ -2046,8 +2078,7 @@ final class MetricsStore: ObservableObject {
         highMetricsQueue.async { [weak self] in
             guard let self else { return }
             self.workerIntervalSeconds = seconds
-            let interval = self.powerSavingMode ? max(TimeInterval(seconds), 10) : TimeInterval(seconds)
-            self.installHighTimer(interval: interval)
+            self.installHighTimer(interval: self.effectiveHighRefreshInterval())
             self.collectHighFrequency()
         }
     }
@@ -2061,6 +2092,22 @@ final class MetricsStore: ObservableObject {
             self.recentGPUSamples = []
             self.workerGPU = 0
             self.collectHighFrequency()
+        }
+    }
+
+    func setPowerPolicy(
+        batteryRefreshInterval: Int,
+        enablesLowBatterySaving: Bool,
+        lowBatteryThreshold: Int
+    ) {
+        guard AppSettings.supportedRefreshIntervals.contains(batteryRefreshInterval),
+              [10, 20, 30].contains(lowBatteryThreshold) else { return }
+        highMetricsQueue.async { [weak self] in
+            guard let self else { return }
+            self.batteryRefreshIntervalSeconds = batteryRefreshInterval
+            self.lowBatterySavingEnabled = enablesLowBatterySaving
+            self.lowBatteryThreshold = lowBatteryThreshold
+            self.installHighTimer(interval: self.effectiveHighRefreshInterval())
         }
     }
 
@@ -2099,8 +2146,7 @@ final class MetricsStore: ObservableObject {
         highMetricsQueue.async { [weak self] in
             guard let self else { return }
             self.powerSavingMode = enabled
-            let interval = enabled ? max(TimeInterval(self.workerIntervalSeconds), 10) : TimeInterval(self.workerIntervalSeconds)
-            self.installHighTimer(interval: interval)
+            self.installHighTimer(interval: self.effectiveHighRefreshInterval())
             self.collectHighFrequency()
         }
         lowMetricsQueue.async { [weak self] in
@@ -2114,7 +2160,7 @@ final class MetricsStore: ObservableObject {
         let initialInterval = TimeInterval(intervalSeconds)
         highMetricsQueue.async { [weak self] in
             guard let self else { return }
-            self.installHighTimer(interval: initialInterval)
+            self.installHighTimer(interval: self.effectiveHighRefreshInterval(fallback: initialInterval))
             self.collectHighFrequency()
         }
         lowMetricsQueue.async { [weak self] in
@@ -2232,6 +2278,8 @@ final class MetricsStore: ObservableObject {
             deviceInfoLoaded = true
         }
 
+        updatePowerSource(battery)
+
         let snapshot = LowFrequencySnapshot(
             diskUsage: disk.usage,
             diskTotal: formatBytes(disk.total),
@@ -2244,6 +2292,36 @@ final class MetricsStore: ObservableObject {
         DispatchQueue.main.async { [weak self] in self?.apply(snapshot) }
 
         pollSensorIfNeeded()
+    }
+
+    private func updatePowerSource(_ battery: BatterySnapshot) {
+        highMetricsQueue.async { [weak self] in
+            guard let self else { return }
+            let wasUsingBattery = self.isUsingBatteryPower
+            let wasLowBattery = self.isLowBattery
+            self.isUsingBatteryPower = !battery.isCharging && battery.powerSource == "电池"
+            self.batteryPercentage = battery.percentage
+
+            guard wasUsingBattery != self.isUsingBatteryPower || wasLowBattery != self.isLowBattery else { return }
+            self.installHighTimer(interval: self.effectiveHighRefreshInterval())
+            self.collectHighFrequency()
+        }
+    }
+
+    private var isLowBattery: Bool {
+        isUsingBatteryPower && batteryPercentage <= Double(lowBatteryThreshold)
+    }
+
+    private func effectiveHighRefreshInterval(fallback: TimeInterval? = nil) -> TimeInterval {
+        let pluggedInInterval = fallback ?? TimeInterval(workerIntervalSeconds)
+        let baseInterval = isUsingBatteryPower ? TimeInterval(batteryRefreshIntervalSeconds) : pluggedInInterval
+        if lowBatterySavingEnabled && isLowBattery {
+            return max(baseInterval, 30)
+        }
+        if powerSavingMode {
+            return max(baseInterval, 10)
+        }
+        return baseInterval
     }
 
     private func pollSensorIfNeeded() {
@@ -3667,6 +3745,35 @@ struct SettingsView: View {
         self.onCheckForUpdates = onCheckForUpdates
     }
 
+    private var visibleStatusBarGroups: [StatusBarMetricGroup] {
+        settings.statusBarMetricOrder.filter { group in
+            switch group {
+            case .system: return settings.showCPU || settings.showMemory
+            case .network: return settings.showDownload || settings.showUpload
+            case .typing: return settings.showTypingStatusItem && settings.typingStatsEnabled
+            case .codex: return settings.showCodexStatusItem
+            case .logo: return settings.showStatusBarLogo
+            }
+        }
+    }
+
+    private var visibleDashboardModules: [DashboardModule] {
+        settings.dashboardModuleOrder.filter { module in
+            switch module {
+            case .cpu: return settings.showCPUCard
+            case .gpu: return settings.showGPUCard
+            case .memory: return settings.showMemoryCard
+            case .disk: return settings.showDiskCard
+            case .network: return settings.showNetworkCard
+            case .fan: return settings.showFanCard
+            case .typing: return settings.showTypingCard && settings.typingStatsEnabled
+            case .power: return settings.showPowerCard
+            case .codex: return settings.showCodexCard && codexUsageStore.accounts.contains(where: \.isDashboardVisible)
+            case .processes: return settings.showProcessesCard
+            }
+        }
+    }
+
     var body: some View {
         ZStack {
             AppColors.background
@@ -3779,7 +3886,7 @@ struct SettingsView: View {
 
                         SettingsSection(title: "菜单栏项目顺序") {
                             VStack(alignment: .leading, spacing: 7) {
-                                    Text("拖动项目调整状态栏显示顺序；Logo 也可以自由排序。")
+                                    Text("仅显示已启用的项目；拖动调整其状态栏顺序。")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
 
@@ -3788,7 +3895,7 @@ struct SettingsView: View {
                                         alignment: .leading,
                                         spacing: 8
                                     ) {
-                                        ForEach(settings.statusBarMetricOrder) { group in
+                                        ForEach(visibleStatusBarGroups) { group in
                                             HStack(spacing: 8) {
                                                 Image(systemName: group == .logo ? "figure.run" : "line.3.horizontal")
                                                     .foregroundStyle(.secondary)
@@ -3829,7 +3936,7 @@ struct SettingsView: View {
                         SettingsSection(title: "监控") {
                             VStack(alignment: .leading, spacing: 12) {
                                 HStack(spacing: 10) {
-                                    Text("更新间隔")
+                                    Text("接电间隔")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                         .frame(width: 60, alignment: .leading)
@@ -3841,7 +3948,41 @@ struct SettingsView: View {
                                     .labelsHidden()
                                     .pickerStyle(.menu)
                                     .frame(width: 80)
-                                    Toggle("省电模式", isOn: $settings.powerSavingMode)
+                                    Toggle("始终省电", isOn: $settings.powerSavingMode)
+                                }
+                                HStack(spacing: 10) {
+                                    Text("电池间隔")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 60, alignment: .leading)
+                                    Picker("", selection: $settings.batteryRefreshInterval) {
+                                        ForEach(AppSettings.supportedRefreshIntervals, id: \.self) { interval in
+                                            Text("\(interval) 秒").tag(interval)
+                                        }
+                                    }
+                                    .labelsHidden()
+                                    .pickerStyle(.menu)
+                                    .frame(width: 80)
+                                    Toggle("低电量自动省电", isOn: $settings.lowBatterySavingEnabled)
+                                }
+                                if settings.lowBatterySavingEnabled {
+                                    HStack(spacing: 10) {
+                                        Text("低电量阈值")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .frame(width: 60, alignment: .leading)
+                                        Picker("", selection: $settings.lowBatteryThreshold) {
+                                            ForEach([10, 20, 30], id: \.self) { threshold in
+                                                Text("\(threshold)%").tag(threshold)
+                                            }
+                                        }
+                                        .labelsHidden()
+                                        .pickerStyle(.menu)
+                                        .frame(width: 80)
+                                        Text("低于阈值时最慢每 30 秒刷新一次")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
                                 HStack(spacing: 10) {
                                     Text("进程数量")
@@ -3911,12 +4052,11 @@ struct SettingsView: View {
                                     Toggle("进程", isOn: $settings.showProcessesCard)
                                     Toggle("Codex", isOn: $settings.showCodexCard)
                                 }
-                            }
-                        }
 
-                        SettingsSection(title: "面板项目顺序") {
-                            VStack(alignment: .leading, spacing: 7) {
-                                Text("拖动项目调整 Dashboard 显示顺序。")
+                                Divider()
+
+                                VStack(alignment: .leading, spacing: 7) {
+                                Text("仅显示已启用的模块；拖动调整 Dashboard 顺序。")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
 
@@ -3925,7 +4065,7 @@ struct SettingsView: View {
                                     alignment: .leading,
                                     spacing: 6
                                 ) {
-                                    ForEach(settings.dashboardModuleOrder) { module in
+                                    ForEach(visibleDashboardModules) { module in
                                         HStack(spacing: 7) {
                                             Image(systemName: "line.3.horizontal")
                                                 .font(.caption)
@@ -3960,6 +4100,7 @@ struct SettingsView: View {
                                 }
                                 .buttonStyle(.link)
                                 .font(.caption)
+                                }
                             }
                         }
 
@@ -3977,9 +4118,15 @@ struct SettingsView: View {
                                             .lineLimit(2)
                                     }
                                     Spacer(minLength: 0)
-                                    if settings.sensorHelperChecking {
-                                        ProgressView()
-                                            .controlSize(.small)
+                                    VStack(alignment: .trailing, spacing: 5) {
+                                        HStack(spacing: 6) {
+                                            PowerTag(text: "Helper \(settings.sensorHelperVersion ?? "—")")
+                                            PowerTag(text: "协议 \(settings.sensorProtocolVersion.map(String.init) ?? "—")")
+                                        }
+                                        if settings.sensorHelperChecking {
+                                            ProgressView()
+                                                .controlSize(.small)
+                                        }
                                     }
                                 }
 
@@ -3993,17 +4140,19 @@ struct SettingsView: View {
                                         .help(diagnostic)
                                 }
 
-                                HStack(spacing: 6) {
-                                    PowerTag(text: "Helper \(settings.sensorHelperVersion ?? "—")")
-                                    PowerTag(text: "协议 \(settings.sensorProtocolVersion.map(String.init) ?? "—")")
-                                }
-
                                 Text(settings.sensorSignatureMessage ?? "尚未验证辅助进程签名。")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
 
-                                VStack(alignment: .leading, spacing: 4) {
+                                LazyVGrid(
+                                    columns: [
+                                        GridItem(.flexible(minimum: 150), spacing: 10),
+                                        GridItem(.flexible(minimum: 150), spacing: 10)
+                                    ],
+                                    alignment: .leading,
+                                    spacing: 6
+                                ) {
                                     SensorCapabilityRow(
                                         title: "风扇",
                                         isAvailable: settings.sensorFanAvailable,
@@ -4053,79 +4202,76 @@ struct SettingsView: View {
                             }
                         }
 
-                    }
-                    .frame(width: 360, alignment: .top)
-                }
-                .frame(minWidth: 776, maxWidth: .infinity, alignment: .topLeading)
-
-                SettingsSection(title: "系统") {
-                    HStack(alignment: .top, spacing: 16) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Toggle("开机启动", isOn: Binding(
-                                get: { settings.launchAtLogin },
-                                set: { settings.setLaunchAtLogin($0) }
-                            ))
-                            Button("恢复默认设置", role: .destructive) {
-                                settings.resetToDefaults()
-                            }
-                        }
-                        .frame(width: 150, alignment: .leading)
-
-                        Divider()
-
-                        VStack(alignment: .leading, spacing: 6) {
-                            Toggle("启用输入统计", isOn: Binding(
-                                get: { settings.typingStatsEnabled },
-                                set: { enabled in
-                                    settings.typingStatsEnabled = enabled
-                                    if enabled {
-                                        onRequestTypingStatsPermission()
+                        SettingsSection(title: "系统") {
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack {
+                                    Toggle("开机启动", isOn: Binding(
+                                        get: { settings.launchAtLogin },
+                                        set: { settings.setLaunchAtLogin($0) }
+                                    ))
+                                    Spacer()
+                                    Button("恢复默认设置", role: .destructive) {
+                                        settings.resetToDefaults()
                                     }
                                 }
-                            ))
-                            Text(typingStats.permissionStatus.description)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            Text("仅在本机统计有效按键和输入速度；不记录输入内容、键码或应用信息。")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
-                            HStack(spacing: 8) {
-                                if typingStats.permissionStatus == .needsPermission {
-                                    Button("打开输入监控设置") {
-                                        typingStats.openInputMonitoringSettings()
-                                    }
-                                    Button("重新检测") {
-                                        onRequestTypingStatsPermission()
-                                    }
-                                }
-                                Button("清除输入统计", role: .destructive) {
-                                    typingStats.clearHistory()
-                                }
-                                .disabled(typingStats.totalKeyCount == 0)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
 
-                        Divider()
+                                Divider()
 
-                        VStack(alignment: .leading, spacing: 8) {
-                            Toggle("自动检查更新", isOn: $settings.automaticUpdateChecks)
-                            HStack(spacing: 8) {
+                                HStack(spacing: 8) {
+                                    Toggle("启用输入统计", isOn: Binding(
+                                        get: { settings.typingStatsEnabled },
+                                        set: { enabled in
+                                            settings.typingStatsEnabled = enabled
+                                            if enabled {
+                                                onRequestTypingStatsPermission()
+                                            }
+                                        }
+                                    ))
+                                    Text(typingStats.permissionStatus.description)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                    Spacer(minLength: 0)
+                                }
+                                Text("仅在本机统计有效按键和输入速度；不记录输入内容、键码或应用信息。")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                                HStack(spacing: 8) {
+                                    if typingStats.permissionStatus == .needsPermission {
+                                        Button("打开输入监控设置") {
+                                            typingStats.openInputMonitoringSettings()
+                                        }
+                                        Button("重新检测") {
+                                            onRequestTypingStatsPermission()
+                                        }
+                                    }
+                                    Button("清除输入统计", role: .destructive) {
+                                        typingStats.clearHistory()
+                                    }
+                                    .disabled(typingStats.totalKeyCount == 0)
+                                }
+
+                                Divider()
+
+                                HStack(spacing: 8) {
+                                    Toggle("自动检查更新", isOn: $settings.automaticUpdateChecks)
+                                    Spacer(minLength: 0)
+                                    Button("检查更新") {
+                                        onCheckForUpdates()
+                                    }
+                                    .disabled(updateChecker.status == .checking)
+                                }
                                 Text(updateChecker.status.description)
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(2)
-                                Spacer(minLength: 0)
-                                Button("检查更新") {
-                                    onCheckForUpdates()
-                                }
-                                .disabled(updateChecker.status == .checking)
                             }
                         }
-                        .frame(width: 210, alignment: .leading)
+
                     }
+                    .frame(width: 360, alignment: .top)
                 }
+                .frame(minWidth: 776, maxWidth: .infinity, alignment: .topLeading)
 
                 SettingsSection(title: "Codex 账号") {
                     VStack(alignment: .leading, spacing: 10) {
