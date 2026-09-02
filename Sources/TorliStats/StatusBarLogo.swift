@@ -91,6 +91,7 @@ final class StatusBarLogoAnimator {
     private var frameIndex = 0
     private var timer: Timer?
     private var frameInterval: TimeInterval?
+    private var awaitingFirstCPUSample = true
 
     init(
         runner: StatusBarRunner,
@@ -111,10 +112,18 @@ final class StatusBarLogoAnimator {
     }
 
     /// Mirrors RunCatNeo's runner behavior: its baseline animation is 2 fps,
-    /// then CPU usage scales the playback rate from 1x through 20x.
+    /// then CPU usage scales the playback rate from 1x through 20x. The first
+    /// CPU sample is commonly zero while the sampler establishes its baseline;
+    /// keep a responsive startup rate instead of showing a static-looking logo.
     func setCPUUsage(_ cpuUsage: Double) {
         guard isAnimated, frames.count > 1 else { return }
-        let speed = max(1, min(20, cpuUsage / 5))
+        let speed: Double
+        if awaitingFirstCPUSample, cpuUsage <= 0 {
+            speed = 6
+        } else {
+            awaitingFirstCPUSample = false
+            speed = max(1, min(20, cpuUsage / 5))
+        }
         let interval = 0.5 / speed
         guard frameInterval == nil || abs((frameInterval ?? interval) - interval) > 0.002 else { return }
         frameInterval = interval

@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let settings: AppSettings
     private let store: MetricsStore
     private let codexUsageStore: CodexAccountsUsageStore
+    private let typingStats = TypingStatsService()
     private let updateChecker = AppUpdateChecker()
     private var announcedUpdateVersion: String?
     private var settingsWindow: NSWindow?
@@ -77,6 +78,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 store: store,
                 settings: settings,
                 codexUsageStore: codexUsageStore,
+                typingStats: typingStats,
                 onCodexDisplayCountChange: { [weak self] count in
                     self?.updatePopoverSize(codexAccountCount: count)
                 }
@@ -103,6 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                     self.store.setProcessSort(self.settings.processSort)
                     self.store.setPowerSavingMode(self.settings.powerSavingMode)
                     self.store.setSensorHelperEnabled(self.settings.sensorHelperEnabled)
+                    self.typingStats.setEnabled(self.settings.typingStatsEnabled)
                     self.codexUsageStore.synchronize()
                     self.settingsWindow?.appearance = self.settings.theme.windowAppearance
                     self.settingsWindow?.backgroundColor = AppColors.backgroundNSColor
@@ -121,6 +124,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
             .store(in: &cancellables)
 
+        typingStats.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.updateStatusTitle(self.store.statusLine)
+            }
+            .store(in: &cancellables)
+
         codexUsageStore.objectWillChange
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
@@ -132,6 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             .store(in: &cancellables)
 
         updateStatusBarLogo()
+        typingStats.setEnabled(settings.typingStatsEnabled)
         updateStatusTitle(store.statusLine)
         checkForUpdatesIfNeeded()
     }
@@ -396,9 +408,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let settings = SettingsView(
             settings: self.settings,
             codexUsageStore: codexUsageStore,
+            typingStats: typingStats,
             updateChecker: updateChecker,
             onCodexRefresh: { [weak self] in
                 self?.codexUsageStore.refresh()
+            },
+            onRequestTypingStatsPermission: { [weak self] in
+                self?.typingStats.requestPermissionAndStart()
             },
             onCheckForUpdates: { [weak self] in
                 self?.checkForUpdates()
@@ -627,6 +643,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             // `updateStatusTitle`, allowing it to be placed at any position.
             return StatusBarGroupContent(firstLine: nil, secondLine: nil)
 
+        case .typing:
+            guard settings.showTypingStatusItem,
+                  settings.typingStatsEnabled,
+                  typingStats.permissionStatus == .monitoring else {
+                return StatusBarGroupContent(firstLine: nil, secondLine: nil)
+            }
+            return StatusBarGroupContent(
+                firstLine: statusBarText("输入", attributes: attributes),
+                secondLine: statusBarText("\(compactTypingCount(typingStats.todayKeyCount))键", attributes: attributes)
+            )
+
         case .codex:
             let values = codexStatusBarValues()
             guard !values.isEmpty else {
@@ -758,6 +785,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         return result
     }
 
+    private func compactTypingCount(_ value: Int) -> String {
+        value >= 1_000 ? String(format: "%.1fk", Double(value) / 1_000) : String(value)
+    }
+
     private func codexStatusColor(usedPercent: Double) -> NSColor {
         let remaining = 100 - usedPercent
         if remaining < 20 { return .systemRed }
@@ -820,6 +851,7 @@ enum CodexStatusBarMode: String, CaseIterable, Identifiable {
 enum StatusBarMetricGroup: String, CaseIterable, Codable, Identifiable {
     case system
     case network
+    case typing
     case codex
     case logo
 
@@ -829,6 +861,7 @@ enum StatusBarMetricGroup: String, CaseIterable, Codable, Identifiable {
         switch self {
         case .system: return "系统（CPU / 内存）"
         case .network: return "网络（下载 / 上传）"
+        case .typing: return "输入统计"
         case .codex: return "Codex 使用情况"
         case .logo: return "状态栏 Logo"
         }
@@ -904,6 +937,7 @@ enum DashboardModule: String, CaseIterable, Codable, Identifiable {
     case disk
     case network
     case fan
+    case typing
     case power
     case codex
     case processes
@@ -918,6 +952,7 @@ enum DashboardModule: String, CaseIterable, Codable, Identifiable {
         case .disk: return "磁盘"
         case .network: return "网络"
         case .fan: return "风扇"
+        case .typing: return "输入"
         case .power: return "电源"
         case .codex: return "Codex"
         case .processes: return "进程"
@@ -926,7 +961,7 @@ enum DashboardModule: String, CaseIterable, Codable, Identifiable {
 
     var isMetric: Bool {
         switch self {
-        case .cpu, .gpu, .memory, .disk, .network, .fan: return true
+        case .cpu, .gpu, .memory, .disk, .network, .fan, .typing: return true
         case .power, .codex, .processes: return false
         }
     }
@@ -985,6 +1020,9 @@ final class AppSettings: ObservableObject {
     @Published var showFanCard: Bool {
         didSet { defaults.set(showFanCard, forKey: "showFanCard") }
     }
+    @Published var showTypingCard: Bool {
+        didSet { defaults.set(showTypingCard, forKey: "showTypingCard") }
+    }
     @Published var showPowerCard: Bool {
         didSet { defaults.set(showPowerCard, forKey: "showPowerCard") }
     }
@@ -1002,6 +1040,9 @@ final class AppSettings: ObservableObject {
     }
     @Published var showCodexStatusItem: Bool {
         didSet { defaults.set(showCodexStatusItem, forKey: "showCodexStatusItem") }
+    }
+    @Published var showTypingStatusItem: Bool {
+        didSet { defaults.set(showTypingStatusItem, forKey: "showTypingStatusItem") }
     }
     @Published var codexStatusMetric: CodexStatusMetric {
         didSet { defaults.set(codexStatusMetric.rawValue, forKey: "codexStatusMetric") }
@@ -1029,6 +1070,9 @@ final class AppSettings: ObservableObject {
     }
     @Published var automaticUpdateChecks: Bool {
         didSet { defaults.set(automaticUpdateChecks, forKey: "automaticUpdateChecks") }
+    }
+    @Published var typingStatsEnabled: Bool {
+        didSet { defaults.set(typingStatsEnabled, forKey: "typingStatsEnabled") }
     }
     @Published var codexDefaultAccountName: String {
         didSet { defaults.set(codexDefaultAccountName, forKey: "codexDefaultAccountName") }
@@ -1107,12 +1151,14 @@ final class AppSettings: ObservableObject {
         showDiskCard = defaults.object(forKey: "showDiskCard") as? Bool ?? true
         showNetworkCard = defaults.object(forKey: "showNetworkCard") as? Bool ?? true
         showFanCard = defaults.object(forKey: "showFanCard") as? Bool ?? true
+        showTypingCard = defaults.object(forKey: "showTypingCard") as? Bool ?? true
         showPowerCard = defaults.object(forKey: "showPowerCard") as? Bool ?? true
         showProcessesCard = defaults.object(forKey: "showProcessesCard") as? Bool ?? true
         showCodexCard = defaults.object(forKey: "showCodexCard") as? Bool ?? true
         dashboardDensity = DashboardDensity(rawValue: defaults.string(forKey: "dashboardDensity") ?? "") ?? .standard
         dashboardModuleOrder = Self.validDashboardModuleOrder(defaults.stringArray(forKey: "dashboardModuleOrder"))
         showCodexStatusItem = defaults.object(forKey: "showCodexStatusItem") as? Bool ?? true
+        showTypingStatusItem = defaults.object(forKey: "showTypingStatusItem") as? Bool ?? false
         codexStatusMetric = CodexStatusMetric(rawValue: defaults.string(forKey: "codexStatusMetric") ?? "") ?? .remaining
         codexStatusBarMode = CodexStatusBarMode(rawValue: defaults.string(forKey: "codexStatusBarMode") ?? "") ?? .defaultAccount
         statusBarMetricOrder = Self.validStatusBarMetricOrder(defaults.stringArray(forKey: "statusBarMetricOrder"))
@@ -1122,6 +1168,7 @@ final class AppSettings: ObservableObject {
         statusBarRunner = StatusBarRunner(rawValue: defaults.string(forKey: "statusBarRunner") ?? "") ?? .runCat
         privacyMode = defaults.object(forKey: "privacyMode") as? Bool ?? false
         automaticUpdateChecks = defaults.object(forKey: "automaticUpdateChecks") as? Bool ?? true
+        typingStatsEnabled = defaults.object(forKey: "typingStatsEnabled") as? Bool ?? false
         codexDefaultAccountName = defaults.string(forKey: "codexDefaultAccountName") ?? "默认账号"
         codexHomePath = defaults.string(forKey: "codexHomePath") ?? ""
         codexAutoRefresh = defaults.object(forKey: "codexAutoRefresh") as? Bool ?? true
@@ -1499,9 +1546,9 @@ final class AppSettings: ObservableObject {
         [
             "themePreference", "showCPU", "showMemory", "showDownload", "showUpload",
             "showCPUCard", "showGPUCard", "showMemoryCard", "showDiskCard",
-            "showNetworkCard", "showFanCard", "showPowerCard", "showProcessesCard",
-            "showCodexCard", "dashboardDensity", "dashboardModuleOrder", "showCodexStatusItem", "codexStatusMetric", "codexStatusBarMode", "statusBarMetricOrder",
-            "systemStatusBarStyle", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "automaticUpdateChecks", "codexDefaultAccountName", "codexHomePath", "codexAutoRefresh", "codexRefreshInterval", "codexManagedAccounts", "powerSavingMode", "processLimit", "processSort", "refreshInterval"
+            "showNetworkCard", "showFanCard", "showTypingCard", "showPowerCard", "showProcessesCard",
+            "showCodexCard", "dashboardDensity", "dashboardModuleOrder", "showCodexStatusItem", "showTypingStatusItem", "codexStatusMetric", "codexStatusBarMode", "statusBarMetricOrder",
+            "systemStatusBarStyle", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "automaticUpdateChecks", "typingStatsEnabled", "codexDefaultAccountName", "codexHomePath", "codexAutoRefresh", "codexRefreshInterval", "codexManagedAccounts", "powerSavingMode", "processLimit", "processSort", "refreshInterval"
         ].forEach { defaults.removeObject(forKey: $0) }
 
         theme = .system
@@ -1515,12 +1562,14 @@ final class AppSettings: ObservableObject {
         showDiskCard = true
         showNetworkCard = true
         showFanCard = true
+        showTypingCard = true
         showPowerCard = true
         showProcessesCard = true
         showCodexCard = true
         dashboardDensity = .standard
         dashboardModuleOrder = DashboardModule.allCases
         showCodexStatusItem = true
+        showTypingStatusItem = false
         codexStatusMetric = .remaining
         codexStatusBarMode = .defaultAccount
         statusBarMetricOrder = StatusBarMetricGroup.allCases
@@ -1530,6 +1579,7 @@ final class AppSettings: ObservableObject {
         statusBarRunner = .runCat
         privacyMode = false
         automaticUpdateChecks = true
+        typingStatsEnabled = false
         codexDefaultAccountName = "默认账号"
         codexHomePath = ""
         codexAutoRefresh = true
@@ -2718,6 +2768,7 @@ struct DashboardView: View {
     @ObservedObject var store: MetricsStore
     @ObservedObject var settings: AppSettings
     @ObservedObject var codexUsageStore: CodexAccountsUsageStore
+    @ObservedObject var typingStats: TypingStatsService
     let onCodexDisplayCountChange: (Int) -> Void
 
     private let columns = [
@@ -2782,6 +2833,7 @@ struct DashboardView: View {
         case .disk: return settings.showDiskCard
         case .network: return settings.showNetworkCard
         case .fan: return settings.showFanCard
+        case .typing: return settings.showTypingCard && settings.typingStatsEnabled
         case .power: return settings.showPowerCard
         case .codex:
             return settings.showCodexCard && codexUsageStore.accounts.contains(where: \.isDashboardVisible)
@@ -2845,6 +2897,26 @@ struct DashboardView: View {
                     ? (store.fanRPM == nil ? "当前机型未提供 RPM" : "风扇转速")
                     : "需要授权读取风扇")
             }
+        case .typing:
+            MetricCard(
+                title: "输入",
+                icon: "keyboard",
+                value: compactNumber(typingStats.todayKeyCount),
+                badge: "今日键数",
+                density: settings.dashboardDensity,
+                valueColor: typingStats.permissionStatus == .monitoring ? .primary : .secondary
+            ) {
+                HStack(spacing: 6) {
+                    Text("累计 \(compactNumber(typingStats.totalKeyCount))")
+                    Spacer(minLength: 0)
+                    Text(typingStats.keysPerMinute > 0 ? "\(typingStats.keysPerMinute) KPM" : "— KPM")
+                }
+                .foregroundStyle(.secondary)
+            } footer: {
+                Text(typingStats.permissionStatus == .monitoring
+                    ? "活跃 \(formatTypingDuration(typingStats.activeSeconds))"
+                    : typingStats.permissionStatus.description)
+            }
         case .power, .codex, .processes:
             EmptyView()
         }
@@ -2869,7 +2941,7 @@ struct DashboardView: View {
             )
         case .processes:
             ProcessListView(processes: store.processes, density: settings.dashboardDensity)
-        case .cpu, .gpu, .memory, .disk, .network, .fan:
+        case .cpu, .gpu, .memory, .disk, .network, .fan, .typing:
             EmptyView()
         }
     }
@@ -2881,7 +2953,8 @@ struct DashboardView: View {
             settings.showMemoryCard,
             settings.showDiskCard,
             settings.showNetworkCard,
-            settings.showFanCard
+            settings.showFanCard,
+            settings.showTypingCard && settings.typingStatsEnabled
         ].filter { $0 }.count
         let metricRows = CGFloat((metricCount + 1) / 2)
 
@@ -2936,6 +3009,15 @@ struct DashboardView: View {
     private func formatRate(_ bytes: Double) -> String {
         if bytes >= 1024 * 1024 { return String(format: "%.1f MB/s", bytes / 1024 / 1024) }
         return String(format: "%.0f KB/s", bytes / 1024)
+    }
+
+    private func compactNumber(_ value: Int) -> String {
+        value >= 1_000 ? String(format: "%.1fk", Double(value) / 1_000) : String(value)
+    }
+
+    private func formatTypingDuration(_ value: TimeInterval) -> String {
+        let minutes = Int(value) / 60
+        return minutes >= 60 ? "\(minutes / 60) 小时 \(minutes % 60) 分" : "\(minutes) 分"
     }
 
 }
@@ -3369,6 +3451,7 @@ private struct DashboardModuleDropDelegate: DropDelegate {
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var codexUsageStore: CodexAccountsUsageStore
+    @ObservedObject var typingStats: TypingStatsService
     @ObservedObject var updateChecker: AppUpdateChecker
     @State private var draggedStatusBarGroup: StatusBarMetricGroup?
     @State private var draggedDashboardModule: DashboardModule?
@@ -3377,19 +3460,24 @@ struct SettingsView: View {
     @State private var isAddingCodexAccount = false
     @State private var newCodexAccountName = ""
     let onCodexRefresh: () -> Void
+    let onRequestTypingStatsPermission: () -> Void
     let onCheckForUpdates: () -> Void
 
     init(
         settings: AppSettings,
         codexUsageStore: CodexAccountsUsageStore,
+        typingStats: TypingStatsService,
         updateChecker: AppUpdateChecker,
         onCodexRefresh: @escaping () -> Void,
+        onRequestTypingStatsPermission: @escaping () -> Void,
         onCheckForUpdates: @escaping () -> Void
     ) {
         self.settings = settings
         self.codexUsageStore = codexUsageStore
+        self.typingStats = typingStats
         self.updateChecker = updateChecker
         self.onCodexRefresh = onCodexRefresh
+        self.onRequestTypingStatsPermission = onRequestTypingStatsPermission
         self.onCheckForUpdates = onCheckForUpdates
     }
 
@@ -3433,7 +3521,9 @@ struct SettingsView: View {
                                     }
                                     HStack(spacing: 12) {
                                         Toggle("Codex 进度", isOn: $settings.showCodexStatusItem)
-                                            .frame(width: 140, alignment: .leading)
+                                            .frame(width: 110, alignment: .leading)
+                                        Toggle("输入统计", isOn: $settings.showTypingStatusItem)
+                                            .frame(width: 90, alignment: .leading)
                                         Picker("", selection: $settings.codexStatusMetric) {
                                             ForEach(CodexStatusMetric.allCases) { metric in
                                                 Text(metric.title).tag(metric)
@@ -3630,6 +3720,7 @@ struct SettingsView: View {
                                     Toggle("磁盘", isOn: $settings.showDiskCard)
                                     Toggle("网络", isOn: $settings.showNetworkCard)
                                     Toggle("风扇", isOn: $settings.showFanCard)
+                                    Toggle("输入", isOn: $settings.showTypingCard)
                                     Toggle("电源", isOn: $settings.showPowerCard)
                                     Toggle("进程", isOn: $settings.showProcessesCard)
                                     Toggle("Codex", isOn: $settings.showCodexCard)
@@ -3776,39 +3867,79 @@ struct SettingsView: View {
                             }
                         }
 
-                        SettingsSection(title: "系统") {
-                            VStack(alignment: .leading, spacing: 10) {
-                                HStack {
-                                    Toggle("开机启动", isOn: Binding(
-                                        get: { settings.launchAtLogin },
-                                        set: { settings.setLaunchAtLogin($0) }
-                                    ))
-                                    Spacer(minLength: 0)
-                                    Button("恢复默认设置", role: .destructive) {
-                                        settings.resetToDefaults()
-                                    }
-                                }
-
-                                Divider()
-
-                                HStack(spacing: 8) {
-                                    Toggle("自动检查更新", isOn: $settings.automaticUpdateChecks)
-                                    Spacer(minLength: 0)
-                                    Button("检查更新") {
-                                        onCheckForUpdates()
-                                    }
-                                    .disabled(updateChecker.status == .checking)
-                                }
-                                Text(updateChecker.status.description)
-                                    .font(.caption2)
-                                    .foregroundStyle(updateChecker.status == .failed ? .secondary : .secondary)
-
-                            }
-                        }
                     }
                     .frame(width: 360, alignment: .top)
                 }
                 .frame(minWidth: 776, maxWidth: .infinity, alignment: .topLeading)
+
+                SettingsSection(title: "系统") {
+                    HStack(alignment: .top, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Toggle("开机启动", isOn: Binding(
+                                get: { settings.launchAtLogin },
+                                set: { settings.setLaunchAtLogin($0) }
+                            ))
+                            Button("恢复默认设置", role: .destructive) {
+                                settings.resetToDefaults()
+                            }
+                        }
+                        .frame(width: 150, alignment: .leading)
+
+                        Divider()
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Toggle("启用输入统计", isOn: Binding(
+                                get: { settings.typingStatsEnabled },
+                                set: { enabled in
+                                    settings.typingStatsEnabled = enabled
+                                    if enabled {
+                                        onRequestTypingStatsPermission()
+                                    }
+                                }
+                            ))
+                            Text(typingStats.permissionStatus.description)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Text("仅在本机统计有效按键和输入速度；不记录输入内容、键码或应用信息。")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                            HStack(spacing: 8) {
+                                if typingStats.permissionStatus == .needsPermission {
+                                    Button("打开输入监控设置") {
+                                        typingStats.openInputMonitoringSettings()
+                                    }
+                                    Button("重新检测") {
+                                        onRequestTypingStatsPermission()
+                                    }
+                                }
+                                Button("清除输入统计", role: .destructive) {
+                                    typingStats.clearHistory()
+                                }
+                                .disabled(typingStats.totalKeyCount == 0)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Divider()
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Toggle("自动检查更新", isOn: $settings.automaticUpdateChecks)
+                            HStack(spacing: 8) {
+                                Text(updateChecker.status.description)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                                Spacer(minLength: 0)
+                                Button("检查更新") {
+                                    onCheckForUpdates()
+                                }
+                                .disabled(updateChecker.status == .checking)
+                            }
+                        }
+                        .frame(width: 210, alignment: .leading)
+                    }
+                }
 
                 SettingsSection(title: "Codex 账号") {
                     VStack(alignment: .leading, spacing: 10) {
