@@ -69,9 +69,9 @@ enum CodexUsageError: Error, LocalizedError {
 
     var isRetryable: Bool {
         switch self {
-        case .timeout, .networkUnavailable, .processLaunchFailed, .processExited:
+        case .timeout, .networkUnavailable, .processLaunchFailed, .initializeFailed, .protocolError, .invalidResponse, .processExited:
             return true
-        case .codexHomeNotFound, .authFileNotFound, .executableNotFound, .initializeFailed, .unauthorized, .protocolError, .invalidResponse, .unsupportedAuthMode:
+        case .codexHomeNotFound, .authFileNotFound, .executableNotFound, .unauthorized, .unsupportedAuthMode:
             return false
         }
     }
