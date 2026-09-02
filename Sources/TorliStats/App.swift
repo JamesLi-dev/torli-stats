@@ -9,6 +9,61 @@ import TorliStatsShared
 
 // MARK: - App entry point
 
+/// Keeps the status text and runner in separate views. Updating a status
+/// item's `image` causes AppKit to redraw the whole status-item scene; updating
+/// this small image subview only invalidates the animated runner.
+private final class StatusBarLayeredContentView: NSView {
+    private let textImageView = NSImageView()
+    private let runnerImageView = NSImageView()
+    private var textImage: NSImage?
+    private var runnerOriginX: CGFloat = 0
+    private var runnerSize: NSSize = .zero
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        textImageView.imageScaling = .scaleNone
+        runnerImageView.imageScaling = .scaleNone
+        runnerImageView.contentTintColor = .labelColor
+        addSubview(textImageView)
+        addSubview(runnerImageView)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func update(textImage: NSImage, runnerOriginX: CGFloat, runnerImage: NSImage?) {
+        self.textImage = textImage
+        self.runnerOriginX = runnerOriginX
+        runnerSize = runnerImage?.size ?? runnerSize
+        textImageView.image = textImage
+        runnerImageView.image = runnerImage
+        needsLayout = true
+    }
+
+    func updateRunnerImage(_ image: NSImage?) {
+        if let image { runnerSize = image.size }
+        runnerImageView.image = image
+        needsLayout = true
+    }
+
+    // Keep the status button responsible for mouse tracking and its action.
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func layout() {
+        super.layout()
+        guard let textImage else { return }
+        let originY = floor((bounds.height - textImage.size.height) / 2)
+        textImageView.frame = NSRect(origin: NSPoint(x: 0, y: originY), size: textImage.size)
+        runnerImageView.frame = NSRect(
+            x: runnerOriginX,
+            y: floor((bounds.height - runnerSize.height) / 2),
+            width: runnerSize.width,
+            height: runnerSize.height
+        )
+    }
+}
+
 @main
 struct TorliStatsApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
@@ -32,9 +87,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let updateChecker = AppUpdateChecker()
     private var announcedUpdateVersion: String?
     private var settingsWindow: NSWindow?
+    private var typingStatsWindow: NSWindow?
+    private var typingStatusUpdateWorkItem: DispatchWorkItem?
+    private var lastTypingStatusUpdate = Date.distantPast
     private var cancellables = Set<AnyCancellable>()
     private var statusLogoAnimator: StatusBarLogoAnimator?
     private var statusLogoImage: NSImage?
+    private var statusBarLayeredContentView: StatusBarLayeredContentView?
     private var appliedStatusLogoConfiguration: StatusBarLogoConfiguration?
 
     override init() {
@@ -50,6 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         store.setProcessSort(settings.processSort)
         store.setPowerSavingMode(settings.powerSavingMode)
         store.setSensorHelperEnabled(settings.sensorHelperEnabled)
+        store.setGPUMonitoringEnabled(settings.showGPUCard)
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -81,6 +141,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 typingStats: typingStats,
                 onCodexDisplayCountChange: { [weak self] count in
                     self?.updatePopoverSize(codexAccountCount: count)
+                },
+                onTypingDetails: { [weak self] in
+                    self?.showTypingStatsDetails()
                 }
             )
         )
@@ -105,10 +168,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                     self.store.setProcessSort(self.settings.processSort)
                     self.store.setPowerSavingMode(self.settings.powerSavingMode)
                     self.store.setSensorHelperEnabled(self.settings.sensorHelperEnabled)
+                    self.store.setGPUMonitoringEnabled(self.settings.showGPUCard)
                     self.typingStats.setEnabled(self.settings.typingStatsEnabled)
                     self.codexUsageStore.synchronize()
                     self.settingsWindow?.appearance = self.settings.theme.windowAppearance
                     self.settingsWindow?.backgroundColor = AppColors.backgroundNSColor
+                    self.typingStatsWindow?.appearance = self.settings.theme.windowAppearance
+                    self.typingStatsWindow?.backgroundColor = AppColors.backgroundNSColor
                     self.updatePopoverSize()
                     self.updateStatusBarLogo()
                     self.updateStatusTitle(self.store.statusLine)
@@ -127,8 +193,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         typingStats.objectWillChange
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                guard let self else { return }
-                self.updateStatusTitle(self.store.statusLine)
+                self?.scheduleTypingStatusUpdate()
             }
             .store(in: &cancellables)
 
@@ -205,13 +270,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             cpuUsage: store.cpu
         ) { [weak self] image in
             guard let self else { return }
-            self.statusLogoImage = image
-            self.updateStatusTitle(self.store.statusLine)
+            self.updateStatusBarRunnerImage(image)
         }
     }
 
     private func updateStatusBarLogoSpeed() {
         statusLogoAnimator?.setCPUUsage(store.cpu)
+    }
+
+    /// A key press updates several input-stat values. The status bar only
+    /// needs a periodic aggregate refresh, rather than one expensive image
+    /// composition for every published value.
+    private func scheduleTypingStatusUpdate() {
+        guard settings.showTypingStatusItem,
+              settings.typingStatsEnabled,
+              settings.statusBarMetricOrder.contains(.typing) else { return }
+
+        // An animated runner already composites the current metric text on
+        // its next frame, so a separate input-driven redraw is redundant.
+        if settings.showStatusBarLogo,
+           settings.statusBarLogoAnimation,
+           !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            return
+        }
+
+        guard typingStatusUpdateWorkItem == nil else { return }
+        let minimumInterval: TimeInterval = 0.4
+        let delay = max(0, lastTypingStatusUpdate.addingTimeInterval(minimumInterval).timeIntervalSinceNow)
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.typingStatusUpdateWorkItem = nil
+            self.lastTypingStatusUpdate = Date()
+            self.updateStatusTitle(self.store.statusLine)
+        }
+        typingStatusUpdateWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
     private func togglePopover() {
@@ -439,6 +532,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    private func showTypingStatsDetails() {
+        if let typingStatsWindow {
+            typingStatsWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 470),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "输入统计趋势"
+        window.titlebarAppearsTransparent = true
+        window.backgroundColor = AppColors.backgroundNSColor
+        window.appearance = settings.theme.windowAppearance
+        window.isReleasedWhenClosed = false
+        window.contentViewController = NSHostingController(
+            rootView: TypingStatsDetailView(typingStats: typingStats, onClose: { [weak window] in
+                window?.close()
+            })
+        )
+        window.center()
+        typingStatsWindow = window
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
     private func checkForUpdatesIfNeeded() {
         updateChecker.checkIfNeeded(isEnabled: settings.automaticUpdateChecks) { [weak self] release in
             self?.announceAvailableUpdate(release)
@@ -481,6 +603,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let isStale: Bool
     }
 
+    private struct StatusBarTextLayout {
+        let image: NSImage
+        let runnerOriginX: CGFloat
+    }
+
+    private func updateStatusBarRunnerImage(_ image: NSImage?) {
+        statusLogoImage = image
+        if let statusBarLayeredContentView {
+            statusBarLayeredContentView.updateRunnerImage(image)
+        } else {
+            // The animator can produce its first frame before the static text
+            // layout is installed.
+            updateStatusTitle(store.statusLine)
+        }
+    }
+
     private func updateStatusTitle(_ line: StatusLine) {
         guard let button = statusItem.button else { return }
 
@@ -498,16 +636,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         if let statusLogoImage,
            settings.statusBarMetricOrder.contains(.logo),
-           let composite = makeStatusBarCompositeImage(
-               logoImage: statusLogoImage,
+           let layout = makeStatusBarTextLayout(
+               runnerSize: statusLogoImage.size,
                line: line,
                attributes: commonAttributes,
                appearance: button.effectiveAppearance
            ) {
-            button.image = composite
-            button.imagePosition = .imageOnly
+            button.image = nil
+            button.imagePosition = .noImage
             button.attributedTitle = NSAttributedString(string: "")
+
+            let contentView: StatusBarLayeredContentView
+            if let statusBarLayeredContentView {
+                contentView = statusBarLayeredContentView
+            } else {
+                contentView = StatusBarLayeredContentView(frame: button.bounds)
+                contentView.autoresizingMask = [.width, .height]
+                button.addSubview(contentView)
+                statusBarLayeredContentView = contentView
+            }
+            statusItem.length = ceil(layout.image.size.width)
+            contentView.update(
+                textImage: layout.image,
+                runnerOriginX: layout.runnerOriginX,
+                runnerImage: statusLogoImage
+            )
         } else {
+            statusBarLayeredContentView?.removeFromSuperview()
+            statusBarLayeredContentView = nil
+            statusItem.length = NSStatusItem.variableLength
             let groups = settings.statusBarMetricOrder.compactMap {
                 normalizedStatusBarGroup(
                     statusBarGroupContent(for: $0, line: line, attributes: commonAttributes),
@@ -548,17 +705,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
     }
 
-    private func makeStatusBarCompositeImage(
-        logoImage: NSImage,
+    private func makeStatusBarTextLayout(
+        runnerSize: NSSize,
         line: StatusLine,
         attributes: [NSAttributedString.Key: Any],
         appearance: NSAppearance
-    ) -> NSImage? {
+    ) -> StatusBarTextLayout? {
         var segments: [(group: StatusBarMetricGroup, content: StatusBarGroupContent?, width: CGFloat)] = []
 
         for group in settings.statusBarMetricOrder {
             if group == .logo {
-                segments.append((group, nil, logoImage.size.width))
+                segments.append((group, nil, runnerSize.width))
                 continue
             }
             guard let content = normalizedStatusBarGroup(
@@ -579,18 +736,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let image = NSImage(size: NSSize(width: ceil(totalWidth), height: 20))
         image.lockFocus()
         var x: CGFloat = 0
+        var runnerOriginX: CGFloat = 0
         appearance.performAsCurrentDrawingAppearance {
-            let labelColor = NSColor.labelColor
             for segment in segments {
                 if segment.group == .logo {
-                    let logoRect = NSRect(x: x, y: 0, width: logoImage.size.width, height: 20)
-                    logoImage.draw(in: logoRect)
-                    if logoImage.isTemplate {
-                        NSGraphicsContext.current?.compositingOperation = .sourceIn
-                        labelColor.setFill()
-                        NSBezierPath(rect: logoRect).fill()
-                        NSGraphicsContext.current?.compositingOperation = .sourceOver
-                    }
+                    // Leave a transparent runner-sized slot. The runner is a
+                    // separate image subview and is the only element updated
+                    // for animation frames.
+                    runnerOriginX = x
                 } else if let content = segment.content {
                     content.firstLine?.draw(at: NSPoint(x: x, y: 10))
                     content.secondLine?.draw(at: NSPoint(x: x, y: 0))
@@ -601,7 +754,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         image.unlockFocus()
         image.isTemplate = false
-        return image
+        return StatusBarTextLayout(image: image, runnerOriginX: runnerOriginX)
     }
 
     private func statusBarGroupContent(
@@ -1853,8 +2006,12 @@ final class MetricsStore: ObservableObject {
     private var previousNetworkTime: TimeInterval?
     private var workerGPU = 0.0
     private var hasGPUSample = false
+    private var gpuMonitoringEnabled = true
     private var lastGPUSampleTime: TimeInterval?
-    private let gpuSampleInterval: TimeInterval = 3
+    // GPU usage is sourced from an `ioreg` subprocess. Ten seconds keeps the
+    // dashboard informative while avoiding an expensive process launch on
+    // every general metrics tick.
+    private let gpuSampleInterval: TimeInterval = 10
     private var recentGPUSamples: [Double] = []
     private var workerCPUHistory = Array(repeating: 0.0, count: 24)
     private var workerGPUHistory = Array(repeating: 0.0, count: 24)
@@ -1891,6 +2048,18 @@ final class MetricsStore: ObservableObject {
             self.workerIntervalSeconds = seconds
             let interval = self.powerSavingMode ? max(TimeInterval(seconds), 10) : TimeInterval(seconds)
             self.installHighTimer(interval: interval)
+            self.collectHighFrequency()
+        }
+    }
+
+    func setGPUMonitoringEnabled(_ enabled: Bool) {
+        highMetricsQueue.async { [weak self] in
+            guard let self, self.gpuMonitoringEnabled != enabled else { return }
+            self.gpuMonitoringEnabled = enabled
+            self.hasGPUSample = false
+            self.lastGPUSampleTime = nil
+            self.recentGPUSamples = []
+            self.workerGPU = 0
             self.collectHighFrequency()
         }
     }
@@ -1983,16 +2152,22 @@ final class MetricsStore: ObservableObject {
     private func collectHighFrequency() {
         let cpuSnapshot = cpuSampler.sample()
         let now = ProcessInfo.processInfo.systemUptime
-        if !hasGPUSample || lastGPUSampleTime.map({ now - $0 >= gpuSampleInterval }) == true {
-            let rawGPU = GPUReader.usage()
-            recentGPUSamples.append(rawGPU)
-            if recentGPUSamples.count > 5 { recentGPUSamples.removeFirst() }
-            lastGPUSampleTime = now
+        let stableGPU: Double
+        if gpuMonitoringEnabled {
+            if !hasGPUSample || lastGPUSampleTime.map({ now - $0 >= gpuSampleInterval }) == true {
+                let rawGPU = GPUReader.usage()
+                recentGPUSamples.append(rawGPU)
+                if recentGPUSamples.count > 5 { recentGPUSamples.removeFirst() }
+                lastGPUSampleTime = now
+            }
+            stableGPU = median(recentGPUSamples)
+            // IORegistry 的 GPU 利用率是瞬时采样，偶尔会出现 0/100 的尖峰。
+            workerGPU = hasGPUSample ? workerGPU * 0.7 + stableGPU * 0.3 : stableGPU
+            hasGPUSample = true
+        } else {
+            stableGPU = 0
+            workerGPU = 0
         }
-        let stableGPU = median(recentGPUSamples)
-        // IORegistry 的 GPU 利用率是瞬时采样，偶尔会出现 0/100 的尖峰。
-        workerGPU = hasGPUSample ? workerGPU * 0.7 + stableGPU * 0.3 : stableGPU
-        hasGPUSample = true
         let memorySnapshot = MemoryReader.snapshot()
         let memory = memorySnapshot.percentage
 
@@ -2770,6 +2945,7 @@ struct DashboardView: View {
     @ObservedObject var codexUsageStore: CodexAccountsUsageStore
     @ObservedObject var typingStats: TypingStatsService
     let onCodexDisplayCountChange: (Int) -> Void
+    let onTypingDetails: () -> Void
 
     private let columns = [
         GridItem(.flexible(), spacing: 8),
@@ -2902,21 +3078,26 @@ struct DashboardView: View {
                 title: "输入",
                 icon: "keyboard",
                 value: compactNumber(typingStats.todayKeyCount),
-                badge: "今日键数",
+                badge: typingTrendBadge,
                 density: settings.dashboardDensity,
                 valueColor: typingStats.permissionStatus == .monitoring ? .primary : .secondary
             ) {
-                HStack(spacing: 6) {
-                    Text("累计 \(compactNumber(typingStats.totalKeyCount))")
+                if settings.dashboardDensity == .standard || settings.dashboardDensity == .detailed {
+                    TypingTrendSparkline(records: typingStats.records(forLastDays: 7))
+                }
+            } footer: {
+                HStack(spacing: 4) {
+                    Text(typingStats.permissionStatus == .monitoring
+                        ? "累计 \(compactNumber(typingStats.totalKeyCount)) · 活跃 \(formatTypingDuration(typingStats.activeSeconds))"
+                        : typingStats.permissionStatus.description)
                     Spacer(minLength: 0)
-                    Text(typingStats.keysPerMinute > 0 ? "\(typingStats.keysPerMinute) KPM" : "— KPM")
+                    Image(systemName: "chevron.right")
                 }
                 .foregroundStyle(.secondary)
-            } footer: {
-                Text(typingStats.permissionStatus == .monitoring
-                    ? "活跃 \(formatTypingDuration(typingStats.activeSeconds))"
-                    : typingStats.permissionStatus.description)
             }
+            .contentShape(RoundedRectangle(cornerRadius: 13))
+            .onTapGesture(perform: onTypingDetails)
+            .help("查看输入统计趋势")
         case .power, .codex, .processes:
             EmptyView()
         }
@@ -3009,6 +3190,11 @@ struct DashboardView: View {
     private func formatRate(_ bytes: Double) -> String {
         if bytes >= 1024 * 1024 { return String(format: "%.1f MB/s", bytes / 1024 / 1024) }
         return String(format: "%.0f KB/s", bytes / 1024)
+    }
+
+    private var typingTrendBadge: String {
+        let speed = typingStats.keysPerMinute > 0 ? "\(typingStats.keysPerMinute) KPM" : "— KPM"
+        return settings.dashboardDensity == .compact ? "今日 · \(speed)" : speed
     }
 
     private func compactNumber(_ value: Int) -> String {
@@ -4432,6 +4618,145 @@ struct Sparkline: View {
             }
             .stroke(color, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
         }
+    }
+}
+
+private struct TypingTrendSparkline: View {
+    let records: [TypingDailyRecord]
+
+    var body: some View {
+        GeometryReader { geometry in
+            let maximum = max(records.map(\.keyCount).max() ?? 0, 1)
+            let spacing: CGFloat = records.count > 10 ? 2 : 3
+            let width = max(2, (geometry.size.width - spacing * CGFloat(max(records.count - 1, 0))) / CGFloat(max(records.count, 1)))
+
+            HStack(alignment: .bottom, spacing: spacing) {
+                ForEach(records) { record in
+                    RoundedRectangle(cornerRadius: min(2, width / 2))
+                        .fill(record.keyCount == 0 ? Color.secondary.opacity(0.16) : Color.cyan.opacity(0.82))
+                        .frame(width: width, height: max(2, geometry.size.height * CGFloat(record.keyCount) / CGFloat(maximum)))
+                        .accessibilityLabel(record.dateID)
+                        .accessibilityValue("\(record.keyCount) 键")
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        }
+    }
+}
+
+private struct TypingStatsDetailView: View {
+    @ObservedObject var typingStats: TypingStatsService
+    let onClose: () -> Void
+    @State private var selectedPeriod = 7
+
+    private var records: [TypingDailyRecord] {
+        typingStats.records(forLastDays: selectedPeriod)
+    }
+
+    private var periodTotal: Int {
+        records.reduce(0) { $0 + $1.keyCount }
+    }
+
+    private var averagePerDay: Int {
+        guard !records.isEmpty else { return 0 }
+        return Int((Double(periodTotal) / Double(records.count)).rounded())
+    }
+
+    private var peakRecord: TypingDailyRecord? {
+        records.max(by: { $0.keyCount < $1.keyCount })
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Label("输入统计趋势", systemImage: "chart.bar.fill")
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                Spacer()
+                Button("完成", action: onClose)
+                    .buttonStyle(.bordered)
+            }
+
+            Picker("统计周期", selection: $selectedPeriod) {
+                Text("近 7 天").tag(7)
+                Text("近 30 天").tag(30)
+            }
+            .pickerStyle(.segmented)
+
+            HStack(spacing: 8) {
+                TypingTrendSummary(title: "键数", value: compactNumber(periodTotal))
+                TypingTrendSummary(title: "日均", value: compactNumber(averagePerDay))
+                TypingTrendSummary(title: "最高", value: compactNumber(peakRecord?.keyCount ?? 0))
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("每日键数")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    Spacer()
+                    Text("\(records.first?.dateID ?? "") — \(records.last?.dateID ?? "")")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+                TypingTrendSparkline(records: records)
+                    .frame(height: 96)
+            }
+            .padding(12)
+            .background(AppColors.card)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+
+            Text("每日明细")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(records.reversed()) { record in
+                        HStack {
+                            Text(record.dateID)
+                                .font(.system(size: 11, design: .monospaced))
+                            Spacer()
+                            Text(formatDuration(record.activeSeconds))
+                                .foregroundStyle(.secondary)
+                            Text("\(compactNumber(record.keyCount)) 键")
+                                .frame(width: 72, alignment: .trailing)
+                        }
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .padding(.vertical, 7)
+                        Divider()
+                    }
+                }
+            }
+        }
+        .padding(20)
+        .frame(width: 440, height: 470)
+        .background(AppColors.background)
+    }
+
+    private func compactNumber(_ value: Int) -> String {
+        value >= 1_000 ? String(format: "%.1fk", Double(value) / 1_000) : String(value)
+    }
+
+    private func formatDuration(_ value: TimeInterval) -> String {
+        let minutes = Int(value) / 60
+        return minutes >= 60 ? "\(minutes / 60) 小时 \(minutes % 60) 分" : "\(minutes) 分"
+    }
+}
+
+private struct TypingTrendSummary: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(AppColors.card)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
 

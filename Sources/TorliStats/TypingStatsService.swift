@@ -57,6 +57,7 @@ final class TypingStatsService: ObservableObject {
     deinit {
         stopMonitoring()
         persistWorkItem?.cancel()
+        persistRecords()
         speedTimer?.cancel()
     }
 
@@ -88,6 +89,22 @@ final class TypingStatsService: ObservableObject {
         speedTimestamps = []
         defaults.removeObject(forKey: Self.recordsKey)
         refreshPublishedValues()
+    }
+
+    /// Returns one aggregate record per calendar day, including zero-input days,
+    /// so charts remain chronological instead of visually skipping quiet days.
+    func records(forLastDays dayCount: Int, endingAt date: Date = Date()) -> [TypingDailyRecord] {
+        guard dayCount > 0 else { return [] }
+        let calendar = Calendar.current
+        let countsByDay = dailyRecords.reduce(into: [String: TypingDailyRecord]()) { result, record in
+            result[record.dateID] = record
+        }
+
+        return (0..<dayCount).compactMap { offset in
+            guard let day = calendar.date(byAdding: .day, value: offset - dayCount + 1, to: date) else { return nil }
+            let id = Self.dayID(for: day)
+            return countsByDay[id] ?? TypingDailyRecord(dateID: id, keyCount: 0, activeSeconds: 0)
+        }
     }
 
     private func startMonitoringIfPermitted() {
@@ -231,11 +248,11 @@ final class TypingStatsService: ObservableObject {
     private func loadRecords() {
         guard let data = defaults.data(forKey: Self.recordsKey),
               let records = try? JSONDecoder().decode([TypingDailyRecord].self, from: data) else { return }
+        let cutoff = Calendar.current.date(byAdding: .day, value: -Self.retentionDays, to: Date()) ?? .distantPast
+        let cutoffID = Self.dayID(for: cutoff)
         dailyRecords = records
-        replace(TypingDailyRecord(dateID: Self.dayID(for: Date()), keyCount: 0, activeSeconds: 0))
-        if dailyRecords.last?.keyCount == 0, dailyRecords.last?.activeSeconds == 0 {
-            dailyRecords.removeLast()
-        }
+            .filter { $0.dateID >= cutoffID }
+            .sorted { $0.dateID < $1.dateID }
     }
 
     private func schedulePersistence() {

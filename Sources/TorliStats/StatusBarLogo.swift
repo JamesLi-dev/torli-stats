@@ -84,6 +84,11 @@ enum StatusBarRunner: String, CaseIterable, Identifiable {
 /// See THIRD_PARTY_NOTICES.md for Apache-2.0 attribution.
 final class StatusBarLogoAnimator {
     private static let artworkHeight: CGFloat = 20
+    // The status-bar composition redraws text and the runner into one image.
+    // Keep its rate bounded to avoid a CPU-feedback loop while preserving
+    // visibly smooth motion at low system load.
+    private static let minimumFramesPerSecond: Double = 6
+    private static let maximumFramesPerSecond: Double = 12
 
     private let onFrameChange: (NSImage?) -> Void
     private let frames: [NSImage]
@@ -124,7 +129,12 @@ final class StatusBarLogoAnimator {
             awaitingFirstCPUSample = false
             speed = max(1, min(20, cpuUsage / 5))
         }
-        let interval = 0.5 / speed
+        let requestedFramesPerSecond = speed / 0.5
+        let framesPerSecond = min(
+            Self.maximumFramesPerSecond,
+            max(Self.minimumFramesPerSecond, requestedFramesPerSecond)
+        )
+        let interval = 1 / framesPerSecond
         guard frameInterval == nil || abs((frameInterval ?? interval) - interval) > 0.002 else { return }
         frameInterval = interval
         timer?.invalidate()
