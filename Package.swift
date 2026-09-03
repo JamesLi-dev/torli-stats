@@ -21,6 +21,7 @@ let package = Package(
             path: "Sources/TorliStats",
             linkerSettings: [
                 .linkedFramework("AppKit"),
+                .linkedFramework("Security"),
                 .linkedFramework("IOKit"),
                 .linkedFramework("ServiceManagement")
             ]

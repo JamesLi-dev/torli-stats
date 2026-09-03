@@ -248,6 +248,8 @@ private struct CodexAccountUsageRow: View {
                 ProgressView(value: min(100, max(0, 100 - primary.usedPercent)) / 100)
                     .controlSize(.mini)
                     .tint(quotaColor(forRemaining: 100 - primary.usedPercent))
+                    .scaleEffect(x: 1, y: 0.6, anchor: .center)
+                    .frame(height: 4)
 
                 if density != .compact, let secondary = snapshot.secondary {
                     HStack(spacing: 8) {

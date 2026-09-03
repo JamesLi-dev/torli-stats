@@ -83,6 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let settings: AppSettings
     private let store: MetricsStore
     private let codexUsageStore: CodexAccountsUsageStore
+    private let wakaTimeUsageStore: WakaTimeUsageStore
     private let typingStats = TypingStatsService()
     private let updateChecker = AppUpdateChecker()
     private var announcedUpdateVersion: String?
@@ -103,6 +104,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         codexUsageStore = CodexAccountsUsageStore(
             configurationsProvider: { appSettings.codexAccounts },
             refreshSettingsProvider: { appSettings.codexRefreshSettings }
+        )
+        wakaTimeUsageStore = WakaTimeUsageStore(
+            apiKeyProvider: WakaTimeKeychain.readAPIKey,
+            rangeProvider: { appSettings.wakaTimeRange }
         )
         super.init()
         store.setProcessLimit(settings.processLimit)
@@ -133,9 +138,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         popover.delegate = self
         popover.contentSize = NSSize(
             width: 360,
-            height: DashboardView.preferredHeight(
-                for: settings,
-                codexAccountCount: codexUsageStore.accounts.filter(\.isDashboardVisible).count
+            height: min(
+                DashboardView.preferredHeight(
+                    for: settings,
+                    codexAccountCount: codexUsageStore.accounts.filter(\.isDashboardVisible).count
+                ),
+                DashboardView.maximumPopoverHeight
             )
         )
         popover.contentViewController = NSHostingController(
@@ -143,6 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 store: store,
                 settings: settings,
                 codexUsageStore: codexUsageStore,
+                wakaTimeUsageStore: wakaTimeUsageStore,
                 typingStats: typingStats,
                 onCodexDisplayCountChange: { [weak self] count in
                     self?.updatePopoverSize(codexAccountCount: count)
@@ -192,11 +201,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
             .store(in: &cancellables)
 
+        settings.$wakaTimeEnabled
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] enabled in
+                self?.wakaTimeUsageStore.synchronize(isEnabled: enabled)
+            }
+            .store(in: &cancellables)
+
+        settings.$wakaTimeRange
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.wakaTimeUsageStore.refresh()
+            }
+            .store(in: &cancellables)
+
         settings.$codexHomePath
             .dropFirst()
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.codexUsageStore.refresh(accountID: CodexAccountConfiguration.defaultAccountID)
+            }
+            .store(in: &cancellables)
+
+        wakaTimeUsageStore.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.updatePopoverSize()
             }
             .store(in: &cancellables)
 
@@ -238,17 +270,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             for: settings,
             codexAccountCount: visibleAccountCount
         )
-        popover.contentSize = NSSize(width: 360, height: estimatedHeight)
+        popover.contentSize = NSSize(
+            width: 360,
+            height: min(estimatedHeight, DashboardView.maximumPopoverHeight)
+        )
 
-        // Dashboard 不再使用滚动容器，按实际 SwiftUI 内容高度收紧 popover，
-        // 让底部只保留内容自身的 padding。
+        // 内容较长时将 popover 限制在可用的阅读高度，Dashboard 内部负责滚动。
         DispatchQueue.main.async { [weak self] in
             guard let self,
                   let view = self.popover.contentViewController?.view else { return }
             view.layoutSubtreeIfNeeded()
             let fittedHeight = view.fittingSize.height
             guard fittedHeight > 0 else { return }
-            self.popover.contentSize = NSSize(width: 360, height: fittedHeight)
+            self.popover.contentSize = NSSize(
+                width: 360,
+                height: min(fittedHeight, DashboardView.maximumPopoverHeight)
+            )
         }
     }
 
@@ -511,10 +548,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let settings = SettingsView(
             settings: self.settings,
             codexUsageStore: codexUsageStore,
+            wakaTimeUsageStore: wakaTimeUsageStore,
             typingStats: typingStats,
             updateChecker: updateChecker,
             onCodexRefresh: { [weak self] in
                 self?.codexUsageStore.refresh()
+            },
+            onWakaTimeRefresh: { [weak self] in
+                self?.wakaTimeUsageStore.refresh()
             },
             onRequestTypingStatsPermission: { [weak self] in
                 self?.typingStats.requestPermissionAndStart()
@@ -1103,6 +1144,7 @@ enum DashboardModule: String, CaseIterable, Codable, Identifiable {
     case typing
     case power
     case codex
+    case wakatime
     case processes
 
     var id: String { rawValue }
@@ -1118,6 +1160,7 @@ enum DashboardModule: String, CaseIterable, Codable, Identifiable {
         case .typing: return "输入"
         case .power: return "电源"
         case .codex: return "Codex"
+        case .wakatime: return "WakaTime"
         case .processes: return "进程"
         }
     }
@@ -1125,7 +1168,7 @@ enum DashboardModule: String, CaseIterable, Codable, Identifiable {
     var isMetric: Bool {
         switch self {
         case .cpu, .gpu, .memory, .disk, .network, .fan, .typing: return true
-        case .power, .codex, .processes: return false
+        case .power, .codex, .wakatime, .processes: return false
         }
     }
 }
@@ -1194,6 +1237,15 @@ final class AppSettings: ObservableObject {
     }
     @Published var showCodexCard: Bool {
         didSet { defaults.set(showCodexCard, forKey: "showCodexCard") }
+    }
+    @Published var showWakaTimeCard: Bool {
+        didSet { defaults.set(showWakaTimeCard, forKey: "showWakaTimeCard") }
+    }
+    @Published var wakaTimeEnabled: Bool {
+        didSet { defaults.set(wakaTimeEnabled, forKey: "wakaTimeEnabled") }
+    }
+    @Published var wakaTimeRange: WakaTimeRange {
+        didSet { defaults.set(wakaTimeRange.rawValue, forKey: "wakaTimeRange") }
     }
     @Published var dashboardDensity: DashboardDensity {
         didSet { defaults.set(dashboardDensity.rawValue, forKey: "dashboardDensity") }
@@ -1327,6 +1379,9 @@ final class AppSettings: ObservableObject {
         showPowerCard = defaults.object(forKey: "showPowerCard") as? Bool ?? true
         showProcessesCard = defaults.object(forKey: "showProcessesCard") as? Bool ?? true
         showCodexCard = defaults.object(forKey: "showCodexCard") as? Bool ?? true
+        showWakaTimeCard = defaults.object(forKey: "showWakaTimeCard") as? Bool ?? true
+        wakaTimeEnabled = defaults.object(forKey: "wakaTimeEnabled") as? Bool ?? false
+        wakaTimeRange = WakaTimeRange(rawValue: defaults.string(forKey: "wakaTimeRange") ?? "") ?? .last7Days
         dashboardDensity = DashboardDensity(rawValue: defaults.string(forKey: "dashboardDensity") ?? "") ?? .standard
         dashboardModuleOrder = Self.validDashboardModuleOrder(defaults.stringArray(forKey: "dashboardModuleOrder"))
         showCodexStatusItem = defaults.object(forKey: "showCodexStatusItem") as? Bool ?? true
@@ -1724,7 +1779,7 @@ final class AppSettings: ObservableObject {
             "themePreference", "showCPU", "showMemory", "showDownload", "showUpload",
             "showCPUCard", "showGPUCard", "showMemoryCard", "showDiskCard",
             "showNetworkCard", "showFanCard", "showTypingCard", "showPowerCard", "showProcessesCard",
-            "showCodexCard", "dashboardDensity", "dashboardModuleOrder", "showCodexStatusItem", "showTypingStatusItem", "codexStatusMetric", "codexStatusBarMode", "statusBarMetricOrder",
+            "showCodexCard", "showWakaTimeCard", "wakaTimeEnabled", "wakaTimeRange", "dashboardDensity", "dashboardModuleOrder", "showCodexStatusItem", "showTypingStatusItem", "codexStatusMetric", "codexStatusBarMode", "statusBarMetricOrder",
             "systemStatusBarStyle", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "automaticUpdateChecks", "typingStatsEnabled", "codexDefaultAccountName", "codexHomePath", "codexAutoRefresh", "codexRefreshInterval", "codexManagedAccounts", "powerSavingMode", "batteryRefreshInterval", "lowBatterySavingEnabled", "lowBatteryThreshold", "processLimit", "processSort", "refreshInterval"
         ].forEach { defaults.removeObject(forKey: $0) }
 
@@ -1743,6 +1798,9 @@ final class AppSettings: ObservableObject {
         showPowerCard = true
         showProcessesCard = true
         showCodexCard = true
+        showWakaTimeCard = true
+        wakaTimeEnabled = false
+        wakaTimeRange = .last7Days
         dashboardDensity = .standard
         dashboardModuleOrder = DashboardModule.allCases
         showCodexStatusItem = true
@@ -3018,9 +3076,12 @@ private enum DashboardLayoutBlock: Identifiable {
 }
 
 struct DashboardView: View {
+    static let maximumPopoverHeight: CGFloat = 820
+
     @ObservedObject var store: MetricsStore
     @ObservedObject var settings: AppSettings
     @ObservedObject var codexUsageStore: CodexAccountsUsageStore
+    @ObservedObject var wakaTimeUsageStore: WakaTimeUsageStore
     @ObservedObject var typingStats: TypingStatsService
     let onCodexDisplayCountChange: (Int) -> Void
     let onTypingDetails: () -> Void
@@ -3031,28 +3092,32 @@ struct DashboardView: View {
     ]
 
     var body: some View {
-        VStack(spacing: settings.dashboardDensity == .compact ? 3 : 4) {
-            DeviceInfoView(
-                info: store.deviceInfo,
-                isPrivacyMode: settings.privacyMode,
-                density: settings.dashboardDensity
-            )
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(spacing: settings.dashboardDensity == .compact ? 3 : 4) {
+                DeviceInfoView(
+                    info: store.deviceInfo,
+                    isPrivacyMode: settings.privacyMode,
+                    density: settings.dashboardDensity
+                )
 
-            ForEach(layoutBlocks) { block in
-                switch block {
-                case let .metrics(modules):
-                    LazyVGrid(columns: columns, spacing: settings.dashboardDensity == .compact ? 3 : 4) {
-                        ForEach(modules) { module in
-                            metricCard(for: module)
+                ForEach(layoutBlocks) { block in
+                    switch block {
+                    case let .metrics(modules):
+                        LazyVGrid(columns: columns, spacing: settings.dashboardDensity == .compact ? 3 : 4) {
+                            ForEach(modules) { module in
+                                metricCard(for: module)
+                            }
                         }
+                    case let .module(module):
+                        moduleView(for: module)
                     }
-                case let .module(module):
-                    moduleView(for: module)
                 }
             }
+            .padding(settings.dashboardDensity == .compact ? 6 : 8)
+            .frame(width: 360, alignment: .top)
+            .background(ThinScrollViewConfigurator(verticalInset: 12))
         }
-        .padding(settings.dashboardDensity == .compact ? 6 : 8)
-        .frame(width: 360, alignment: .top)
+        .frame(width: 360)
         .background(AppColors.background)
         .preferredColorScheme(settings.theme.colorScheme)
     }
@@ -3091,6 +3156,8 @@ struct DashboardView: View {
         case .power: return settings.showPowerCard
         case .codex:
             return settings.showCodexCard && codexUsageStore.accounts.contains(where: \.isDashboardVisible)
+        case .wakatime:
+            return settings.showWakaTimeCard && settings.wakaTimeEnabled
         case .processes: return settings.showProcessesCard
         }
     }
@@ -3176,7 +3243,7 @@ struct DashboardView: View {
             .contentShape(RoundedRectangle(cornerRadius: 13))
             .onTapGesture(perform: onTypingDetails)
             .help("查看输入统计趋势")
-        case .power, .codex, .processes:
+        case .power, .codex, .wakatime, .processes:
             EmptyView()
         }
     }
@@ -3197,6 +3264,12 @@ struct DashboardView: View {
                 isPrivacyMode: settings.privacyMode,
                 density: settings.dashboardDensity,
                 onDisplayCountChange: onCodexDisplayCountChange
+            )
+        case .wakatime:
+            WakaTimeUsageView(
+                store: wakaTimeUsageStore,
+                range: settings.wakaTimeRange,
+                density: settings.dashboardDensity
             )
         case .processes:
             ProcessListView(processes: store.processes, density: settings.dashboardDensity)
@@ -3250,6 +3323,13 @@ struct DashboardView: View {
         if codexAccountCount > 0 {
             height += codexBaseHeight + CGFloat(max(0, codexAccountCount - 1)) * 80 + 4
         }
+        if settings.showWakaTimeCard && settings.wakaTimeEnabled {
+            switch settings.dashboardDensity {
+            case .compact: height += 95
+            case .standard: height += 210
+            case .detailed: height += 280
+            }
+        }
         if settings.showProcessesCard {
             height += 42 + CGFloat(processRowCount) * 18 + 4
         }
@@ -3287,13 +3367,26 @@ struct DashboardView: View {
 }
 
 private struct ThinScrollViewConfigurator: NSViewRepresentable {
+    var verticalInset: CGFloat = 0
+
     func makeNSView(context: Context) -> NSView {
-        ScrollViewConfiguratorView()
+        ScrollViewConfiguratorView(verticalInset: verticalInset)
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {}
 
     private final class ScrollViewConfiguratorView: NSView {
+        private let verticalInset: CGFloat
+
+        init(verticalInset: CGFloat) {
+            self.verticalInset = verticalInset
+            super.init(frame: .zero)
+        }
+
+        required init?(coder: NSCoder) {
+            nil
+        }
+
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             configureScrollView()
@@ -3301,11 +3394,14 @@ private struct ThinScrollViewConfigurator: NSViewRepresentable {
 
         private func configureScrollView() {
             DispatchQueue.main.async { [weak self] in
-                guard let scrollView = self?.enclosingScrollView else { return }
+                guard let self, let scrollView = self.enclosingScrollView else { return }
                 scrollView.scrollerStyle = .overlay
+                scrollView.scrollerInsets = NSEdgeInsets(top: self.verticalInset, left: 0, bottom: self.verticalInset, right: 0)
+                scrollView.scrollerKnobStyle = .dark
                 scrollView.autohidesScrollers = true
+                scrollView.hasHorizontalScroller = false
                 scrollView.verticalScroller?.controlSize = .mini
-                scrollView.horizontalScroller?.controlSize = .mini
+                scrollView.verticalScroller?.alphaValue = 0.82
             }
         }
     }
@@ -3512,16 +3608,16 @@ struct BatteryRing: View {
         HStack(spacing: 8) {
             ZStack {
                 Circle()
-                    .stroke(Color.primary.opacity(0.12), lineWidth: 3.5)
+                    .stroke(Color.primary.opacity(0.12), lineWidth: 3)
                 Circle()
                     .trim(from: 0, to: CGFloat(max(0, min(100, value ?? 0)) / 100))
-                    .stroke(value == nil ? Color.primary.opacity(0.18) : color, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+                    .stroke(value == nil ? Color.primary.opacity(0.18) : color, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                 Text(value.map { "\(Int($0))%" } ?? "—")
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .foregroundStyle(value == nil ? .secondary : .primary)
             }
-            .frame(width: 44, height: 44)
+            .frame(width: 38, height: 38)
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .top, spacing: 4) {
@@ -3715,6 +3811,7 @@ private struct DashboardModuleDropDelegate: DropDelegate {
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var codexUsageStore: CodexAccountsUsageStore
+    @ObservedObject var wakaTimeUsageStore: WakaTimeUsageStore
     @ObservedObject var typingStats: TypingStatsService
     @ObservedObject var updateChecker: AppUpdateChecker
     @State private var draggedStatusBarGroup: StatusBarMetricGroup?
@@ -3723,24 +3820,33 @@ struct SettingsView: View {
     @State private var testingCodexAccountIDs = Set<UUID>()
     @State private var isAddingCodexAccount = false
     @State private var newCodexAccountName = ""
+    @State private var wakaTimeAPIKey = ""
+    @State private var hasWakaTimeAPIKey: Bool
+    @State private var wakaTimeMessage: String?
     let onCodexRefresh: () -> Void
+    let onWakaTimeRefresh: () -> Void
     let onRequestTypingStatsPermission: () -> Void
     let onCheckForUpdates: () -> Void
 
     init(
         settings: AppSettings,
         codexUsageStore: CodexAccountsUsageStore,
+        wakaTimeUsageStore: WakaTimeUsageStore,
         typingStats: TypingStatsService,
         updateChecker: AppUpdateChecker,
         onCodexRefresh: @escaping () -> Void,
+        onWakaTimeRefresh: @escaping () -> Void,
         onRequestTypingStatsPermission: @escaping () -> Void,
         onCheckForUpdates: @escaping () -> Void
     ) {
         self.settings = settings
         self.codexUsageStore = codexUsageStore
+        self.wakaTimeUsageStore = wakaTimeUsageStore
+        self._hasWakaTimeAPIKey = State(initialValue: WakaTimeKeychain.readAPIKey() != nil)
         self.typingStats = typingStats
         self.updateChecker = updateChecker
         self.onCodexRefresh = onCodexRefresh
+        self.onWakaTimeRefresh = onWakaTimeRefresh
         self.onRequestTypingStatsPermission = onRequestTypingStatsPermission
         self.onCheckForUpdates = onCheckForUpdates
     }
@@ -3769,6 +3875,7 @@ struct SettingsView: View {
             case .typing: return settings.showTypingCard && settings.typingStatsEnabled
             case .power: return settings.showPowerCard
             case .codex: return settings.showCodexCard && codexUsageStore.accounts.contains(where: \.isDashboardVisible)
+            case .wakatime: return settings.showWakaTimeCard && settings.wakaTimeEnabled
             case .processes: return settings.showProcessesCard
             }
         }
@@ -4051,6 +4158,7 @@ struct SettingsView: View {
                                     Toggle("电源", isOn: $settings.showPowerCard)
                                     Toggle("进程", isOn: $settings.showProcessesCard)
                                     Toggle("Codex", isOn: $settings.showCodexCard)
+                                    Toggle("WakaTime", isOn: $settings.showWakaTimeCard)
                                 }
 
                                 Divider()
@@ -4406,6 +4514,65 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                SettingsSection(title: "WakaTime 开发统计") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("配置自己的 API Key 后才会请求 WakaTime；密钥仅保存在本机钥匙串，启用后每 30 分钟自动同步一次。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        HStack(spacing: 8) {
+                            SecureField(hasWakaTimeAPIKey ? "已保存 API Key（可输入新值替换）" : "WakaTime API Key", text: $wakaTimeAPIKey)
+                                .textFieldStyle(.roundedBorder)
+                            Button("保存并连接") {
+                                let key = wakaTimeAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                                guard !key.isEmpty else {
+                                    wakaTimeMessage = "请输入 WakaTime API Key。"
+                                    return
+                                }
+                                guard WakaTimeKeychain.saveAPIKey(key) else {
+                                    wakaTimeMessage = "无法保存 API Key 到钥匙串。"
+                                    return
+                                }
+                                wakaTimeAPIKey = ""
+                                hasWakaTimeAPIKey = true
+                                wakaTimeMessage = "已保存到钥匙串，正在连接。"
+                                settings.showWakaTimeCard = true
+                                settings.wakaTimeEnabled = true
+                                onWakaTimeRefresh()
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+
+                        HStack(spacing: 10) {
+                            Toggle("启用 WakaTime 统计", isOn: $settings.wakaTimeEnabled)
+                                .disabled(!hasWakaTimeAPIKey)
+                            Spacer(minLength: 0)
+                            Button("刷新") {
+                                onWakaTimeRefresh()
+                            }
+                            .disabled(!settings.wakaTimeEnabled)
+                        }
+
+                        HStack(spacing: 8) {
+                            Text(wakaTimeMessage ?? wakaTimeUsageStore.state.statusText)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                            Spacer(minLength: 0)
+                            if hasWakaTimeAPIKey {
+                                Button("移除 API Key", role: .destructive) {
+                                    WakaTimeKeychain.deleteAPIKey()
+                                    wakaTimeAPIKey = ""
+                                    hasWakaTimeAPIKey = false
+                                    wakaTimeMessage = "已从钥匙串移除 API Key。"
+                                    settings.wakaTimeEnabled = false
+                                }
+                                .buttonStyle(.borderless)
+                            }
+                        }
                     }
                 }
 
