@@ -88,7 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let updateChecker = AppUpdateChecker()
     private var announcedUpdateVersion: String?
     private var settingsWindow: NSWindow?
-    private var typingStatsWindow: NSWindow?
+    private var statisticsDetailsWindow: NSWindow?
     private var typingStatusUpdateWorkItem: DispatchWorkItem?
     private var lastTypingStatusUpdate = Date.distantPast
     private var cancellables = Set<AnyCancellable>()
@@ -157,7 +157,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                     self?.updatePopoverSize(codexAccountCount: count)
                 },
                 onTypingDetails: { [weak self] in
-                    self?.showTypingStatsDetails()
+                    self?.showStatisticsDetails(initialTab: .typing)
+                },
+                onWakaTimeDetails: { [weak self] in
+                    self?.showStatisticsDetails(initialTab: .development)
                 }
             )
         )
@@ -192,8 +195,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                     self.codexUsageStore.synchronize()
                     self.settingsWindow?.appearance = self.settings.theme.windowAppearance
                     self.settingsWindow?.backgroundColor = AppColors.backgroundNSColor
-                    self.typingStatsWindow?.appearance = self.settings.theme.windowAppearance
-                    self.typingStatsWindow?.backgroundColor = AppColors.backgroundNSColor
+                    self.statisticsDetailsWindow?.appearance = self.settings.theme.windowAppearance
+                    self.statisticsDetailsWindow?.backgroundColor = AppColors.backgroundNSColor
                     self.updatePopoverSize()
                     self.updateStatusBarLogo()
                     self.updateStatusTitle(self.store.statusLine)
@@ -583,31 +586,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    private func showTypingStatsDetails() {
-        if let typingStatsWindow {
-            typingStatsWindow.makeKeyAndOrderFront(nil)
+    private func showStatisticsDetails(initialTab: StatisticsDetailTab) {
+        if let statisticsDetailsWindow {
+            statisticsDetailsWindow.contentViewController = NSHostingController(
+                rootView: StatisticsDetailView(
+                    typingStats: typingStats,
+                    wakaTimeUsageStore: wakaTimeUsageStore,
+                    initialTab: initialTab,
+                    onClose: { [weak statisticsDetailsWindow] in
+                        statisticsDetailsWindow?.close()
+                    }
+                )
+            )
+            statisticsDetailsWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 440, height: 470),
+            contentRect: NSRect(x: 0, y: 0, width: 720, height: 640),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
-        window.title = "输入统计趋势"
+        window.title = "详细统计"
         window.titlebarAppearsTransparent = true
         window.backgroundColor = AppColors.backgroundNSColor
         window.appearance = settings.theme.windowAppearance
         window.isReleasedWhenClosed = false
         window.contentViewController = NSHostingController(
-            rootView: TypingStatsDetailView(typingStats: typingStats, onClose: { [weak window] in
-                window?.close()
-            })
+            rootView: StatisticsDetailView(
+                typingStats: typingStats,
+                wakaTimeUsageStore: wakaTimeUsageStore,
+                initialTab: initialTab,
+                onClose: { [weak window] in
+                    window?.close()
+                }
+            )
         )
         window.center()
-        typingStatsWindow = window
+        statisticsDetailsWindow = window
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -3085,6 +3103,7 @@ struct DashboardView: View {
     @ObservedObject var typingStats: TypingStatsService
     let onCodexDisplayCountChange: (Int) -> Void
     let onTypingDetails: () -> Void
+    let onWakaTimeDetails: () -> Void
 
     private let columns = [
         GridItem(.flexible(), spacing: 8),
@@ -3269,7 +3288,8 @@ struct DashboardView: View {
             WakaTimeUsageView(
                 store: wakaTimeUsageStore,
                 range: settings.wakaTimeRange,
-                density: settings.dashboardDensity
+                density: settings.dashboardDensity,
+                onDetails: onWakaTimeDetails
             )
         case .processes:
             ProcessListView(processes: store.processes, density: settings.dashboardDensity)
@@ -3366,7 +3386,7 @@ struct DashboardView: View {
 
 }
 
-private struct ThinScrollViewConfigurator: NSViewRepresentable {
+struct ThinScrollViewConfigurator: NSViewRepresentable {
     var verticalInset: CGFloat = 0
 
     func makeNSView(context: Context) -> NSView {
@@ -4954,122 +4974,6 @@ private struct TypingTrendSparkline: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
-    }
-}
-
-private struct TypingStatsDetailView: View {
-    @ObservedObject var typingStats: TypingStatsService
-    let onClose: () -> Void
-    @State private var selectedPeriod = 7
-
-    private var records: [TypingDailyRecord] {
-        typingStats.records(forLastDays: selectedPeriod)
-    }
-
-    private var periodTotal: Int {
-        records.reduce(0) { $0 + $1.keyCount }
-    }
-
-    private var averagePerDay: Int {
-        guard !records.isEmpty else { return 0 }
-        return Int((Double(periodTotal) / Double(records.count)).rounded())
-    }
-
-    private var peakRecord: TypingDailyRecord? {
-        records.max(by: { $0.keyCount < $1.keyCount })
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Label("输入统计趋势", systemImage: "chart.bar.fill")
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                Spacer()
-                Button("完成", action: onClose)
-                    .buttonStyle(.bordered)
-            }
-
-            Picker("统计周期", selection: $selectedPeriod) {
-                Text("近 7 天").tag(7)
-                Text("近 30 天").tag(30)
-            }
-            .pickerStyle(.segmented)
-
-            HStack(spacing: 8) {
-                TypingTrendSummary(title: "键数", value: compactNumber(periodTotal))
-                TypingTrendSummary(title: "日均", value: compactNumber(averagePerDay))
-                TypingTrendSummary(title: "最高", value: compactNumber(peakRecord?.keyCount ?? 0))
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("每日键数")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    Spacer()
-                    Text("\(records.first?.dateID ?? "") — \(records.last?.dateID ?? "")")
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                }
-                TypingTrendSparkline(records: records)
-                    .frame(height: 96)
-            }
-            .padding(12)
-            .background(AppColors.card)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-
-            Text("每日明细")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(records.reversed()) { record in
-                        HStack {
-                            Text(record.dateID)
-                                .font(.system(size: 11, design: .monospaced))
-                            Spacer()
-                            Text(formatDuration(record.activeSeconds))
-                                .foregroundStyle(.secondary)
-                            Text("\(compactNumber(record.keyCount)) 键")
-                                .frame(width: 72, alignment: .trailing)
-                        }
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .padding(.vertical, 7)
-                        Divider()
-                    }
-                }
-            }
-        }
-        .padding(20)
-        .frame(width: 440, height: 470)
-        .background(AppColors.background)
-    }
-
-    private func compactNumber(_ value: Int) -> String {
-        value >= 1_000 ? String(format: "%.1fk", Double(value) / 1_000) : String(value)
-    }
-
-    private func formatDuration(_ value: TimeInterval) -> String {
-        let minutes = Int(value) / 60
-        return minutes >= 60 ? "\(minutes / 60) 小时 \(minutes % 60) 分" : "\(minutes) 分"
-    }
-}
-
-private struct TypingTrendSummary: View {
-    let title: String
-    let value: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(.system(size: 10, weight: .medium, design: .rounded))
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(AppColors.card)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
 

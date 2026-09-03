@@ -4,6 +4,7 @@ struct WakaTimeUsageView: View {
     @ObservedObject var store: WakaTimeUsageStore
     let range: WakaTimeRange
     let density: DashboardDensity
+    let onDetails: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: density == .compact ? 7 : 9) {
@@ -58,6 +59,12 @@ struct WakaTimeUsageView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 5))
             }
             Spacer()
+            Button(action: onDetails) {
+                Image(systemName: "arrow.up.right.square")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help("查看开发统计明细")
             if case .available(_, let refreshedAt) = store.state {
                 Text("更新 \(refreshedAt.formatted(date: .omitted, time: .shortened))")
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
