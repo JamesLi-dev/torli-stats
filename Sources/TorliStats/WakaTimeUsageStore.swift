@@ -40,9 +40,17 @@ struct WakaTimeAIModel: Decodable, Identifiable, Equatable {
     var id: String { name }
 }
 
+struct WakaTimeDailyRecord: Identifiable, Equatable {
+    let dateID: String
+    let totalSeconds: Double
+
+    var id: String { dateID }
+}
+
 struct WakaTimePeriod: Equatable {
     let totalSeconds: Double
     let activeDayCount: Int
+    let dailyRecords: [WakaTimeDailyRecord]
 
     var averageActiveDaySeconds: Double {
         guard activeDayCount > 0 else { return 0 }
@@ -125,6 +133,13 @@ final class WakaTimeUsageStore: ObservableObject {
     private(set) var lastSevenDaysPeriod: WakaTimePeriod?
     private(set) var lastThirtyDaysPeriod: WakaTimePeriod?
 
+    var dailyRecords: [WakaTimeDailyRecord] {
+        switch rangeProvider() {
+        case .last7Days: return lastSevenDaysPeriod?.dailyRecords ?? []
+        case .last30Days: return lastThirtyDaysPeriod?.dailyRecords ?? []
+        }
+    }
+
     private let apiKeyProvider: () -> String?
     private let rangeProvider: () -> WakaTimeRange
     private var refreshTimer: DispatchSourceTimer?
@@ -154,6 +169,13 @@ final class WakaTimeUsageStore: ObservableObject {
         timer.setEventHandler { [weak self] in self?.refresh() }
         timer.resume()
         refreshTimer = timer
+    }
+
+    func period(for range: WakaTimeRange) -> WakaTimePeriod? {
+        switch range {
+        case .last7Days: return lastSevenDaysPeriod
+        case .last30Days: return lastThirtyDaysPeriod
+        }
     }
 
     func refresh() {
@@ -263,10 +285,16 @@ private enum WakaTimeUsageClient {
 
     private struct DailySummary: Decodable {
         let grandTotal: DailyGrandTotal
+        let range: DailyRange?
 
         private enum CodingKeys: String, CodingKey {
             case grandTotal = "grand_total"
+            case range
         }
+    }
+
+    private struct DailyRange: Decodable {
+        let date: String?
     }
 
     private struct DailyGrandTotal: Decodable {
@@ -310,9 +338,14 @@ private enum WakaTimeUsageClient {
             do {
                 let days = try JSONDecoder().decode(PeriodResponse.self, from: data).data
                 let totalSeconds = days.reduce(0) { $0 + $1.grandTotal.totalSeconds }
+                let dailyRecords = days.compactMap { day -> WakaTimeDailyRecord? in
+                    guard let dateID = day.range?.date, !dateID.isEmpty else { return nil }
+                    return WakaTimeDailyRecord(dateID: dateID, totalSeconds: day.grandTotal.totalSeconds)
+                }
                 completion(.success(WakaTimePeriod(
                     totalSeconds: totalSeconds,
-                    activeDayCount: days.filter { $0.grandTotal.totalSeconds > 0 }.count
+                    activeDayCount: days.filter { $0.grandTotal.totalSeconds > 0 }.count,
+                    dailyRecords: dailyRecords.sorted { $0.dateID < $1.dateID }
                 )))
             } catch {
                 completion(.failure(error))
