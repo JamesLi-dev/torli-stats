@@ -2,18 +2,22 @@
 
 All notable changes to Torli Stats are documented here.
 
-## [1.1.5] — 2026-09-02
+## [1.1.6] — 2026-09-03
 
 ### English
-- Adds battery-aware monitoring: choose separate plugged-in and battery refresh intervals, and optionally slow high-frequency monitoring to at least 30 seconds below a chosen 10%, 20%, or 30% battery threshold.
-- Confirms the public GitHub Releases endpoint is reachable for update checks.
-- Refines Settings layout by keeping System below Sensors, moving Helper and protocol tags to the Sensor card header, showing sensor capabilities in a compact two-column grid, and grouping Dashboard visibility and ordering controls into one section.
-- Status-bar and Dashboard ordering editors now list only enabled items. Hidden items retain their saved position and return to it when re-enabled.
-- Places input-monitoring permission status beside its toggle and aligns the manual update-check action with the automatic-update toggle.
+- Adds an optional WakaTime development-statistics Dashboard module with local macOS Keychain storage for the user’s API key. No WakaTime request is made until a key is configured and the module is enabled.
+- Shows WakaTime coding time, AI Coding share, language usage, and—at detailed density—today’s time, active-day average, trailing 7- and 30-day totals, AI token totals, and model usage/cost information.
+- Calculates trailing 7- and 30-day durations from date summaries, excluding today, to avoid inconsistent fixed-range statistics responses.
+- Refreshes WakaTime data manually or every 30 minutes, with cached-data and request-failure status messaging.
+- Limits the Dashboard popover to 820pt and adds an internal vertical scroll view with a compact inset overlay scroller for long module combinations.
+- Refines Dashboard density by reducing the power ring and Codex/WakaTime progress-bar heights.
+- Avoids repeated Keychain reads during Settings rendering, reducing unnecessary CPU use while the settings window is open.
 
 ### 中文
-- 新增电池感知的监控策略：可分别设置接电与电池时的刷新间隔，并可在电量低于 10%、20% 或 30% 阈值时，将高频监控自动降至至少每 30 秒一次。
-- 已确认公开 GitHub Releases 更新检查接口可正常访问。
-- 优化设置页布局：系统模块置于传感器下方；Helper 与协议标签移至传感器卡片头部；传感器能力使用紧凑双列网格；Dashboard 显示开关与排序合并为同一设置区域。
-- 菜单栏与 Dashboard 排序编辑器现在只显示已启用项目。隐藏项目会保留已保存的位置，重新启用后恢复该位置。
-- 输入监控权限状态移至输入统计开关右侧；手动检查更新按钮与自动检查更新开关同行对齐。
+- 新增可选的 WakaTime 开发统计 Dashboard 模块：用户 API Key 仅保存在本机 macOS 钥匙串；未配置 Key 或未启用模块时不会请求 WakaTime。
+- 支持展示 WakaTime 编码时长、AI Coding 占比和语言使用情况；详细密度额外展示当天时长、活跃日均值、近 7/30 天时长、AI Token 汇总及模型用量/成本。
+- 近 7 天与近 30 天时长改为按日期汇总计算，且不包含当天，避免固定范围统计接口出现不一致结果。
+- 支持手动刷新或每 30 分钟自动刷新，并提供缓存数据和请求失败状态提示。
+- Dashboard Popover 最大高度调整为 820pt；内容超出时使用内部纵向滚动，并采用带上下留白的紧凑 Overlay 滚动条。
+- 微调 Dashboard 密度：缩小电源环形电量，以及 Codex/WakaTime 进度条高度。
+- 设置界面不再在重复渲染时反复读取钥匙串，降低打开设置窗口时不必要的 CPU 占用。
