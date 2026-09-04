@@ -14,6 +14,8 @@ All notable changes to Torli Stats are documented here.
 - Avoids repeated Keychain reads during Settings rendering, reducing unnecessary CPU use while the settings window is open.
 - Adds a fixed 720 × 640 detail window with unified Typing and Development Statistics tabs, daily trends, period summaries, and privacy-preserving daily input records.
 - Adds WakaTime daily coding trends, language/editor breakdowns, AI Coding, token, and model-cost details; the Dashboard card opens the corresponding tab.
+- Makes settings updates targeted: appearance, layout, sampling, status-bar, Codex, sensor, and WakaTime changes now update only their related components. Codex text fields persist and synchronize after a short debounce.
+- Keeps the Runner animated at a fixed 8 FPS when CPU acceleration is off; CPU acceleration continues to scale from 6 to 12 FPS. WakaTime range changes do not request data while the integration is disabled.
 
 ### 中文
 - 新增可选的 WakaTime 开发统计 Dashboard 模块：用户 API Key 仅保存在本机 macOS 钥匙串；未配置 Key 或未启用模块时不会请求 WakaTime。
@@ -25,3 +27,5 @@ All notable changes to Torli Stats are documented here.
 - 设置界面不再在重复渲染时反复读取钥匙串，降低打开设置窗口时不必要的 CPU 占用。
 - 新增固定 `720 × 640pt` 的统一详情窗口，包含输入统计与开发统计页签、每日趋势、周期概览及隐私保护的按日输入记录。
 - 新增 WakaTime 每日编码趋势、语言/编辑器分布、AI Coding、Token 与模型成本明细；可从 Dashboard 卡片进入对应页签。
+- 设置变更改为按项响应：外观、布局、采样、状态栏、Codex、传感器与 WakaTime 仅更新相关组件；Codex 文本输入会短暂防抖后再持久化和同步。
+- 关闭“随 CPU 加速”后，Runner 保持固定 `8 FPS` 动画；开启时仍在 `6–12 FPS` 间动态调整。WakaTime 未启用时切换统计范围不会请求数据。

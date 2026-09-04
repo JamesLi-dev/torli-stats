@@ -88,11 +88,13 @@ final class StatusBarLogoAnimator {
     // Keep its rate bounded to avoid a CPU-feedback loop while preserving
     // visibly smooth motion at low system load.
     private static let minimumFramesPerSecond: Double = 6
+    private static let fixedFramesPerSecond: Double = 8
     private static let maximumFramesPerSecond: Double = 12
 
     private let onFrameChange: (NSImage?) -> Void
     private let frames: [NSImage]
     private let isAnimated: Bool
+    private let acceleratesWithCPU: Bool
     private var frameIndex = 0
     private var timer: Timer?
     private var frameInterval: TimeInterval?
@@ -101,12 +103,14 @@ final class StatusBarLogoAnimator {
     init(
         runner: StatusBarRunner,
         animated: Bool,
+        acceleratesWithCPU: Bool,
         cpuUsage: Double,
         onFrameChange: @escaping (NSImage?) -> Void
     ) {
         self.onFrameChange = onFrameChange
         frames = Self.makeFrames(for: runner)
         isAnimated = animated
+        self.acceleratesWithCPU = acceleratesWithCPU
 
         renderCurrentFrame()
         setCPUUsage(cpuUsage)
@@ -116,24 +120,29 @@ final class StatusBarLogoAnimator {
         timer?.invalidate()
     }
 
-    /// Mirrors RunCatNeo's runner behavior: its baseline animation is 2 fps,
-    /// then CPU usage scales the playback rate from 1x through 20x. The first
-    /// CPU sample is commonly zero while the sampler establishes its baseline;
-    /// keep a responsive startup rate instead of showing a static-looking logo.
+    /// CPU acceleration keeps RunCat-like responsive motion between 6 and
+    /// 12 fps. When disabled, the runner remains animated at a predictable,
+    /// lower-cost 8 fps instead of becoming static.
     func setCPUUsage(_ cpuUsage: Double) {
         guard isAnimated, frames.count > 1 else { return }
-        let speed: Double
-        if awaitingFirstCPUSample, cpuUsage <= 0 {
-            speed = 6
+        let framesPerSecond: Double
+        if acceleratesWithCPU {
+            let speed: Double
+            if awaitingFirstCPUSample, cpuUsage <= 0 {
+                speed = 6
+            } else {
+                awaitingFirstCPUSample = false
+                speed = max(1, min(20, cpuUsage / 5))
+            }
+            let requestedFramesPerSecond = speed / 0.5
+            framesPerSecond = min(
+                Self.maximumFramesPerSecond,
+                max(Self.minimumFramesPerSecond, requestedFramesPerSecond)
+            )
         } else {
             awaitingFirstCPUSample = false
-            speed = max(1, min(20, cpuUsage / 5))
+            framesPerSecond = Self.fixedFramesPerSecond
         }
-        let requestedFramesPerSecond = speed / 0.5
-        let framesPerSecond = min(
-            Self.maximumFramesPerSecond,
-            max(Self.minimumFramesPerSecond, requestedFramesPerSecond)
-        )
         let interval = 1 / framesPerSecond
         guard frameInterval == nil || abs((frameInterval ?? interval) - interval) > 0.002 else { return }
         frameInterval = interval

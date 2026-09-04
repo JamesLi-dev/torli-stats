@@ -144,6 +144,7 @@ final class WakaTimeUsageStore: ObservableObject {
     private let rangeProvider: () -> WakaTimeRange
     private var refreshTimer: DispatchSourceTimer?
     private var refreshInFlight = false
+    private var isEnabled = false
 
     init(apiKeyProvider: @escaping () -> String?, rangeProvider: @escaping () -> WakaTimeRange) {
         self.apiKeyProvider = apiKeyProvider
@@ -155,6 +156,7 @@ final class WakaTimeUsageStore: ObservableObject {
     }
 
     func synchronize(isEnabled: Bool) {
+        self.isEnabled = isEnabled
         refreshTimer?.cancel()
         refreshTimer = nil
 
@@ -180,7 +182,7 @@ final class WakaTimeUsageStore: ObservableObject {
 
     func refresh() {
         dispatchPrecondition(condition: .onQueue(.main))
-        guard !refreshInFlight else { return }
+        guard isEnabled, !refreshInFlight else { return }
         guard let apiKey = apiKeyProvider(), !apiKey.isEmpty else {
             update(.notConfigured)
             return
