@@ -66,7 +66,7 @@ private final class StatusBarLayeredContentView: NSView {
 
 @main
 struct TorliStatsApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @NSApplicationDelegateAdaptor(TorliAppDelegate.self) private var appDelegate
 
     var body: some Scene {
         Settings {
@@ -75,7 +75,7 @@ struct TorliStatsApp: App {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
+final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var statusItem: NSStatusItem!
     private let popover = NSPopover()
     private var localOutsideClickMonitor: Any?
@@ -84,6 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let store: MetricsStore
     private let codexUsageStore: CodexAccountsUsageStore
     private let wakaTimeUsageStore: WakaTimeUsageStore
+    private var deckManager: DeckManager?
     private let typingStats = TypingStatsService()
     private let updateChecker = AppUpdateChecker()
     private var announcedUpdateVersion: String?
@@ -94,6 +95,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var cancellables = Set<AnyCancellable>()
     private var statusLogoAnimator: StatusBarLogoAnimator?
     private var statusLogoImage: NSImage?
+    private var codexSettingsUpdateWorkItem: DispatchWorkItem?
+    private var pendingCodexDefaultRefresh = false
     private var statusBarLayeredContentView: StatusBarLayeredContentView?
     private var appliedStatusLogoConfiguration: StatusBarLogoConfiguration?
 
@@ -124,6 +127,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        NotesAppBridge.shared.delegate = self
+
+        if NotySettings.notesDeckEnabled {
+            startNotesDeckIfNeeded()
+        }
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         guard let button = statusItem.button else { return }
@@ -175,58 +183,76 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
             .store(in: &cancellables)
 
-        settings.objectWillChange
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                DispatchQueue.main.async {
-                    guard let self else { return }
-                    self.store.setRefreshInterval(self.settings.refreshInterval)
-                    self.store.setProcessLimit(self.settings.processLimit)
-                    self.store.setProcessSort(self.settings.processSort)
-                    self.store.setPowerSavingMode(self.settings.powerSavingMode)
-                    self.store.setPowerPolicy(
-                        batteryRefreshInterval: self.settings.batteryRefreshInterval,
-                        enablesLowBatterySaving: self.settings.lowBatterySavingEnabled,
-                        lowBatteryThreshold: self.settings.lowBatteryThreshold
-                    )
-                    self.store.setSensorHelperEnabled(self.settings.sensorHelperEnabled)
-                    self.store.setGPUMonitoringEnabled(self.settings.showGPUCard)
-                    self.typingStats.setEnabled(self.settings.typingStatsEnabled)
-                    self.codexUsageStore.synchronize()
-                    self.settingsWindow?.appearance = self.settings.theme.windowAppearance
-                    self.settingsWindow?.backgroundColor = AppColors.backgroundNSColor
-                    self.statisticsDetailsWindow?.appearance = self.settings.theme.windowAppearance
-                    self.statisticsDetailsWindow?.backgroundColor = AppColors.backgroundNSColor
-                    self.updatePopoverSize()
-                    self.updateStatusBarLogo()
-                    self.updateStatusTitle(self.store.statusLine)
-                }
-            }
-            .store(in: &cancellables)
+        // Each setting owns only the work it affects. This prevents harmless
+        // layout and appearance edits from restarting metric sampling, probing
+        // the sensor helper, or synchronizing Codex accounts.
+        observeSetting(settings.$theme) { $0.applyTheme() }
 
-        settings.$wakaTimeEnabled
-            .removeDuplicates()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] enabled in
-                self?.wakaTimeUsageStore.synchronize(isEnabled: enabled)
-            }
-            .store(in: &cancellables)
+        observeSetting(settings.$refreshInterval) { $0.store.setRefreshInterval($0.settings.refreshInterval) }
+        observeSetting(settings.$processLimit) { $0.store.setProcessLimit($0.settings.processLimit) }
+        observeSetting(settings.$processSort) { $0.store.setProcessSort($0.settings.processSort) }
+        observeSetting(settings.$powerSavingMode) { $0.store.setPowerSavingMode($0.settings.powerSavingMode) }
+        observeSetting(settings.$batteryRefreshInterval) { $0.applyPowerPolicy() }
+        observeSetting(settings.$lowBatterySavingEnabled) { $0.applyPowerPolicy() }
+        observeSetting(settings.$lowBatteryThreshold) { $0.applyPowerPolicy() }
+        observeSetting(settings.$sensorHelperEnabled) { $0.store.setSensorHelperEnabled($0.settings.sensorHelperEnabled) }
+        observeSetting(settings.$showGPUCard) { app in
+            app.store.setGPUMonitoringEnabled(app.settings.showGPUCard)
+            app.updatePopoverSize()
+        }
+        observeSetting(settings.$typingStatsEnabled) { app in
+            app.typingStats.setEnabled(app.settings.typingStatsEnabled)
+            app.updateStatusTitle(app.store.statusLine)
+        }
 
-        settings.$wakaTimeRange
-            .dropFirst()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.wakaTimeUsageStore.refresh()
-            }
-            .store(in: &cancellables)
+        observeSetting(settings.$showCPUCard) { $0.updatePopoverSize() }
+        observeSetting(settings.$showMemoryCard) { $0.updatePopoverSize() }
+        observeSetting(settings.$showDiskCard) { $0.updatePopoverSize() }
+        observeSetting(settings.$showNetworkCard) { $0.updatePopoverSize() }
+        observeSetting(settings.$showFanCard) { $0.updatePopoverSize() }
+        observeSetting(settings.$showTypingCard) { $0.updatePopoverSize() }
+        observeSetting(settings.$showPowerCard) { $0.updatePopoverSize() }
+        observeSetting(settings.$showProcessesCard) { $0.updatePopoverSize() }
+        observeSetting(settings.$showCodexCard) { app in
+            app.updatePopoverSize()
+            app.codexUsageStore.synchronize()
+        }
+        observeSetting(settings.$showWakaTimeCard) { $0.updatePopoverSize() }
+        observeSetting(settings.$dashboardDensity) { $0.updatePopoverSize() }
+        observeSetting(settings.$dashboardModuleOrder) { $0.updatePopoverSize() }
 
-        settings.$codexHomePath
-            .dropFirst()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.codexUsageStore.refresh(accountID: CodexAccountConfiguration.defaultAccountID)
-            }
-            .store(in: &cancellables)
+        observeSetting(settings.$showCPU) { $0.updateStatusTitle($0.store.statusLine) }
+        observeSetting(settings.$showMemory) { $0.updateStatusTitle($0.store.statusLine) }
+        observeSetting(settings.$showDownload) { $0.updateStatusTitle($0.store.statusLine) }
+        observeSetting(settings.$showUpload) { $0.updateStatusTitle($0.store.statusLine) }
+        observeSetting(settings.$showCodexStatusItem) { app in
+            app.codexUsageStore.synchronize()
+            app.updateStatusTitle(app.store.statusLine)
+        }
+        observeSetting(settings.$showTypingStatusItem) { $0.updateStatusTitle($0.store.statusLine) }
+        observeSetting(settings.$codexStatusMetric) { $0.updateStatusTitle($0.store.statusLine) }
+        observeSetting(settings.$codexStatusBarMode) { $0.updateStatusTitle($0.store.statusLine) }
+        observeSetting(settings.$statusBarMetricOrder) { $0.updateStatusTitle($0.store.statusLine) }
+        observeSetting(settings.$systemStatusBarStyle) { $0.updateStatusTitle($0.store.statusLine) }
+        observeSetting(settings.$privacyMode) { $0.updateStatusTitle($0.store.statusLine) }
+        observeSetting(settings.$showStatusBarLogo) { app in
+            app.updateStatusBarLogo()
+            app.updateStatusTitle(app.store.statusLine)
+        }
+        observeSetting(settings.$statusBarLogoAnimation) { $0.updateStatusBarLogo() }
+        observeSetting(settings.$statusBarRunner) { $0.updateStatusBarLogo() }
+
+        observeSetting(settings.$wakaTimeEnabled) { app in
+            app.wakaTimeUsageStore.synchronize(isEnabled: app.settings.wakaTimeEnabled)
+        }
+        observeSetting(settings.$wakaTimeRange) { $0.wakaTimeUsageStore.refresh() }
+
+        observeSetting(settings.$codexDefaultAccountName) { $0.scheduleCodexSettingsUpdate() }
+        observeSetting(settings.$codexHomePath) { $0.scheduleCodexSettingsUpdate(refreshDefaultAccount: true) }
+        observeSetting(settings.$codexAutoRefresh) { $0.codexUsageStore.synchronize() }
+        observeSetting(settings.$codexRefreshInterval) { $0.codexUsageStore.synchronize() }
+        observeSetting(settings.$codexManagedAccounts) { $0.codexUsageStore.synchronize() }
+
 
         wakaTimeUsageStore.objectWillChange
             .receive(on: RunLoop.main)
@@ -254,8 +280,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         updateStatusBarLogo()
         typingStats.setEnabled(settings.typingStatsEnabled)
+        wakaTimeUsageStore.synchronize(isEnabled: settings.wakaTimeEnabled)
         updateStatusTitle(store.statusLine)
         checkForUpdatesIfNeeded()
+    }
+
+    private func observeSetting<P: Publisher>(
+        _ publisher: P,
+        perform action: @escaping (TorliAppDelegate) -> Void
+    ) where P.Failure == Never {
+        publisher
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                action(self)
+            }
+            .store(in: &cancellables)
+    }
+
+    private func applyTheme() {
+        settingsWindow?.appearance = settings.theme.windowAppearance
+        settingsWindow?.backgroundColor = AppColors.backgroundNSColor
+        statisticsDetailsWindow?.appearance = settings.theme.windowAppearance
+        statisticsDetailsWindow?.backgroundColor = AppColors.backgroundNSColor
+        updateStatusTitle(store.statusLine)
+    }
+
+    private func applyPowerPolicy() {
+        store.setPowerPolicy(
+            batteryRefreshInterval: settings.batteryRefreshInterval,
+            enablesLowBatterySaving: settings.lowBatterySavingEnabled,
+            lowBatteryThreshold: settings.lowBatteryThreshold
+        )
+    }
+
+    private func scheduleCodexSettingsUpdate(refreshDefaultAccount: Bool = false) {
+        pendingCodexDefaultRefresh = pendingCodexDefaultRefresh || refreshDefaultAccount
+        codexSettingsUpdateWorkItem?.cancel()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            let shouldRefreshDefaultAccount = self.pendingCodexDefaultRefresh
+            self.pendingCodexDefaultRefresh = false
+            self.codexSettingsUpdateWorkItem = nil
+            if shouldRefreshDefaultAccount {
+                self.codexUsageStore.refresh(accountID: CodexAccountConfiguration.defaultAccountID)
+            } else {
+                self.codexUsageStore.synchronize()
+            }
+        }
+        codexSettingsUpdateWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: workItem)
     }
 
     @objc private func handleStatusItemClick() {
@@ -298,7 +374,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let configuration = StatusBarLogoConfiguration(
             isVisible: settings.showStatusBarLogo,
             runner: settings.statusBarRunner,
-            isAnimated: settings.statusBarLogoAnimation,
+            acceleratesWithCPU: settings.statusBarLogoAnimation,
             reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         )
         guard configuration != appliedStatusLogoConfiguration else { return }
@@ -316,7 +392,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         statusLogoAnimator = StatusBarLogoAnimator(
             runner: configuration.runner,
-            animated: configuration.isAnimated && !configuration.reduceMotion,
+            animated: !configuration.reduceMotion,
+            acceleratesWithCPU: configuration.acceleratesWithCPU,
             cpuUsage: store.cpu
         ) { [weak self] image in
             guard let self else { return }
@@ -339,7 +416,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // An animated runner already composites the current metric text on
         // its next frame, so a separate input-driven redraw is redundant.
         if settings.showStatusBarLogo,
-           settings.statusBarLogoAnimation,
            !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             return
         }
@@ -445,6 +521,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         )
         settingsItem.image = menuSymbol("gearshape")
         menu.addItem(settingsItem)
+
+        let notesToggleItem = NSMenuItem(
+            title: NotySettings.notesDeckEnabled ? "关闭桌面便签" : "开启桌面便签",
+            action: #selector(toggleNotesDeck),
+            keyEquivalent: ""
+        )
+        notesToggleItem.image = menuSymbol(NotySettings.notesDeckEnabled ? "note.text" : "note.text.badge.plus")
+        menu.addItem(notesToggleItem)
+
+        if NotySettings.notesDeckEnabled {
+            let newNoteItem = NSMenuItem(title: "新建便签", action: #selector(newNote), keyEquivalent: "n")
+            newNoteItem.image = menuSymbol("square.and.pencil")
+            menu.addItem(newNoteItem)
+
+            let allNotesItem = NSMenuItem(title: "全部便签", action: #selector(openAllNotes), keyEquivalent: "")
+            allNotesItem.image = menuSymbol("note.text")
+            menu.addItem(allNotesItem)
+        }
+
+        let noteSettingsItem = NSMenuItem(title: "便签设置…", action: #selector(openNoteSettings), keyEquivalent: "")
+        noteSettingsItem.image = menuSymbol("slider.horizontal.3")
+        menu.addItem(noteSettingsItem)
         menu.addItem(.separator())
 
         let refreshItem = NSMenuItem(
@@ -539,6 +637,140 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         """
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(diagnostic, forType: .string)
+    }
+
+    private func startNotesDeckIfNeeded() {
+        guard deckManager == nil else { return }
+        deckManager = DeckManager()
+        UndoToast.shared.start()
+        HotKeys.shared.register(
+            newNote: { [weak self] in self?.newNote() },
+            allNotes: { [weak self] in self?.openAllNotes() },
+            archive: { [weak self] in self?.openArchive() },
+            capture: { QuickCapture.shared.toggle() }
+        )
+    }
+
+    @objc private func toggleNotesDeck() {
+        NotySettings.notesDeckEnabled.toggle()
+        if NotySettings.notesDeckEnabled {
+            startNotesDeckIfNeeded()
+        } else {
+            deckManager = nil
+            HotKeys.shared.unregisterAll()
+        }
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where url.scheme == "torli-notes" {
+            let text = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?
+                .first(where: { $0.name == "text" })?
+                .value ?? ""
+            switch url.host {
+            case "new" where !text.isEmpty:
+                if !NotySettings.notesDeckEnabled {
+                    NotySettings.notesDeckEnabled = true
+                    startNotesDeckIfNeeded()
+                }
+                let note = NoteStore.shared.create(body: text)
+                deckManager?.focused?.expand(note.id)
+            case "new", "capture":
+                QuickCapture.shared.show()
+            case "all":
+                openAllNotes()
+            case "settings":
+                openNoteSettings()
+            default:
+                break
+            }
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        HotKeys.shared.unregisterAll()
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    @objc func newNote() {
+        if !NotySettings.notesDeckEnabled {
+            NotySettings.notesDeckEnabled = true
+            startNotesDeckIfNeeded()
+        }
+        let note = NoteStore.shared.create()
+        deckManager?.focused?.expand(note.id)
+    }
+
+    @objc func openAllNotes() { LibraryWindow.shared.show(mode: .all) }
+    @objc func openArchive() { LibraryWindow.shared.show(mode: .archive) }
+    @objc func quickCapture() { QuickCapture.shared.toggle() }
+    func refreshDecks() { deckManager?.refreshAll() }
+
+    @objc func toggleOverFullScreen() {
+        NotySettings.showOverFullScreen.toggle()
+        refreshDecks()
+    }
+
+    @objc func setDeckStyle(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let style = DeckStyle(rawValue: raw) else { return }
+        NotySettings.deckStyle = style
+        refreshDecks()
+    }
+
+    @objc func setFontSize(_ sender: NSMenuItem) {
+        guard let size = sender.representedObject as? Double else { return }
+        NotySettings.noteFontSize = size
+        refreshDecks()
+    }
+
+    func stepFontSize(by delta: Double) {
+        NotySettings.noteFontSize += delta
+        refreshDecks()
+    }
+
+    @objc func setNoteFont(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String else { return }
+        NotySettings.noteFontName = name
+        refreshDecks()
+    }
+
+    @objc func toggleDeckAlwaysShown() {
+        NotySettings.deckAlwaysShown.toggle()
+        refreshDecks()
+    }
+
+    @objc func setDeckScale(_ sender: NSMenuItem) {
+        guard let scale = sender.representedObject as? Double else { return }
+        NotySettings.deckScale = scale
+        refreshDecks()
+    }
+
+    @objc func toggleDeckEdge() {
+        NotySettings.deckOnLeftEdge.toggle()
+        refreshDecks()
+    }
+
+    @objc func setDisplayTarget(_ sender: NSMenuItem) {
+        guard let target = sender.representedObject as? String else { return }
+        NotySettings.displayTarget = target
+        refreshDecks()
+    }
+
+    @objc func exportMarkdown() { Transfer.export(.markdown, notes: NoteStore.shared.notes) }
+    @objc func exportPlainText() { Transfer.export(.plainText, notes: NoteStore.shared.notes) }
+    @objc func exportSingleFile() { Transfer.export(.singleFile, notes: NoteStore.shared.notes) }
+    @objc func exportStickies() { Transfer.export(.stickies, notes: NoteStore.shared.notes) }
+    @objc func importStickies() { Transfer.importFiles() }
+    @objc func quit() { NSApp.terminate(nil) }
+
+    @objc func openNoteSettings() {
+        NotySettingsWindow.shared.show()
+    }
+
+    func relaunchForLanguageChange(previous: AppLanguage) {
+        // Notes language is currently scoped to the shared Torli app bundle.
+        // Apply the preference to future launches without interrupting metrics.
     }
 
     @objc private func openSettings() {
@@ -636,7 +868,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
     }
 
-    private func checkForUpdates() {
+    @objc func checkForUpdates() {
         updateChecker.check { [weak self] release in
             self?.announceAvailableUpdate(release)
         }
@@ -1029,7 +1261,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 private struct StatusBarLogoConfiguration: Equatable {
     let isVisible: Bool
     let runner: StatusBarRunner
-    let isAnimated: Bool
+    let acceleratesWithCPU: Bool
     let reduceMotion: Bool
 }
 
@@ -1210,6 +1442,7 @@ final class AppSettings: ObservableObject {
     static let supportedCodexRefreshIntervals = [1, 5, 10, 30]
 
     private let defaults = UserDefaults.standard
+    private var codexTextPersistenceWorkItem: DispatchWorkItem?
 
     @Published var theme: ThemePreference {
         didSet { defaults.set(theme.rawValue, forKey: "themePreference") }
@@ -1308,10 +1541,10 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(typingStatsEnabled, forKey: "typingStatsEnabled") }
     }
     @Published var codexDefaultAccountName: String {
-        didSet { defaults.set(codexDefaultAccountName, forKey: "codexDefaultAccountName") }
+        didSet { scheduleCodexTextPersistence() }
     }
     @Published var codexHomePath: String {
-        didSet { defaults.set(codexHomePath, forKey: "codexHomePath") }
+        didSet { scheduleCodexTextPersistence() }
     }
     @Published var codexAutoRefresh: Bool {
         didSet { defaults.set(codexAutoRefresh, forKey: "codexAutoRefresh") }
@@ -1451,6 +1684,20 @@ final class AppSettings: ObservableObject {
         sensorOperationDiagnostic = nil
         sensorHelperMessage = nil
         probeSensorHelper()
+    }
+
+    private func scheduleCodexTextPersistence() {
+        codexTextPersistenceWorkItem?.cancel()
+        let displayName = codexDefaultAccountName
+        let homePath = codexHomePath
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.defaults.set(displayName, forKey: "codexDefaultAccountName")
+            self.defaults.set(homePath, forKey: "codexHomePath")
+            self.codexTextPersistenceWorkItem = nil
+        }
+        codexTextPersistenceWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: workItem)
     }
 
     private func resolvedCodexDisplayName(_ name: String, fallback: String) -> String {
@@ -4004,7 +4251,7 @@ struct SettingsView: View {
                                             .disabled(!settings.showStatusBarLogo)
                                         }
                                     }
-                                Text("内置 13 种 RunCatNeo / RunnerGallery 动画（Apache-2.0）；系统启用“减少动态效果”时自动显示静态图标。")
+                                Text("关闭“随 CPU 加速”后以固定 8 FPS 播放；系统启用“减少动态效果”时自动显示静态图标。")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)
