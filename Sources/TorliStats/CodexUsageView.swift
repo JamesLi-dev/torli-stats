@@ -86,10 +86,10 @@ struct CodexUsageView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 13))
         .onAppear(perform: notifyDisplayCountChange)
-        .onChange(of: showsAllAccounts) { _ in
+        .onChange(of: showsAllAccounts) { _, _ in
             notifyDisplayCountChange()
         }
-        .onChange(of: visibleAccounts.count) { count in
+        .onChange(of: visibleAccounts.count) { _, count in
             if count <= collapsedLimit {
                 showsAllAccounts = false
             }
