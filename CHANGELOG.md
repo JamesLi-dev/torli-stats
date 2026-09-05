@@ -2,7 +2,7 @@
 
 All notable changes to Torli Stats are documented here.
 
-## [1.1.6] — 2026-09-03
+## [1.2.0] — 2026-09-05
 
 ### English
 - Adds an optional WakaTime development-statistics Dashboard module with local macOS Keychain storage for the user’s API key. No WakaTime request is made until a key is configured and the module is enabled.
