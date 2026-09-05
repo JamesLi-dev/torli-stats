@@ -3,8 +3,9 @@ import PackageDescription
 
 let package = Package(
     name: "TorliStats",
+    defaultLocalization: "en",
     platforms: [
-        .macOS(.v13)
+        .macOS("15.0")
     ],
     products: [
         .executable(name: "TorliStats", targets: ["TorliStats"]),
@@ -19,11 +20,15 @@ let package = Package(
             name: "TorliStats",
             dependencies: ["TorliStatsShared"],
             path: "Sources/TorliStats",
+            resources: [
+                .process("NotesResources")
+            ],
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("Security"),
                 .linkedFramework("IOKit"),
-                .linkedFramework("ServiceManagement")
+                .linkedFramework("ServiceManagement"),
+                .linkedLibrary("sqlite3")
             ]
         ),
         .executableTarget(

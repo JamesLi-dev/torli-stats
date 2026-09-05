@@ -66,7 +66,7 @@ private final class StatusBarLayeredContentView: NSView {
 
 @main
 struct TorliStatsApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @NSApplicationDelegateAdaptor(TorliAppDelegate.self) private var appDelegate
 
     var body: some Scene {
         Settings {
@@ -75,7 +75,7 @@ struct TorliStatsApp: App {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
+final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var statusItem: NSStatusItem!
     private let popover = NSPopover()
     private var localOutsideClickMonitor: Any?
@@ -84,6 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let store: MetricsStore
     private let codexUsageStore: CodexAccountsUsageStore
     private let wakaTimeUsageStore: WakaTimeUsageStore
+    private var deckManager: DeckManager?
     private let typingStats = TypingStatsService()
     private let updateChecker = AppUpdateChecker()
     private var announcedUpdateVersion: String?
@@ -126,6 +127,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        NotesAppBridge.shared.delegate = self
+
+        if NotesSettings.notesDeckEnabled {
+            startNotesDeckIfNeeded()
+        }
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         guard let button = statusItem.button else { return }
@@ -281,7 +287,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     private func observeSetting<P: Publisher>(
         _ publisher: P,
-        perform action: @escaping (AppDelegate) -> Void
+        perform action: @escaping (TorliAppDelegate) -> Void
     ) where P.Failure == Never {
         publisher
             .dropFirst()
@@ -515,6 +521,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         )
         settingsItem.image = menuSymbol("gearshape")
         menu.addItem(settingsItem)
+
+        let notesToggleItem = NSMenuItem(
+            title: NotesSettings.notesDeckEnabled ? "关闭桌面便签" : "开启桌面便签",
+            action: #selector(toggleNotesDeck),
+            keyEquivalent: ""
+        )
+        notesToggleItem.image = menuSymbol(NotesSettings.notesDeckEnabled ? "note.text" : "note.text.badge.plus")
+        menu.addItem(notesToggleItem)
+
+        if NotesSettings.notesDeckEnabled {
+            let newNoteItem = NSMenuItem(title: "新建便签", action: #selector(newNote), keyEquivalent: "n")
+            newNoteItem.image = menuSymbol("square.and.pencil")
+            menu.addItem(newNoteItem)
+
+            let allNotesItem = NSMenuItem(title: "全部便签", action: #selector(openAllNotes), keyEquivalent: "")
+            allNotesItem.image = menuSymbol("note.text")
+            menu.addItem(allNotesItem)
+        }
+
+        let noteSettingsItem = NSMenuItem(title: "便签设置…", action: #selector(openNoteSettings), keyEquivalent: "")
+        noteSettingsItem.image = menuSymbol("slider.horizontal.3")
+        menu.addItem(noteSettingsItem)
         menu.addItem(.separator())
 
         let refreshItem = NSMenuItem(
@@ -609,6 +637,140 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         """
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(diagnostic, forType: .string)
+    }
+
+    private func startNotesDeckIfNeeded() {
+        guard deckManager == nil else { return }
+        deckManager = DeckManager()
+        UndoToast.shared.start()
+        HotKeys.shared.register(
+            newNote: { [weak self] in self?.newNote() },
+            allNotes: { [weak self] in self?.openAllNotes() },
+            archive: { [weak self] in self?.openArchive() },
+            capture: { QuickCapture.shared.toggle() }
+        )
+    }
+
+    @objc private func toggleNotesDeck() {
+        NotesSettings.notesDeckEnabled.toggle()
+        if NotesSettings.notesDeckEnabled {
+            startNotesDeckIfNeeded()
+        } else {
+            deckManager = nil
+            HotKeys.shared.unregisterAll()
+        }
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where url.scheme == "torli-notes" {
+            let text = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?
+                .first(where: { $0.name == "text" })?
+                .value ?? ""
+            switch url.host {
+            case "new" where !text.isEmpty:
+                if !NotesSettings.notesDeckEnabled {
+                    NotesSettings.notesDeckEnabled = true
+                    startNotesDeckIfNeeded()
+                }
+                let note = NoteStore.shared.create(body: text)
+                deckManager?.focused?.expand(note.id)
+            case "new", "capture":
+                QuickCapture.shared.show()
+            case "all":
+                openAllNotes()
+            case "settings":
+                openNoteSettings()
+            default:
+                break
+            }
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        HotKeys.shared.unregisterAll()
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    @objc func newNote() {
+        if !NotesSettings.notesDeckEnabled {
+            NotesSettings.notesDeckEnabled = true
+            startNotesDeckIfNeeded()
+        }
+        let note = NoteStore.shared.create()
+        deckManager?.focused?.expand(note.id)
+    }
+
+    @objc func openAllNotes() { LibraryWindow.shared.show(mode: .all) }
+    @objc func openArchive() { LibraryWindow.shared.show(mode: .archive) }
+    @objc func quickCapture() { QuickCapture.shared.toggle() }
+    func refreshDecks() { deckManager?.refreshAll() }
+
+    @objc func toggleOverFullScreen() {
+        NotesSettings.showOverFullScreen.toggle()
+        refreshDecks()
+    }
+
+    @objc func setDeckStyle(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let style = DeckStyle(rawValue: raw) else { return }
+        NotesSettings.deckStyle = style
+        refreshDecks()
+    }
+
+    @objc func setFontSize(_ sender: NSMenuItem) {
+        guard let size = sender.representedObject as? Double else { return }
+        NotesSettings.noteFontSize = size
+        refreshDecks()
+    }
+
+    func stepFontSize(by delta: Double) {
+        NotesSettings.noteFontSize += delta
+        refreshDecks()
+    }
+
+    @objc func setNoteFont(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String else { return }
+        NotesSettings.noteFontName = name
+        refreshDecks()
+    }
+
+    @objc func toggleDeckAlwaysShown() {
+        NotesSettings.deckAlwaysShown.toggle()
+        refreshDecks()
+    }
+
+    @objc func setDeckScale(_ sender: NSMenuItem) {
+        guard let scale = sender.representedObject as? Double else { return }
+        NotesSettings.deckScale = scale
+        refreshDecks()
+    }
+
+    @objc func toggleDeckEdge() {
+        NotesSettings.deckOnLeftEdge.toggle()
+        refreshDecks()
+    }
+
+    @objc func setDisplayTarget(_ sender: NSMenuItem) {
+        guard let target = sender.representedObject as? String else { return }
+        NotesSettings.displayTarget = target
+        refreshDecks()
+    }
+
+    @objc func exportMarkdown() { Transfer.export(.markdown, notes: NoteStore.shared.notes) }
+    @objc func exportPlainText() { Transfer.export(.plainText, notes: NoteStore.shared.notes) }
+    @objc func exportSingleFile() { Transfer.export(.singleFile, notes: NoteStore.shared.notes) }
+    @objc func exportStickies() { Transfer.export(.stickies, notes: NoteStore.shared.notes) }
+    @objc func importStickies() { Transfer.importFiles() }
+    @objc func quit() { NSApp.terminate(nil) }
+
+    @objc func openNoteSettings() {
+        NotesSettingsWindow.shared.show()
+    }
+
+    func relaunchForLanguageChange(previous: AppLanguage) {
+        // Notes language is currently scoped to the shared Torli app bundle.
+        // Apply the preference to future launches without interrupting metrics.
     }
 
     @objc private func openSettings() {
@@ -706,7 +868,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
     }
 
-    private func checkForUpdates() {
+    @objc func checkForUpdates() {
         updateChecker.check { [weak self] release in
             self?.announceAvailableUpdate(release)
         }
