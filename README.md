@@ -22,7 +22,7 @@ A lightweight, local system monitor for the macOS menu bar. Torli Stats keeps th
 
 ## Requirements
 
-- macOS 13 or later
+- macOS 15 or later
 - Xcode Command Line Tools
 
 ## Run from source

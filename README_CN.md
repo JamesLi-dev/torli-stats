@@ -22,7 +22,7 @@ Torli Stats 是一款运行在 macOS 状态栏中的本地系统监控工具，�
 
 ## 系统要求
 
-- macOS 13 或更高版本
+- macOS 15 或更高版本
 - Xcode Command Line Tools
 
 ## 从源码运行

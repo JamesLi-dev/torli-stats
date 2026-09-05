@@ -20,3 +20,13 @@ Rabbit, Rubber Duck, Classic Cat, Golden Retriever, Wall Breaker, and Dojo Panda
 Monochrome sprite sheets are rendered as macOS menu-bar template images; the
 color Wall Breaker and Dojo Panda sheets preserve their original colors. The
 sprite sheets are otherwise unmodified.
+
+## Noty notes and edge-deck implementation
+
+Torli Stats embeds and adapts the notes, edge deck, editing, archive, import,
+export, keyboard shortcut, and localization implementation from
+[Noty](https://github.com/aimen08/noty).
+
+- Copyright: Copyright 2026 Aymen Hamza
+- License: MIT License
+- License text: [`LICENSES/Noty-MIT.txt`](LICENSES/Noty-MIT.txt)

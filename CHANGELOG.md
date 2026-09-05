@@ -16,6 +16,7 @@ All notable changes to Torli Stats are documented here.
 - Adds WakaTime daily coding trends, language/editor breakdowns, AI Coding, token, and model-cost details; the Dashboard card opens the corresponding tab.
 - Makes settings updates targeted: appearance, layout, sampling, status-bar, Codex, sensor, and WakaTime changes now update only their related components. Codex text fields persist and synchronize after a short debounce.
 - Keeps the Runner animated at a fixed 8 FPS when CPU acceleration is off; CPU acceleration continues to scale from 6 to 12 FPS. WakaTime range changes do not request data while the integration is disabled.
+- Adds an integrated notes engine: animated edge deck, full note editor, Markdown and tasks, archive and search library, quick capture, global shortcuts, import/export, multi-display support, and encrypted SQLite persistence. Desktop notes are off by default and use Torli Stats’ update and launch-at-login settings; Option-drag the edge pill to either side at any height, or use the four-position shortcut in Notes Settings.
 
 ### 中文
 - 新增可选的 WakaTime 开发统计 Dashboard 模块：用户 API Key 仅保存在本机 macOS 钥匙串；未配置 Key 或未启用模块时不会请求 WakaTime。
@@ -29,3 +30,4 @@ All notable changes to Torli Stats are documented here.
 - 新增 WakaTime 每日编码趋势、语言/编辑器分布、AI Coding、Token 与模型成本明细；可从 Dashboard 卡片进入对应页签。
 - 设置变更改为按项响应：外观、布局、采样、状态栏、Codex、传感器与 WakaTime 仅更新相关组件；Codex 文本输入会短暂防抖后再持久化和同步。
 - 关闭“随 CPU 加速”后，Runner 保持固定 `8 FPS` 动画；开启时仍在 `6–12 FPS` 间动态调整。WakaTime 未启用时切换统计范围不会请求数据。
+- 内置完整便签引擎：边缘 Deck 动画、完整编辑器、Markdown 与任务框、归档和搜索库、快速捕捉、全局快捷键、导入导出、多显示器支持与加密 SQLite 持久化。桌面便签默认关闭，更新和开机启动跟随 Torli Stats 主体；按住 Option 拖动边缘胶囊可停靠到左右侧任意高度，也可在便签设置中快速选择四个固定位置。

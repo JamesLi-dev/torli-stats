@@ -27,8 +27,10 @@ cp "$ROOT/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 for runner_asset in "$ROOT"/Resources/runner-*.png; do
   cp "$runner_asset" "$APP/Contents/Resources/$(basename "$runner_asset")"
 done
+cp -R "$ROOT"/Sources/TorliStats/NotyResources/. "$APP/Contents/Resources/"
 cp "$ROOT/THIRD_PARTY_NOTICES.md" "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md"
 cp "$ROOT/LICENSES/Apache-2.0.txt" "$APP/Contents/Resources/Licenses/Apache-2.0.txt"
+cp "$ROOT/LICENSES/Noty-MIT.txt" "$APP/Contents/Resources/Licenses/Noty-MIT.txt"
 cp "$ROOT/install-sensor-helper.sh" "$APP/Contents/Resources/install-sensor-helper.sh"
 cp "$ROOT/uninstall-sensor-helper.sh" "$APP/Contents/Resources/uninstall-sensor-helper.sh"
 cp "$ROOT/TorliStatsHelper.plist" "$APP/Contents/Library/LaunchDaemons/TorliStatsHelper.plist"
