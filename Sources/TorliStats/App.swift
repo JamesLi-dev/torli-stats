@@ -33,17 +33,27 @@ private final class StatusBarLayeredContentView: NSView {
     }
 
     func update(textImage: NSImage, runnerOriginX: CGFloat, runnerImage: NSImage?) {
+        let newRunnerSize = runnerImage?.size ?? runnerSize
+        let needsRelayout = self.textImage?.size != textImage.size
+            || self.runnerOriginX != runnerOriginX
+            || runnerSize != newRunnerSize
+
         self.textImage = textImage
         self.runnerOriginX = runnerOriginX
-        runnerSize = runnerImage?.size ?? runnerSize
+        runnerSize = newRunnerSize
         textImageView.image = textImage
         runnerImageView.image = runnerImage
-        needsLayout = true
+        if needsRelayout { needsLayout = true }
     }
 
     func updateRunnerImage(_ image: NSImage?) {
-        if let image { runnerSize = image.size }
+        // All runner frames normally have identical dimensions. Re-laying out
+        // an NSStatusItem subview every frame makes AppKit refresh the whole
+        // status-item scene, so only relayout if an asset's geometry changed.
+        let newRunnerSize = image?.size ?? runnerSize
         runnerImageView.image = image
+        guard runnerSize != newRunnerSize else { return }
+        runnerSize = newRunnerSize
         needsLayout = true
     }
 
