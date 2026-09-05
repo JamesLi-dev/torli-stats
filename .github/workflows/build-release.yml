@@ -24,6 +24,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Verify release architecture
+        run: |
+          ARCH="$(uname -m)"
+          if [[ "$ARCH" != "arm64" ]]; then
+            echo "Expected an arm64 runner for the macos-arm64 release, got: $ARCH" >&2
+            exit 1
+          fi
+
       - name: Determine release version
         id: version
         shell: bash
