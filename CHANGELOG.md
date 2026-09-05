@@ -2,7 +2,19 @@
 
 All notable changes to Torli Stats are documented here.
 
-## [1.2.0] — 2026-09-05
+## [1.2.1] — 2026-09-05
+
+### English
++- Reorganizes the application into focused Application, Dashboard, Metrics, Settings, StatusBar, and UI source modules without changing user-facing behavior.
++- Avoids re-laying out the status-bar Runner when an animation frame has unchanged geometry, reducing its idle CPU use while preserving the existing 6–12 FPS acceleration and fixed 8 FPS mode.
++- Updates Codex usage view callbacks to the current macOS 14 SwiftUI `onChange` API.
++
++### 中文
++- 将应用源码按 Application、Dashboard、Metrics、Settings、StatusBar 与 UI 职责拆分，用户可见行为保持不变。
++- Runner 动画帧尺寸不变时不再重复触发状态栏布局；在保留 `6–12 FPS` CPU 加速和固定 `8 FPS` 模式的前提下降低空闲 CPU 占用。
++- 将 Codex 用量视图回调更新为 macOS 14 的 SwiftUI `onChange` API。
++
++## [1.2.0] — 2026-09-05
 
 ### English
 - Adds an optional WakaTime development-statistics Dashboard module with local macOS Keychain storage for the user’s API key. No WakaTime request is made until a key is configured and the module is enabled.
