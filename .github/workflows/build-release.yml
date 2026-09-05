@@ -15,7 +15,9 @@ concurrency:
 
 jobs:
   release:
-    runs-on: macos-14
+    # The integrated Notes UI uses macOS 15 SwiftUI APIs (for example,
+    # WindowDragGesture), so the release compiler must use the macOS 15/Xcode 16 image.
+    runs-on: macos-15
     steps:
       - name: Check out source
         uses: actions/checkout@v4
