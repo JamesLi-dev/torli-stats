@@ -2,7 +2,7 @@
 
 All notable changes to Torli Stats are documented here.
 
-## [Unreleased]
+## [1.2.2] — 2026-09-08
 
 ### English
 - Adds night monitoring pause, enabled by default from 23:30 to 07:00. It stops automatic metric, sensor, input-statistics, Codex, and WakaTime work during quiet hours and resumes safely after wake.
