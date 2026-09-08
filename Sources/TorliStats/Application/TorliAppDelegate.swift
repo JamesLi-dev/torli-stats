@@ -9,6 +9,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
     var localOutsideClickMonitor: Any?
     var globalOutsideClickMonitor: Any?
     let settings: AppSettings
+    let monitoringPauseController: MonitoringPauseController
     let store: MetricsStore
     let codexUsageStore: CodexAccountsUsageStore
     let wakaTimeUsageStore: WakaTimeUsageStore
@@ -31,10 +32,12 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
     override init() {
         let appSettings = AppSettings()
         settings = appSettings
+        monitoringPauseController = MonitoringPauseController(settings: appSettings)
         store = MetricsStore(refreshInterval: appSettings.refreshInterval)
         codexUsageStore = CodexAccountsUsageStore(
             configurationsProvider: { appSettings.codexAccounts },
-            refreshSettingsProvider: { appSettings.codexRefreshSettings }
+            refreshSettingsProvider: { appSettings.codexRefreshSettings },
+            automaticRefreshPaused: monitoringPauseController.isPaused
         )
         wakaTimeUsageStore = WakaTimeUsageStore(
             apiKeyProvider: WakaTimeKeychain.readAPIKey,
@@ -51,6 +54,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
         )
         store.setSensorHelperEnabled(settings.sensorHelperEnabled)
         store.setGPUMonitoringEnabled(settings.showGPUCard)
+        store.setMonitoringPaused(monitoringPauseController.isPaused)
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -120,6 +124,10 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
         observeSetting(settings.$processLimit) { $0.store.setProcessLimit($0.settings.processLimit) }
         observeSetting(settings.$processSort) { $0.store.setProcessSort($0.settings.processSort) }
         observeSetting(settings.$powerSavingMode) { $0.store.setPowerSavingMode($0.settings.powerSavingMode) }
+        observeSetting(settings.$nightMonitoringPauseEnabled) { $0.monitoringPauseController.updateSchedule() }
+        observeSetting(settings.$adaptiveSamplingEnabled) { $0.monitoringPauseController.updateSchedule() }
+        observeSetting(settings.$nightMonitoringPauseStartSeconds) { $0.monitoringPauseController.updateSchedule() }
+        observeSetting(settings.$nightMonitoringPauseEndSeconds) { $0.monitoringPauseController.updateSchedule() }
         observeSetting(settings.$batteryRefreshInterval) { $0.applyPowerPolicy() }
         observeSetting(settings.$lowBatterySavingEnabled) { $0.applyPowerPolicy() }
         observeSetting(settings.$lowBatteryThreshold) { $0.applyPowerPolicy() }
@@ -206,11 +214,19 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
             }
             .store(in: &cancellables)
 
+        monitoringPauseController.onSamplingModeChanged = { [weak self] mode in
+            self?.applyMonitoringMode(mode)
+        }
+        applyMonitoringMode(monitoringPauseController.mode)
+        monitoringPauseController.start()
+
         updateStatusBarLogo()
         typingStats.setEnabled(settings.typingStatsEnabled)
         wakaTimeUsageStore.synchronize(isEnabled: settings.wakaTimeEnabled)
         updateStatusTitle(store.statusLine)
-        checkForUpdatesIfNeeded()
+        if !monitoringPauseController.isPaused {
+            checkForUpdatesIfNeeded()
+        }
     }
 
     private func observeSetting<P: Publisher>(
@@ -233,6 +249,22 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
         statisticsDetailsWindow?.appearance = settings.theme.windowAppearance
         statisticsDetailsWindow?.backgroundColor = AppColors.backgroundNSColor
         updateStatusTitle(store.statusLine)
+    }
+
+    private func applyMonitoringMode(_ mode: MonitoringSamplingMode) {
+        let paused = mode.isPaused
+        store.setAdaptiveLowFrequency(mode == .lowFrequency)
+        store.setMonitoringPaused(paused)
+        // External requests and input monitoring pause only for hard-stop
+        // states. Idle low-frequency mode affects local metric sampling only.
+        codexUsageStore.setAutomaticRefreshPaused(paused)
+        wakaTimeUsageStore.setAutomaticRefreshPaused(paused)
+        typingStats.setMonitoringPaused(paused)
+        statusLogoAnimator?.setPaused(mode != .realtime)
+        updateStatusTitle(store.statusLine)
+        if !paused {
+            checkForUpdatesIfNeeded()
+        }
     }
 
     private func applyPowerPolicy() {

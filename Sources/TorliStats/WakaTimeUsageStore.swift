@@ -145,6 +145,7 @@ final class WakaTimeUsageStore: ObservableObject {
     private var refreshTimer: DispatchSourceTimer?
     private var refreshInFlight = false
     private var isEnabled = false
+    private var automaticRefreshPaused = false
 
     init(apiKeyProvider: @escaping () -> String?, rangeProvider: @escaping () -> WakaTimeRange) {
         self.apiKeyProvider = apiKeyProvider
@@ -164,13 +165,26 @@ final class WakaTimeUsageStore: ObservableObject {
             update(.notConfigured)
             return
         }
+        guard !automaticRefreshPaused else { return }
 
-        refresh()
+        refreshAutomatically()
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now() + .seconds(1_800), repeating: .seconds(1_800), leeway: .seconds(120))
-        timer.setEventHandler { [weak self] in self?.refresh() }
+        timer.setEventHandler { [weak self] in self?.refreshAutomatically() }
         timer.resume()
         refreshTimer = timer
+    }
+
+    func setAutomaticRefreshPaused(_ paused: Bool) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard automaticRefreshPaused != paused else { return }
+        automaticRefreshPaused = paused
+        if paused {
+            refreshTimer?.cancel()
+            refreshTimer = nil
+        } else {
+            synchronize(isEnabled: isEnabled)
+        }
     }
 
     func period(for range: WakaTimeRange) -> WakaTimePeriod? {
@@ -180,6 +194,7 @@ final class WakaTimeUsageStore: ObservableObject {
         }
     }
 
+    /// User-initiated refreshes remain available while automatic monitoring is paused.
     func refresh() {
         dispatchPrecondition(condition: .onQueue(.main))
         guard isEnabled, !refreshInFlight else { return }
@@ -268,6 +283,11 @@ final class WakaTimeUsageStore: ObservableObject {
                 self.update(.unavailable("WakaTime 未返回统计数据", self.state.snapshot))
             }
         }
+    }
+
+    private func refreshAutomatically() {
+        guard !automaticRefreshPaused else { return }
+        refresh()
     }
 
     private func update(_ state: WakaTimeUsageState) {

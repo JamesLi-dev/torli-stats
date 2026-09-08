@@ -148,6 +148,20 @@ final class AppSettings: ObservableObject {
     @Published var powerSavingMode: Bool {
         didSet { defaults.set(powerSavingMode, forKey: "powerSavingMode") }
     }
+    @Published var nightMonitoringPauseEnabled: Bool {
+        didSet { defaults.set(nightMonitoringPauseEnabled, forKey: "nightMonitoringPauseEnabled") }
+    }
+    @Published var adaptiveSamplingEnabled: Bool {
+        didSet { defaults.set(adaptiveSamplingEnabled, forKey: "adaptiveSamplingEnabled") }
+    }
+    /// Seconds after local midnight. Integers make the schedule timezone-safe
+    /// and avoid persisting an arbitrary reference date.
+    @Published var nightMonitoringPauseStartSeconds: Int {
+        didSet { defaults.set(nightMonitoringPauseStartSeconds, forKey: "nightMonitoringPauseStartSeconds") }
+    }
+    @Published var nightMonitoringPauseEndSeconds: Int {
+        didSet { defaults.set(nightMonitoringPauseEndSeconds, forKey: "nightMonitoringPauseEndSeconds") }
+    }
     @Published var batteryRefreshInterval: Int {
         didSet { defaults.set(batteryRefreshInterval, forKey: "batteryRefreshInterval") }
     }
@@ -225,6 +239,18 @@ final class AppSettings: ObservableObject {
         let savedInterval = defaults.integer(forKey: "refreshInterval")
         refreshInterval = Self.supportedRefreshIntervals.contains(savedInterval) ? savedInterval : 3
         powerSavingMode = defaults.object(forKey: "powerSavingMode") as? Bool ?? false
+        nightMonitoringPauseEnabled = defaults.object(forKey: "nightMonitoringPauseEnabled") as? Bool ?? true
+        // Preserve existing users' explicitly selected refresh cadence until
+        // they choose the adaptive policy themselves.
+        adaptiveSamplingEnabled = defaults.object(forKey: "adaptiveSamplingEnabled") as? Bool ?? false
+        nightMonitoringPauseStartSeconds = Self.validDaySeconds(
+            defaults.object(forKey: "nightMonitoringPauseStartSeconds") as? Int,
+            fallback: 23 * 3_600 + 30 * 60
+        )
+        nightMonitoringPauseEndSeconds = Self.validDaySeconds(
+            defaults.object(forKey: "nightMonitoringPauseEndSeconds") as? Int,
+            fallback: 7 * 3_600
+        )
         let savedBatteryInterval = defaults.integer(forKey: "batteryRefreshInterval")
         batteryRefreshInterval = Self.supportedRefreshIntervals.contains(savedBatteryInterval) ? savedBatteryInterval : 10
         lowBatterySavingEnabled = defaults.object(forKey: "lowBatterySavingEnabled") as? Bool ?? true
@@ -251,6 +277,11 @@ final class AppSettings: ObservableObject {
         sensorOperationDiagnostic = nil
         sensorHelperMessage = nil
         probeSensorHelper()
+    }
+
+    private static func validDaySeconds(_ value: Int?, fallback: Int) -> Int {
+        guard let value, (0..<24 * 3_600).contains(value) else { return fallback }
+        return value
     }
 
     private func scheduleCodexTextPersistence() {
@@ -612,7 +643,7 @@ final class AppSettings: ObservableObject {
             "showCPUCard", "showGPUCard", "showMemoryCard", "showDiskCard",
             "showNetworkCard", "showFanCard", "showTypingCard", "showPowerCard", "showProcessesCard",
             "showCodexCard", "showWakaTimeCard", "wakaTimeEnabled", "wakaTimeRange", "dashboardDensity", "dashboardModuleOrder", "showCodexStatusItem", "showTypingStatusItem", "codexStatusMetric", "codexStatusBarMode", "statusBarMetricOrder",
-            "systemStatusBarStyle", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "automaticUpdateChecks", "typingStatsEnabled", "codexDefaultAccountName", "codexHomePath", "codexAutoRefresh", "codexRefreshInterval", "codexManagedAccounts", "powerSavingMode", "batteryRefreshInterval", "lowBatterySavingEnabled", "lowBatteryThreshold", "processLimit", "processSort", "refreshInterval"
+            "systemStatusBarStyle", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "automaticUpdateChecks", "typingStatsEnabled", "codexDefaultAccountName", "codexHomePath", "codexAutoRefresh", "codexRefreshInterval", "codexManagedAccounts", "powerSavingMode", "nightMonitoringPauseEnabled", "adaptiveSamplingEnabled", "nightMonitoringPauseStartSeconds", "nightMonitoringPauseEndSeconds", "batteryRefreshInterval", "lowBatterySavingEnabled", "lowBatteryThreshold", "processLimit", "processSort", "refreshInterval"
         ].forEach { defaults.removeObject(forKey: $0) }
 
         theme = .system
@@ -654,6 +685,10 @@ final class AppSettings: ObservableObject {
         codexManagedAccounts = []
         refreshInterval = 3
         powerSavingMode = false
+        nightMonitoringPauseEnabled = true
+        adaptiveSamplingEnabled = false
+        nightMonitoringPauseStartSeconds = 23 * 3_600 + 30 * 60
+        nightMonitoringPauseEndSeconds = 7 * 3_600
         batteryRefreshInterval = 10
         lowBatterySavingEnabled = true
         lowBatteryThreshold = 20

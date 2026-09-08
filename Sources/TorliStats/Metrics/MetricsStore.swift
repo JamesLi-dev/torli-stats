@@ -76,6 +76,11 @@ final class MetricsStore: ObservableObject {
     private let lowMetricsQueue = DispatchQueue(label: "local.torli.stats.metrics.low", qos: .utility)
     private var highTimer: DispatchSourceTimer?
     private var lowTimer: DispatchSourceTimer?
+    private let monitoringPauseLock = NSLock()
+    private var monitoringPaused = false
+    private var adaptiveLowFrequency = false
+    private(set) var isMonitoringPaused = false
+    private(set) var isAdaptiveLowFrequency = false
     private var cpuSampler = CPUSampler()
     private var previousNetwork: NetworkTotals?
     private var previousNetworkTime: TimeInterval?
@@ -115,9 +120,67 @@ final class MetricsStore: ObservableObject {
         startMonitoring()
     }
 
+    /// Explicit user refreshes remain available during quiet hours.
     func refreshNow() {
-        highMetricsQueue.async { [weak self] in self?.collectHighFrequency() }
-        lowMetricsQueue.async { [weak self] in self?.collectLowFrequency() }
+        highMetricsQueue.async { [weak self] in self?.collectHighFrequency(force: true) }
+        lowMetricsQueue.async { [weak self] in self?.collectLowFrequency(force: true) }
+    }
+
+    func setMonitoringPaused(_ paused: Bool) {
+        monitoringPauseLock.lock()
+        let changed = monitoringPaused != paused
+        monitoringPaused = paused
+        monitoringPauseLock.unlock()
+        guard changed else { return }
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.isMonitoringPaused = paused
+            self.objectWillChange.send()
+        }
+        highMetricsQueue.async { [weak self] in
+            guard let self else { return }
+            self.highTimer?.cancel()
+            self.highTimer = nil
+            // Do not convert bytes/CPU accumulated while paused into a fake
+            // low rate or a multi-hour CPU average at the next wake-up.
+            self.previousNetwork = nil
+            self.previousNetworkTime = nil
+            self.cpuSampler = CPUSampler()
+            guard !paused else { return }
+            self.installHighTimer(interval: self.effectiveHighRefreshInterval())
+            self.collectHighFrequency()
+        }
+        lowMetricsQueue.async { [weak self] in
+            guard let self else { return }
+            self.lowTimer?.cancel()
+            self.lowTimer = nil
+            guard !paused else { return }
+            self.installLowTimer(interval: self.effectiveLowRefreshInterval())
+            self.collectLowFrequency()
+        }
+    }
+
+    func setAdaptiveLowFrequency(_ enabled: Bool) {
+        monitoringPauseLock.lock()
+        let changed = adaptiveLowFrequency != enabled
+        adaptiveLowFrequency = enabled
+        monitoringPauseLock.unlock()
+        guard changed else { return }
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.isAdaptiveLowFrequency = enabled
+            self.objectWillChange.send()
+        }
+        highMetricsQueue.async { [weak self] in
+            guard let self, !self.isAutomaticallyPaused else { return }
+            self.installHighTimer(interval: self.effectiveHighRefreshInterval())
+        }
+        lowMetricsQueue.async { [weak self] in
+            guard let self, !self.isAutomaticallyPaused else { return }
+            self.installLowTimer(interval: self.effectiveLowRefreshInterval())
+        }
     }
 
     func setRefreshInterval(_ seconds: Int) {
@@ -200,8 +263,20 @@ final class MetricsStore: ObservableObject {
         lowMetricsQueue.async { [weak self] in
             guard let self else { return }
             self.powerSavingMode = enabled
-            self.installLowTimer(interval: enabled ? 60 : 30)
+            self.installLowTimer(interval: self.effectiveLowRefreshInterval())
         }
+    }
+
+    private var isAutomaticallyPaused: Bool {
+        monitoringPauseLock.lock()
+        defer { monitoringPauseLock.unlock() }
+        return monitoringPaused
+    }
+
+    private var isAdaptiveLowFrequencyEnabled: Bool {
+        monitoringPauseLock.lock()
+        defer { monitoringPauseLock.unlock() }
+        return adaptiveLowFrequency
     }
 
     private func startMonitoring() {
@@ -213,12 +288,13 @@ final class MetricsStore: ObservableObject {
         }
         lowMetricsQueue.async { [weak self] in
             guard let self else { return }
-            self.installLowTimer(interval: self.powerSavingMode ? 60 : 30)
+            self.installLowTimer(interval: self.effectiveLowRefreshInterval())
             self.collectLowFrequency()
         }
     }
 
     private func installHighTimer(interval: TimeInterval) {
+        guard !isAutomaticallyPaused else { return }
         highTimer?.cancel()
         let timer = DispatchSource.makeTimerSource(queue: highMetricsQueue)
         timer.schedule(deadline: .now() + interval, repeating: interval, leeway: .milliseconds(100))
@@ -228,6 +304,7 @@ final class MetricsStore: ObservableObject {
     }
 
     private func installLowTimer(interval: TimeInterval) {
+        guard !isAutomaticallyPaused else { return }
         lowTimer?.cancel()
         let timer = DispatchSource.makeTimerSource(queue: lowMetricsQueue)
         // Battery, Bluetooth, disk, process and sensor reads are deliberately
@@ -243,7 +320,8 @@ final class MetricsStore: ObservableObject {
         lowTimer?.cancel()
     }
 
-    private func collectHighFrequency() {
+    private func collectHighFrequency(force: Bool = false) {
+        guard force || !isAutomaticallyPaused else { return }
         let cpuSnapshot = cpuSampler.sample()
         let now = ProcessInfo.processInfo.systemUptime
         let stableGPU: Double
@@ -313,7 +391,8 @@ final class MetricsStore: ObservableObject {
         DispatchQueue.main.async { [weak self] in self?.apply(snapshot) }
     }
 
-    private func collectLowFrequency() {
+    private func collectLowFrequency(force: Bool = false) {
+        guard force || !isAutomaticallyPaused else { return }
         let disk = DiskReader.snapshot()
         let battery = BatteryReader.snapshot()
         let bluetooth = BluetoothReader.snapshot()
@@ -339,7 +418,7 @@ final class MetricsStore: ObservableObject {
         )
         DispatchQueue.main.async { [weak self] in self?.apply(snapshot) }
 
-        pollSensorIfNeeded()
+        pollSensorIfNeeded(force: force)
     }
 
     private func updatePowerSource(_ battery: BatterySnapshot) {
@@ -363,21 +442,24 @@ final class MetricsStore: ObservableObject {
     private func effectiveHighRefreshInterval(fallback: TimeInterval? = nil) -> TimeInterval {
         let pluggedInInterval = fallback ?? TimeInterval(workerIntervalSeconds)
         let baseInterval = isUsingBatteryPower ? TimeInterval(batteryRefreshIntervalSeconds) : pluggedInInterval
-        if lowBatterySavingEnabled && isLowBattery {
-            return max(baseInterval, 30)
-        }
-        if powerSavingMode {
-            return max(baseInterval, 10)
-        }
-        return baseInterval
+        var interval = baseInterval
+        if lowBatterySavingEnabled && isLowBattery { interval = max(interval, 30) }
+        if powerSavingMode { interval = max(interval, 10) }
+        if isAdaptiveLowFrequencyEnabled { interval = max(interval, 30) }
+        return interval
     }
 
-    private func pollSensorIfNeeded() {
-        guard sensorHelperEnabled, !sensorPollingStopped else { return }
+    private func effectiveLowRefreshInterval() -> TimeInterval {
+        let baseInterval: TimeInterval = powerSavingMode ? 60 : 30
+        return isAdaptiveLowFrequencyEnabled ? max(baseInterval, 120) : baseInterval
+    }
+
+    private func pollSensorIfNeeded(force: Bool = false) {
+        guard (force || !isAutomaticallyPaused), sensorHelperEnabled, !sensorPollingStopped else { return }
         sensorClient.read { [weak self] values in
             guard let self else { return }
             self.lowMetricsQueue.async {
-                guard self.sensorHelperEnabled, !self.sensorPollingStopped else { return }
+                guard (force || !self.isAutomaticallyPaused), self.sensorHelperEnabled, !self.sensorPollingStopped else { return }
                 // A failed helper/permission read is not transient. Do not
                 // keep waking the privileged helper every low-frequency tick.
                 guard values.isAvailable else {

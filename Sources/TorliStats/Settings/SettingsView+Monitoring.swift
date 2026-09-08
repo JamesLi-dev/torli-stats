@@ -55,6 +55,38 @@ extension SettingsView {
                             .foregroundStyle(.secondary)
                     }
                 }
+                Divider()
+                Toggle("智能节能采样", isOn: $settings.adaptiveSamplingEnabled)
+                if settings.adaptiveSamplingEnabled {
+                    Text("Dashboard 打开时保持实时；连续 25 分钟无输入后降低采样频率，恢复输入后立即恢复。")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Toggle("夜间暂停监控", isOn: $settings.nightMonitoringPauseEnabled)
+                if settings.nightMonitoringPauseEnabled {
+                    HStack(spacing: 10) {
+                        Text("暂停时段")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 60, alignment: .leading)
+                        DatePicker(
+                            "开始",
+                            selection: timeBinding(\.nightMonitoringPauseStartSeconds),
+                            displayedComponents: .hourAndMinute
+                        )
+                        .labelsHidden()
+                        DatePicker(
+                            "结束",
+                            selection: timeBinding(\.nightMonitoringPauseEndSeconds),
+                            displayedComponents: .hourAndMinute
+                        )
+                        .labelsHidden()
+                        Spacer()
+                    }
+                    Text("暂停 CPU、网络、传感器、进程及自动 Codex/WakaTime 刷新；手动刷新仍可使用。")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
                 HStack(spacing: 10) {
                     Text("进程数量")
                         .font(.caption)
@@ -84,5 +116,21 @@ extension SettingsView {
                 }
             }
         }
+    }
+
+    private func timeBinding(_ keyPath: ReferenceWritableKeyPath<AppSettings, Int>) -> Binding<Date> {
+        Binding(
+            get: {
+                let seconds = settings[keyPath: keyPath]
+                let calendar = Calendar.autoupdatingCurrent
+                let day = calendar.startOfDay(for: Date())
+                return calendar.date(byAdding: .second, value: seconds, to: day) ?? Date()
+            },
+            set: { date in
+                let calendar = Calendar.autoupdatingCurrent
+                settings[keyPath: keyPath] = calendar.component(.hour, from: date) * 3_600
+                    + calendar.component(.minute, from: date) * 60
+            }
+        )
     }
 }

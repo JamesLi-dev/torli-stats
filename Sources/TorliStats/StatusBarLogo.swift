@@ -99,6 +99,8 @@ final class StatusBarLogoAnimator {
     private var timer: Timer?
     private var frameInterval: TimeInterval?
     private var awaitingFirstCPUSample = true
+    private var isPaused = false
+    private var latestCPUUsage = 0.0
 
     init(
         runner: StatusBarRunner,
@@ -124,7 +126,8 @@ final class StatusBarLogoAnimator {
     /// 12 fps. When disabled, the runner remains animated at a predictable,
     /// lower-cost 8 fps instead of becoming static.
     func setCPUUsage(_ cpuUsage: Double) {
-        guard isAnimated, frames.count > 1 else { return }
+        latestCPUUsage = cpuUsage
+        guard !isPaused, isAnimated, frames.count > 1 else { return }
         let framesPerSecond: Double
         if acceleratesWithCPU {
             let speed: Double
@@ -153,6 +156,17 @@ final class StatusBarLogoAnimator {
         }
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
+    }
+
+    func setPaused(_ paused: Bool) {
+        guard isPaused != paused else { return }
+        isPaused = paused
+        timer?.invalidate()
+        timer = nil
+        frameInterval = nil
+        if !paused {
+            setCPUUsage(latestCPUUsage)
+        }
     }
 
     private func advanceFrame() {

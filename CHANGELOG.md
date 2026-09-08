@@ -2,6 +2,16 @@
 
 All notable changes to Torli Stats are documented here.
 
+## [1.2.2] — 2026-09-08
+
+### English
+- Adds night monitoring pause, enabled by default from 23:30 to 07:00. It stops automatic metric, sensor, input-statistics, Codex, and WakaTime work during quiet hours and resumes safely after wake.
+- Adds an optional adaptive low-impact sampling mode. After 25 minutes of idle time, local metric sampling slows to 30 / 120 seconds and the status-bar Runner pauses; opening the Dashboard restores real-time sampling.
+
+### 中文
+- 新增夜间暂停监控，默认在 23:30–07:00 停止自动指标、传感器、输入统计、Codex 与 WakaTime 工作，并在唤醒后安全恢复。
+- 新增可选的智能节能采样：连续空闲 25 分钟后，本地指标采样降至 30 / 120 秒，状态栏 Runner 暂停；打开 Dashboard 后恢复实时采样。
+
 ## [1.2.1] — 2026-09-05
 
 ### English

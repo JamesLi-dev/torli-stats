@@ -92,6 +92,7 @@ extension TorliAppDelegate {
     }
 
     @objc private func refreshAllData() {
+        monitoringPauseController.recordUserInteraction()
         store.refreshNow()
         codexUsageStore.refresh()
     }

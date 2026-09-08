@@ -46,6 +46,7 @@ extension TorliAppDelegate {
                 of: button,
                 preferredEdge: .minY
             )
+            monitoringPauseController.setDashboardVisible(true)
             startOutsideClickMonitors()
         }
     }
@@ -91,6 +92,7 @@ extension TorliAppDelegate {
 
     func popoverDidClose(_ notification: Notification) {
         stopOutsideClickMonitors()
+        monitoringPauseController.setDashboardVisible(false)
     }
 
 }
