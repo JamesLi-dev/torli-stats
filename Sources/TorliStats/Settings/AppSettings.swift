@@ -151,6 +151,9 @@ final class AppSettings: ObservableObject {
     @Published var nightMonitoringPauseEnabled: Bool {
         didSet { defaults.set(nightMonitoringPauseEnabled, forKey: "nightMonitoringPauseEnabled") }
     }
+    @Published var adaptiveSamplingEnabled: Bool {
+        didSet { defaults.set(adaptiveSamplingEnabled, forKey: "adaptiveSamplingEnabled") }
+    }
     /// Seconds after local midnight. Integers make the schedule timezone-safe
     /// and avoid persisting an arbitrary reference date.
     @Published var nightMonitoringPauseStartSeconds: Int {
@@ -237,6 +240,9 @@ final class AppSettings: ObservableObject {
         refreshInterval = Self.supportedRefreshIntervals.contains(savedInterval) ? savedInterval : 3
         powerSavingMode = defaults.object(forKey: "powerSavingMode") as? Bool ?? false
         nightMonitoringPauseEnabled = defaults.object(forKey: "nightMonitoringPauseEnabled") as? Bool ?? true
+        // Preserve existing users' explicitly selected refresh cadence until
+        // they choose the adaptive policy themselves.
+        adaptiveSamplingEnabled = defaults.object(forKey: "adaptiveSamplingEnabled") as? Bool ?? false
         nightMonitoringPauseStartSeconds = Self.validDaySeconds(
             defaults.object(forKey: "nightMonitoringPauseStartSeconds") as? Int,
             fallback: 23 * 3_600 + 30 * 60
@@ -637,7 +643,7 @@ final class AppSettings: ObservableObject {
             "showCPUCard", "showGPUCard", "showMemoryCard", "showDiskCard",
             "showNetworkCard", "showFanCard", "showTypingCard", "showPowerCard", "showProcessesCard",
             "showCodexCard", "showWakaTimeCard", "wakaTimeEnabled", "wakaTimeRange", "dashboardDensity", "dashboardModuleOrder", "showCodexStatusItem", "showTypingStatusItem", "codexStatusMetric", "codexStatusBarMode", "statusBarMetricOrder",
-            "systemStatusBarStyle", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "automaticUpdateChecks", "typingStatsEnabled", "codexDefaultAccountName", "codexHomePath", "codexAutoRefresh", "codexRefreshInterval", "codexManagedAccounts", "powerSavingMode", "nightMonitoringPauseEnabled", "nightMonitoringPauseStartSeconds", "nightMonitoringPauseEndSeconds", "batteryRefreshInterval", "lowBatterySavingEnabled", "lowBatteryThreshold", "processLimit", "processSort", "refreshInterval"
+            "systemStatusBarStyle", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "automaticUpdateChecks", "typingStatsEnabled", "codexDefaultAccountName", "codexHomePath", "codexAutoRefresh", "codexRefreshInterval", "codexManagedAccounts", "powerSavingMode", "nightMonitoringPauseEnabled", "adaptiveSamplingEnabled", "nightMonitoringPauseStartSeconds", "nightMonitoringPauseEndSeconds", "batteryRefreshInterval", "lowBatterySavingEnabled", "lowBatteryThreshold", "processLimit", "processSort", "refreshInterval"
         ].forEach { defaults.removeObject(forKey: $0) }
 
         theme = .system
@@ -680,6 +686,7 @@ final class AppSettings: ObservableObject {
         refreshInterval = 3
         powerSavingMode = false
         nightMonitoringPauseEnabled = true
+        adaptiveSamplingEnabled = false
         nightMonitoringPauseStartSeconds = 23 * 3_600 + 30 * 60
         nightMonitoringPauseEndSeconds = 7 * 3_600
         batteryRefreshInterval = 10

@@ -39,10 +39,10 @@ struct DashboardView: View {
                     density: settings.dashboardDensity
                 )
 
-                if store.isMonitoringPaused {
+                if store.isMonitoringPaused || store.isAdaptiveLowFrequency {
                     HStack(spacing: 6) {
-                        Image(systemName: "moon.zzz.fill")
-                        Text("夜间暂停监控，\(nightPauseResumeTime) 恢复")
+                        Image(systemName: store.isMonitoringPaused ? "moon.zzz.fill" : "leaf.fill")
+                        Text(monitoringStatusMessage)
                     }
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
@@ -74,9 +74,12 @@ struct DashboardView: View {
         .preferredColorScheme(settings.theme.colorScheme)
     }
 
-    private var nightPauseResumeTime: String {
+    private var monitoringStatusMessage: String {
+        if store.isAdaptiveLowFrequency {
+            return "节能采样中：空闲时每 30 秒更新"
+        }
         let seconds = settings.nightMonitoringPauseEndSeconds
-        return String(format: "%02d:%02d", seconds / 3_600, (seconds % 3_600) / 60)
+        return "监控已暂停，计划于 \(String(format: "%02d:%02d", seconds / 3_600, (seconds % 3_600) / 60)) 恢复"
     }
 
     private var layoutBlocks: [DashboardLayoutBlock] {

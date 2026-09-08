@@ -125,6 +125,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
         observeSetting(settings.$processSort) { $0.store.setProcessSort($0.settings.processSort) }
         observeSetting(settings.$powerSavingMode) { $0.store.setPowerSavingMode($0.settings.powerSavingMode) }
         observeSetting(settings.$nightMonitoringPauseEnabled) { $0.monitoringPauseController.updateSchedule() }
+        observeSetting(settings.$adaptiveSamplingEnabled) { $0.monitoringPauseController.updateSchedule() }
         observeSetting(settings.$nightMonitoringPauseStartSeconds) { $0.monitoringPauseController.updateSchedule() }
         observeSetting(settings.$nightMonitoringPauseEndSeconds) { $0.monitoringPauseController.updateSchedule() }
         observeSetting(settings.$batteryRefreshInterval) { $0.applyPowerPolicy() }
@@ -213,10 +214,10 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
             }
             .store(in: &cancellables)
 
-        monitoringPauseController.onPauseStateChanged = { [weak self] paused in
-            self?.applyMonitoringPause(paused)
+        monitoringPauseController.onSamplingModeChanged = { [weak self] mode in
+            self?.applyMonitoringMode(mode)
         }
-        applyMonitoringPause(monitoringPauseController.isPaused)
+        applyMonitoringMode(monitoringPauseController.mode)
         monitoringPauseController.start()
 
         updateStatusBarLogo()
@@ -250,12 +251,16 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
         updateStatusTitle(store.statusLine)
     }
 
-    private func applyMonitoringPause(_ paused: Bool) {
+    private func applyMonitoringMode(_ mode: MonitoringSamplingMode) {
+        let paused = mode.isPaused
+        store.setAdaptiveLowFrequency(mode == .lowFrequency)
         store.setMonitoringPaused(paused)
+        // External requests and input monitoring pause only for hard-stop
+        // states. Idle low-frequency mode affects local metric sampling only.
         codexUsageStore.setAutomaticRefreshPaused(paused)
         wakaTimeUsageStore.setAutomaticRefreshPaused(paused)
         typingStats.setMonitoringPaused(paused)
-        statusLogoAnimator?.setPaused(paused)
+        statusLogoAnimator?.setPaused(mode != .realtime)
         updateStatusTitle(store.statusLine)
         if !paused {
             checkForUpdatesIfNeeded()

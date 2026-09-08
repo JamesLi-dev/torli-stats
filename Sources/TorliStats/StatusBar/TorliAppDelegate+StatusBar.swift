@@ -33,11 +33,11 @@ extension TorliAppDelegate {
             guard let self else { return }
             self.updateStatusBarRunnerImage(image)
         }
-        statusLogoAnimator?.setPaused(monitoringPauseController.isPaused)
+        statusLogoAnimator?.setPaused(monitoringPauseController.mode != .realtime)
     }
 
     func updateStatusBarLogoSpeed() {
-        statusLogoAnimator?.setPaused(monitoringPauseController.isPaused)
+        statusLogoAnimator?.setPaused(monitoringPauseController.mode != .realtime)
         statusLogoAnimator?.setCPUUsage(store.cpu)
     }
 

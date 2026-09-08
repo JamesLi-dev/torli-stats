@@ -78,7 +78,9 @@ final class MetricsStore: ObservableObject {
     private var lowTimer: DispatchSourceTimer?
     private let monitoringPauseLock = NSLock()
     private var monitoringPaused = false
+    private var adaptiveLowFrequency = false
     private(set) var isMonitoringPaused = false
+    private(set) var isAdaptiveLowFrequency = false
     private var cpuSampler = CPUSampler()
     private var previousNetwork: NetworkTotals?
     private var previousNetworkTime: TimeInterval?
@@ -154,8 +156,30 @@ final class MetricsStore: ObservableObject {
             self.lowTimer?.cancel()
             self.lowTimer = nil
             guard !paused else { return }
-            self.installLowTimer(interval: self.powerSavingMode ? 60 : 30)
+            self.installLowTimer(interval: self.effectiveLowRefreshInterval())
             self.collectLowFrequency()
+        }
+    }
+
+    func setAdaptiveLowFrequency(_ enabled: Bool) {
+        monitoringPauseLock.lock()
+        let changed = adaptiveLowFrequency != enabled
+        adaptiveLowFrequency = enabled
+        monitoringPauseLock.unlock()
+        guard changed else { return }
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.isAdaptiveLowFrequency = enabled
+            self.objectWillChange.send()
+        }
+        highMetricsQueue.async { [weak self] in
+            guard let self, !self.isAutomaticallyPaused else { return }
+            self.installHighTimer(interval: self.effectiveHighRefreshInterval())
+        }
+        lowMetricsQueue.async { [weak self] in
+            guard let self, !self.isAutomaticallyPaused else { return }
+            self.installLowTimer(interval: self.effectiveLowRefreshInterval())
         }
     }
 
@@ -239,7 +263,7 @@ final class MetricsStore: ObservableObject {
         lowMetricsQueue.async { [weak self] in
             guard let self else { return }
             self.powerSavingMode = enabled
-            self.installLowTimer(interval: enabled ? 60 : 30)
+            self.installLowTimer(interval: self.effectiveLowRefreshInterval())
         }
     }
 
@@ -247,6 +271,12 @@ final class MetricsStore: ObservableObject {
         monitoringPauseLock.lock()
         defer { monitoringPauseLock.unlock() }
         return monitoringPaused
+    }
+
+    private var isAdaptiveLowFrequencyEnabled: Bool {
+        monitoringPauseLock.lock()
+        defer { monitoringPauseLock.unlock() }
+        return adaptiveLowFrequency
     }
 
     private func startMonitoring() {
@@ -258,7 +288,7 @@ final class MetricsStore: ObservableObject {
         }
         lowMetricsQueue.async { [weak self] in
             guard let self else { return }
-            self.installLowTimer(interval: self.powerSavingMode ? 60 : 30)
+            self.installLowTimer(interval: self.effectiveLowRefreshInterval())
             self.collectLowFrequency()
         }
     }
@@ -412,13 +442,16 @@ final class MetricsStore: ObservableObject {
     private func effectiveHighRefreshInterval(fallback: TimeInterval? = nil) -> TimeInterval {
         let pluggedInInterval = fallback ?? TimeInterval(workerIntervalSeconds)
         let baseInterval = isUsingBatteryPower ? TimeInterval(batteryRefreshIntervalSeconds) : pluggedInInterval
-        if lowBatterySavingEnabled && isLowBattery {
-            return max(baseInterval, 30)
-        }
-        if powerSavingMode {
-            return max(baseInterval, 10)
-        }
-        return baseInterval
+        var interval = baseInterval
+        if lowBatterySavingEnabled && isLowBattery { interval = max(interval, 30) }
+        if powerSavingMode { interval = max(interval, 10) }
+        if isAdaptiveLowFrequencyEnabled { interval = max(interval, 30) }
+        return interval
+    }
+
+    private func effectiveLowRefreshInterval() -> TimeInterval {
+        let baseInterval: TimeInterval = powerSavingMode ? 60 : 30
+        return isAdaptiveLowFrequencyEnabled ? max(baseInterval, 120) : baseInterval
     }
 
     private func pollSensorIfNeeded(force: Bool = false) {

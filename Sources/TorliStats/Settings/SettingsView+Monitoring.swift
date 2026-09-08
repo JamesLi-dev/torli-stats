@@ -56,6 +56,12 @@ extension SettingsView {
                     }
                 }
                 Divider()
+                Toggle("智能节能采样", isOn: $settings.adaptiveSamplingEnabled)
+                if settings.adaptiveSamplingEnabled {
+                    Text("Dashboard 打开时保持实时；连续 25 分钟无输入后降低采样频率，恢复输入后立即恢复。")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
                 Toggle("夜间暂停监控", isOn: $settings.nightMonitoringPauseEnabled)
                 if settings.nightMonitoringPauseEnabled {
                     HStack(spacing: 10) {
