@@ -15,6 +15,7 @@ enum TypingStatsPermissionStatus: Equatable {
     case disabled
     case needsPermission
     case monitoring
+    case paused
     case unavailable
 
     var description: String {
@@ -22,6 +23,7 @@ enum TypingStatsPermissionStatus: Equatable {
         case .disabled: return "输入统计未启用"
         case .needsPermission: return "需要“输入监控”权限"
         case .monitoring: return "正在本机统计，不记录输入内容"
+        case .paused: return "夜间暂停输入统计"
         case .unavailable: return "输入监控暂不可用"
         }
     }
@@ -43,6 +45,8 @@ final class TypingStatsService: ObservableObject {
     private let defaults: UserDefaults
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+    private var isEnabledByUser = false
+    private var isMonitoringPaused = false
     private var speedTimestamps: [Date] = []
     private var lastInputAt: Date?
     private var persistWorkItem: DispatchWorkItem?
@@ -62,15 +66,37 @@ final class TypingStatsService: ObservableObject {
     }
 
     func setEnabled(_ enabled: Bool) {
+        isEnabledByUser = enabled
         guard enabled else {
             stopMonitoring()
             permissionStatus = .disabled
             return
         }
+        guard !isMonitoringPaused else {
+            stopMonitoring()
+            permissionStatus = .paused
+            return
+        }
         startMonitoringIfPermitted()
     }
 
+    func setMonitoringPaused(_ paused: Bool) {
+        guard isMonitoringPaused != paused else { return }
+        isMonitoringPaused = paused
+        guard isEnabledByUser else { return }
+        if paused {
+            stopMonitoring()
+            permissionStatus = .paused
+        } else {
+            startMonitoringIfPermitted()
+        }
+    }
+
     func requestPermissionAndStart() {
+        guard !isMonitoringPaused else {
+            permissionStatus = .paused
+            return
+        }
         guard CGPreflightListenEventAccess() || CGRequestListenEventAccess() else {
             permissionStatus = .needsPermission
             return

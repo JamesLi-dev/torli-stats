@@ -39,6 +39,19 @@ struct DashboardView: View {
                     density: settings.dashboardDensity
                 )
 
+                if store.isMonitoringPaused {
+                    HStack(spacing: 6) {
+                        Image(systemName: "moon.zzz.fill")
+                        Text("夜间暂停监控，\(nightPauseResumeTime) 恢复")
+                    }
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                }
+
                 ForEach(layoutBlocks) { block in
                     switch block {
                     case let .metrics(modules):
@@ -59,6 +72,11 @@ struct DashboardView: View {
         .frame(width: 360)
         .background(AppColors.background)
         .preferredColorScheme(settings.theme.colorScheme)
+    }
+
+    private var nightPauseResumeTime: String {
+        let seconds = settings.nightMonitoringPauseEndSeconds
+        return String(format: "%02d:%02d", seconds / 3_600, (seconds % 3_600) / 60)
     }
 
     private var layoutBlocks: [DashboardLayoutBlock] {

@@ -8,13 +8,16 @@ final class CodexAccountsUsageStore: ObservableObject {
     private let refreshSettingsProvider: () -> CodexRefreshSettings
     private var stores: [UUID: CodexUsageStore] = [:]
     private var storeCancellables: [UUID: AnyCancellable] = [:]
+    private var automaticRefreshPaused = false
 
     init(
         configurationsProvider: @escaping () -> [CodexAccountConfiguration],
-        refreshSettingsProvider: @escaping () -> CodexRefreshSettings
+        refreshSettingsProvider: @escaping () -> CodexRefreshSettings,
+        automaticRefreshPaused: Bool = false
     ) {
         self.configurationsProvider = configurationsProvider
         self.refreshSettingsProvider = refreshSettingsProvider
+        self.automaticRefreshPaused = automaticRefreshPaused
         synchronize()
     }
 
@@ -38,6 +41,13 @@ final class CodexAccountsUsageStore: ObservableObject {
     func refresh(accountID: UUID) {
         synchronize()
         stores[accountID]?.refresh()
+    }
+
+    func setAutomaticRefreshPaused(_ paused: Bool) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard automaticRefreshPaused != paused else { return }
+        automaticRefreshPaused = paused
+        stores.values.forEach { $0.setAutomaticRefreshPaused(paused) }
     }
 
     func lastSuccessfulRefresh(for accountID: UUID) -> Date? {
@@ -74,7 +84,8 @@ final class CodexAccountsUsageStore: ObservableObject {
                         .first(where: { $0.id == accountID })?
                         .homePath
                 },
-                refreshSettings: refreshSettings
+                refreshSettings: refreshSettings,
+                automaticRefreshPaused: automaticRefreshPaused
             )
             stores[accountID] = store
             storeCancellables[accountID] = store.objectWillChange.sink { [weak self] _ in
