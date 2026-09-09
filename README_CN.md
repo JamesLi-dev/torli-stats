@@ -16,7 +16,11 @@ Torli Stats 是一款运行在 macOS 状态栏中的本地系统监控工具，�
 - 按 CPU 或内存排序的高占用进程
 - 可配置的状态栏项目和监控面板模块
 - 跟随系统、亮色和暗色主题
-- 省电采样模式
+- 夜间暂停监控，默认时段为 23:30–07:00
+- 连续空闲 25 分钟后可选的低干扰采样模式
+- 输入与开发活动统计，并提供每日详情图表
+- 内置 Torli 便签，支持搜索所有便签和查看归档
+- 自动与手动检查 GitHub Release 更新
 - 可配置更新间隔、进程数量和排序方式
 - 开机启动
 
@@ -49,7 +53,9 @@ SKIP_INSTALL=1 ./build-app.sh
 
 点击状态栏中的 CPU/MEM 数值可以打开监控面板，点击面板外部即可关闭。右键点击状态栏项目，可以打开设置或退出 Torli Stats。
 
-设置窗口支持调整外观、状态栏显示项目、更新间隔、省电模式、进程显示、面板模块、传感器授权和开机启动。设置会自动保存。
+设置窗口支持调整外观、状态栏显示项目、更新间隔、夜间暂停监控、低干扰采样、进程显示、面板模块、输入与开发统计、传感器授权、更新检查和开机启动。设置会自动保存。
+
+指标、输入统计和便签内容均保存在本机；WakaTime API Key 保存在 macOS 钥匙串中。
 
 ## 传感器辅助进程
 
@@ -57,22 +63,28 @@ SKIP_INSTALL=1 ./build-app.sh
 
 ## Changelog 工作流
 
-可以使用已安装的 `codex` 或 `claude` CLI，根据已暂存的代码变更在本地生成详细的 Changelog：
+可通过已安装的 `codex` 或 `claude` CLI，根据已暂存的变更在本地起草 Changelog：
 
 ```bash
+git add <文件>
 ./scripts/generate-changelog.sh
-# 检查生成内容后再暂存：
+# 检查生成内容后再暂存。
 git add CHANGELOG.md
 ```
 
-脚本只会分析已暂存的变更，不会根据 diff 臆测未实现的功能。每次生成会让已提交的 `CHANGELOG.md` 只保留最新条目，并将旧内容备份到被 `.gitignore` 排除的 `.changelog-backups/` 目录，例如 `.changelog-backups/2026-08-25-changelog.md`。启用可选的提交前 Hook：
+脚本只分析已暂存的变更；也可通过 `AI_CHANGELOG_COMMAND` 指定其他从标准输入读取、向标准输出写入内容的命令。提交前必须人工检查生成内容。脚本会写入一个 `[Unreleased]` 条目，并把旧 Changelog 备份到 `.gitignore` 排除的 `.changelog-backups/` 目录。可通过 `./scripts/setup-git-hooks.sh` 和 `AI_CHANGELOG_ON_COMMIT=1` 启用可选的提交前 Hook。
+
+## 构建与发布自动化
+
+`VERSION` 是用户可见的语义化版本来源，可使用以下命令升级：
 
 ```bash
-./scripts/setup-git-hooks.sh
-AI_CHANGELOG_ON_COMMIT=1 git commit
+./scripts/bump-version.sh major  # 1.2.3 → 2.0.0
+./scripts/bump-version.sh minor  # 1.2.3 → 1.3.0
+./scripts/bump-version.sh patch  # 1.2.3 → 1.2.4
 ```
 
-GitHub Actions 会在每次 `main` 更新时构建并上传 App 压缩包，同时创建类似 `main-12` 的唯一预发布 Release。推送类似 `v0.1.0` 的版本标签时，会创建正式的 GitHub Release。为了让版本更新日志更准确，打标签前请将已检查过的 `[Unreleased]` 章节改名为 `[vX.Y.Z]`。
+提交生成的 `VERSION`、`Info.plist` 和已检查的 Changelog 后，将它们推送到 `main`。GitHub Actions 只在 `main` 上运行：它会构建 arm64 App 压缩包；若该版本尚未发布，则自动创建对应的 `vX.Y.Z` 标签和 GitHub Release。请不要依赖手动推送版本标签来触发工作流。
 
 ## 说明
 
