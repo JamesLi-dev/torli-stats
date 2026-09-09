@@ -65,8 +65,15 @@ extension TorliAppDelegate {
         deckManager?.focused?.expand(note.id)
     }
 
-    @objc func openAllNotes() { LibraryWindow.shared.show(mode: .all) }
-    @objc func openArchive() { LibraryWindow.shared.show(mode: .archive) }
+    @objc func openAllNotes() {
+        LibraryWindow.shared.applyAppearance(settings.theme.windowAppearance)
+        LibraryWindow.shared.show(mode: .all)
+    }
+
+    @objc func openArchive() {
+        LibraryWindow.shared.applyAppearance(settings.theme.windowAppearance)
+        LibraryWindow.shared.show(mode: .archive)
+    }
     @objc func quickCapture() { QuickCapture.shared.toggle() }
     func refreshDecks() { deckManager?.refreshAll() }
 
