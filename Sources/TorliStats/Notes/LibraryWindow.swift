@@ -85,13 +85,12 @@ struct LibraryView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
+        HSplitView {
             sidebar
-                .frame(width: 240)
+                .frame(minWidth: 190, idealWidth: 240, maxWidth: 340)
                 .background(.regularMaterial)
-            Divider()
             detail
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(minWidth: 440, maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(minWidth: 680, minHeight: 420)
         .onChange(of: model.mode) { _, _ in

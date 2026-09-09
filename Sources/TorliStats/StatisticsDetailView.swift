@@ -137,7 +137,7 @@ private struct TypingStatisticsDetailContent: View {
                     },
                     color: .cyan
                 )
-                    .frame(height: 180)
+                    .frame(height: 202)
             }
 
             DetailSection(title: "每日明细") {
@@ -239,7 +239,7 @@ private struct DevelopmentStatisticsDetailContent: View {
                     },
                     color: .blue
                 )
-                .frame(height: 180)
+                .frame(height: 202)
             }
         }
 
@@ -393,6 +393,9 @@ private struct DetailedDailyBarChart: View {
             let tooltipWidth: CGFloat = 164
             let gap: CGFloat = 6
             let barAreaHeight = max(3, proxy.size.height - tooltipHeight - gap)
+            let axisHeight: CGFloat = 16
+            let axisGap: CGFloat = 3
+            let plotHeight = max(3, barAreaHeight - axisHeight - axisGap)
             let maximum = max(values.map(\.value).max() ?? 0, 1)
             let spacing: CGFloat = values.count > 14 ? 2 : 4
             let width = max(3, (proxy.size.width - spacing * CGFloat(max(values.count - 1, 0))) / CGFloat(max(values.count, 1)))
@@ -433,17 +436,29 @@ private struct DetailedDailyBarChart: View {
                 }
                 .frame(height: tooltipHeight)
 
-                HStack(alignment: .bottom, spacing: spacing) {
-                    ForEach(values) { entry in
-                        dailyBar(
-                            entry,
-                            width: width,
-                            height: max(3, barAreaHeight * CGFloat(entry.value / maximum))
-                        )
+                ZStack(alignment: .topLeading) {
+                    HStack(alignment: .bottom, spacing: spacing) {
+                        ForEach(values) { entry in
+                            dailyBar(
+                                entry,
+                                width: width,
+                                height: max(3, plotHeight * CGFloat(entry.value / maximum))
+                            )
+                        }
                     }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: plotHeight, alignment: .bottom)
+
+                    dateAxis(
+                        totalWidth: proxy.size.width,
+                        plotHeight: plotHeight,
+                        axisGap: axisGap,
+                        axisHeight: axisHeight,
+                        columnWidth: width,
+                        spacing: spacing
+                    )
                 }
-                .frame(maxWidth: .infinity)
-                .frame(height: barAreaHeight, alignment: .bottom)
+                .frame(height: barAreaHeight)
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
         }
@@ -457,6 +472,49 @@ private struct DetailedDailyBarChart: View {
             .frame(width: width, height: height)
             .onHover { updateHover(for: entry, isHovering: $0) }
             .accessibilityLabel(entry.tooltip)
+    }
+
+    private func dateAxis(
+        totalWidth: CGFloat,
+        plotHeight: CGFloat,
+        axisGap: CGFloat,
+        axisHeight: CGFloat,
+        columnWidth: CGFloat,
+        spacing: CGFloat
+    ) -> some View {
+        let labelWidth: CGFloat = 34
+        return ZStack(alignment: .topLeading) {
+            ForEach(dateTickIndices, id: \.self) { index in
+                let columnCenter = CGFloat(index) * (columnWidth + spacing) + columnWidth / 2
+                let labelCenter = min(
+                    max(labelWidth / 2, columnCenter),
+                    max(labelWidth / 2, totalWidth - labelWidth / 2)
+                )
+                Text(shortDate(values[index].dateID))
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(width: labelWidth)
+                    .position(x: labelCenter, y: plotHeight + axisGap + axisHeight / 2)
+            }
+        }
+    }
+
+    private var dateTickIndices: [Int] {
+        guard !values.isEmpty else { return [] }
+        if values.count <= 7 { return Array(values.indices) }
+
+        let tickStride = values.count <= 14 ? 3 : 5
+        var indices = Array(stride(from: 0, to: values.count, by: tickStride))
+        if indices.last != values.count - 1 {
+            indices.append(values.count - 1)
+        }
+        return indices
+    }
+
+    private func shortDate(_ dateID: String) -> String {
+        let parts = dateID.split(separator: "-")
+        guard parts.count == 3 else { return dateID }
+        return "\(parts[1])/\(parts[2])"
     }
 
     private func updateHover(for entry: DetailDailyValue, isHovering: Bool) {
