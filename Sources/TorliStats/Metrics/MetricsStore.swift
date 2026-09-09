@@ -80,6 +80,7 @@ final class MetricsStore: ObservableObject {
     private var monitoringPaused = false
     private var adaptiveLowFrequency = false
     private(set) var isMonitoringPaused = false
+    private(set) var monitoringPauseMessage: String?
     private(set) var isAdaptiveLowFrequency = false
     private var cpuSampler = CPUSampler()
     private var previousNetwork: NetworkTotals?
@@ -126,18 +127,25 @@ final class MetricsStore: ObservableObject {
         lowMetricsQueue.async { [weak self] in self?.collectLowFrequency(force: true) }
     }
 
-    func setMonitoringPaused(_ paused: Bool) {
+    /// Publishes pause state and its user-facing reason together, so Dashboard
+    /// never needs an intermediate redraw with a stale or generic message.
+    func setMonitoringPauseState(_ paused: Bool, message: String?) {
         monitoringPauseLock.lock()
-        let changed = monitoringPaused != paused
+        let samplingChanged = monitoringPaused != paused
         monitoringPaused = paused
         monitoringPauseLock.unlock()
-        guard changed else { return }
 
         DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
+            guard let self,
+                  self.isMonitoringPaused != paused || self.monitoringPauseMessage != message else {
+                return
+            }
             self.isMonitoringPaused = paused
+            self.monitoringPauseMessage = message
             self.objectWillChange.send()
         }
+        guard samplingChanged else { return }
+
         highMetricsQueue.async { [weak self] in
             guard let self else { return }
             self.highTimer?.cancel()

@@ -99,13 +99,14 @@ struct SettingsGlassBackdrop: NSViewRepresentable {
         let view = NSVisualEffectView()
         view.material = .underWindowBackground
         view.blendingMode = .behindWindow
-        view.state = .active
+        view.state = .followsWindowActiveState
         return view
     }
 
     func updateNSView(_ view: NSVisualEffectView, context: Context) {
         view.material = .underWindowBackground
         view.blendingMode = .behindWindow
+        view.state = .followsWindowActiveState
     }
 }
 

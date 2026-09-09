@@ -7,10 +7,14 @@ All notable changes to Torli Stats are documented here.
 ### English
 - Redesigns Torli Stats, Torli Notes, and detailed-statistics preferences with compact left-side navigation and a consistent right-side detail layout.
 - Unifies their neutral light/dark surfaces and adds a native frosted-glass background that extends through the titlebar, while retaining readable material setting cards.
+- Shows the specific monitoring-pause reason in Dashboard, such as night schedule, screen lock, display sleep, or system sleep.
+- Avoids redundant adaptive-sampling broadcasts and timer recreation; pause state and its Dashboard message now update atomically, while inactive Settings windows reduce visual-effect compositing work.
 
 ### 中文
 - 重构 Torli Stats、Torli Notes 与详细统计窗口：使用紧凑的左侧导航和统一的右侧详情布局。
 - 统一亮色与暗色下的中性配色，并加入延伸至标题栏的原生毛玻璃背景，同时保留清晰可读的材质化设置卡片。
+- Dashboard 现在会按夜间时段、屏幕锁定、显示器休眠或系统睡眠展示具体的监控暂停原因。
+- 避免智能采样的冗余状态广播与定时器重建；暂停状态和 Dashboard 文案改为原子更新，设置窗口失焦后也会减少毛玻璃合成开销。
 
 ## [1.2.2] — 2026-09-08
 

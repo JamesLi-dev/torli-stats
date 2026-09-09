@@ -54,7 +54,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
         )
         store.setSensorHelperEnabled(settings.sensorHelperEnabled)
         store.setGPUMonitoringEnabled(settings.showGPUCard)
-        store.setMonitoringPaused(monitoringPauseController.isPaused)
+        store.setMonitoringPauseState(monitoringPauseController.isPaused, message: nil)
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -254,8 +254,8 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
 
     private func applyMonitoringMode(_ mode: MonitoringSamplingMode) {
         let paused = mode.isPaused
+        store.setMonitoringPauseState(paused, message: monitoringPauseMessage(for: mode))
         store.setAdaptiveLowFrequency(mode == .lowFrequency)
-        store.setMonitoringPaused(paused)
         // External requests and input monitoring pause only for hard-stop
         // states. Idle low-frequency mode affects local metric sampling only.
         codexUsageStore.setAutomaticRefreshPaused(paused)
@@ -265,6 +265,21 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
         updateStatusTitle(store.statusLine)
         if !paused {
             checkForUpdatesIfNeeded()
+        }
+    }
+
+    private func monitoringPauseMessage(for mode: MonitoringSamplingMode) -> String? {
+        guard case let .paused(reason) = mode else { return nil }
+        switch reason {
+        case .nightSchedule:
+            let seconds = settings.nightMonitoringPauseEndSeconds
+            return "夜间暂停监控，\(String(format: "%02d:%02d", seconds / 3_600, (seconds % 3_600) / 60)) 恢复"
+        case .systemSleep:
+            return "系统睡眠，唤醒后恢复监控"
+        case .displaySleep:
+            return "显示器休眠，唤醒后恢复监控"
+        case .screenLocked:
+            return "屏幕锁定，解锁后恢复监控"
         }
     }
 
