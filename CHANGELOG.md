@@ -2,6 +2,16 @@
 
 All notable changes to Torli Stats are documented here.
 
+## [1.2.3] — 2026-09-09
+
+### English
+- Redesigns Torli Stats, Torli Notes, and detailed-statistics preferences with compact left-side navigation and a consistent right-side detail layout.
+- Unifies their neutral light/dark surfaces and adds a native frosted-glass background that extends through the titlebar, while retaining readable material setting cards.
+
+### 中文
+- 重构 Torli Stats、Torli Notes 与详细统计窗口：使用紧凑的左侧导航和统一的右侧详情布局。
+- 统一亮色与暗色下的中性配色，并加入延伸至标题栏的原生毛玻璃背景，同时保留清晰可读的材质化设置卡片。
+
 ## [1.2.2] — 2026-09-08
 
 ### English

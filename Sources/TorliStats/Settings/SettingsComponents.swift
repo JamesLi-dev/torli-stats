@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -91,6 +92,48 @@ struct DashboardModuleDropDelegate: DropDelegate {
         return true
     }
 }
+/// A behind-window material surface covers the full-size content view,
+/// including the transparent titlebar, for one continuous frosted treatment.
+struct SettingsGlassBackdrop: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .underWindowBackground
+        view.blendingMode = .behindWindow
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {
+        view.material = .underWindowBackground
+        view.blendingMode = .behindWindow
+    }
+}
+
+/// A shared, macOS-style navigation row used by the main and Notes settings
+/// windows. System colours keep the selection legible in both appearances.
+struct SettingsSidebarItem: View {
+    let title: String
+    let systemImage: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
+                .foregroundStyle(isSelected ? .primary : .secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 9)
+                .background(isSelected ? AppColors.badge : .clear)
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
 struct SettingsSection<Content: View>: View {
     let title: String
     let cardMinHeight: CGFloat
@@ -113,7 +156,7 @@ struct SettingsSection<Content: View>: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, minHeight: cardMinHeight, alignment: .topLeading)
-            .background(AppColors.card)
+            .background(.regularMaterial)
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
                     .stroke(Color.primary.opacity(0.06), lineWidth: 1)

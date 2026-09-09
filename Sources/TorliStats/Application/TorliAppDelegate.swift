@@ -245,7 +245,8 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
 
     private func applyTheme() {
         settingsWindow?.appearance = settings.theme.windowAppearance
-        settingsWindow?.backgroundColor = AppColors.backgroundNSColor
+        settingsWindow?.backgroundColor = .clear
+        NotesSettingsWindow.shared.applyAppearance(settings.theme.windowAppearance)
         statisticsDetailsWindow?.appearance = settings.theme.windowAppearance
         statisticsDetailsWindow?.backgroundColor = AppColors.backgroundNSColor
         updateStatusTitle(store.statusLine)

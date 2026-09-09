@@ -2,20 +2,22 @@ import AppKit
 import SwiftUI
 
 enum AppColors {
-    // 同时适配系统亮色/暗色，并让背景与卡片保持轻微层次。
+    // Neutral, system-like surfaces avoid a separate warm palette in each
+    // window. The small luminance steps retain hierarchy without making the
+    // sidebar and content area look like unrelated panels.
     static let backgroundNSColor = NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-            ? NSColor(calibratedRed: 0.075, green: 0.070, blue: 0.060, alpha: 1)
-            : NSColor(calibratedRed: 0.93, green: 0.925, blue: 0.90, alpha: 1)
+            ? NSColor(calibratedRed: 0.105, green: 0.105, blue: 0.115, alpha: 1)
+            : NSColor(calibratedRed: 0.955, green: 0.955, blue: 0.965, alpha: 1)
     }
     static let background = Color(nsColor: backgroundNSColor)
     static let card = adaptive(
-        light: NSColor(calibratedRed: 0.985, green: 0.98, blue: 0.95, alpha: 1),
-        dark: NSColor(calibratedRed: 0.165, green: 0.155, blue: 0.125, alpha: 1)
+        light: NSColor(calibratedRed: 1.0, green: 1.0, blue: 1.0, alpha: 0.78),
+        dark: NSColor(calibratedRed: 0.155, green: 0.155, blue: 0.170, alpha: 0.82)
     )
     static let badge = adaptive(
-        light: NSColor(calibratedWhite: 0.0, alpha: 0.08),
-        dark: NSColor(calibratedWhite: 1.0, alpha: 0.13)
+        light: NSColor(calibratedWhite: 0.0, alpha: 0.075),
+        dark: NSColor(calibratedWhite: 1.0, alpha: 0.12)
     )
 
     private static func adaptive(light: NSColor, dark: NSColor) -> Color {

@@ -17,6 +17,7 @@ struct SettingsView: View {
     @State var wakaTimeAPIKey = ""
     @State var hasWakaTimeAPIKey: Bool
     @State var wakaTimeMessage: String?
+    @State private var selectedCategory: SettingsCategory = .appearance
     let onCodexRefresh: () -> Void
     let onWakaTimeRefresh: () -> Void
     let onRequestTypingStatsPermission: () -> Void
@@ -77,56 +78,123 @@ struct SettingsView: View {
 
     var body: some View {
         ZStack {
-            AppColors.background
+            SettingsGlassBackdrop()
                 .ignoresSafeArea()
 
+            HStack(spacing: 0) {
+            sidebar
+
+            Divider()
+
             ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: 12) {
-                // 外观与状态栏、系统位于左列；面板模块、监控位于右列，避免模块间出现大块空白。
-                HStack(alignment: .top, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 16) {
-                        appearanceSection
-
-                        statusBarSection
-
-                        statusBarOrderSection
-
-                        monitoringSection
-
-                    }
-                    .frame(minWidth: 400, idealWidth: 444, maxWidth: .infinity, alignment: .top)
-
-                    VStack(alignment: .leading, spacing: 16) {
-                        dashboardSection
-
-                        sensorsSection
-
-                        systemSection
-
-                    }
-                    .frame(width: 360, alignment: .top)
+                VStack(alignment: .leading, spacing: 18) {
+                    settingsContent
                 }
-                .frame(minWidth: 776, maxWidth: .infinity, alignment: .topLeading)
-
-                codexSection
-
-                wakaTimeSection
-
-                Text("更新间隔越短，数据越及时，但耗电和资源占用也会略有增加。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .padding(28)
+                .background(ThinScrollViewConfigurator())
             }
-            .padding(20)
-            .background(ThinScrollViewConfigurator())
-        }
-        .scrollIndicators(.hidden)
+            .scrollIndicators(.hidden)
+            .background(.clear)
+            }
         }
         .sheet(isPresented: $isAddingCodexAccount) {
             addCodexAccountSheet
         }
-        .frame(minWidth: 860, idealWidth: 860, minHeight: 680, idealHeight: 760)
-        .background(AppColors.background)
+        .frame(minWidth: 900, idealWidth: 940, minHeight: 680, idealHeight: 760)
+        .background(.clear)
         .preferredColorScheme(settings.theme.colorScheme)
     }
 
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            ForEach(SettingsCategory.allCases) { category in
+                SettingsSidebarItem(
+                    title: category.title,
+                    systemImage: category.systemImage,
+                    isSelected: selectedCategory == category
+                ) {
+                    withAnimation(.easeInOut(duration: 0.16)) {
+                        selectedCategory = category
+                    }
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .frame(width: 176)
+        .frame(maxHeight: .infinity, alignment: .topLeading)
+        .background(.clear)
+    }
+
+    @ViewBuilder
+    private var settingsContent: some View {
+        switch selectedCategory {
+        case .appearance:
+            settingsPage { appearanceSection }
+        case .statusBar:
+            settingsPage {
+                statusBarSection
+                statusBarOrderSection
+            }
+        case .dashboard:
+            settingsPage { dashboardSection }
+        case .monitoring:
+            settingsPage {
+                monitoringSection
+                sensorsSection
+                Text("更新间隔越短，数据越及时，但耗电和资源占用也会略有增加。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        case .development:
+            settingsPage {
+                codexSection
+                wakaTimeSection
+            }
+        case .system:
+            settingsPage { systemSection }
+        }
+    }
+
+    private func settingsPage<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 18) { content() }
+    }
+
+}
+
+private enum SettingsCategory: CaseIterable, Identifiable {
+    case appearance
+    case statusBar
+    case dashboard
+    case monitoring
+    case development
+    case system
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .appearance: return "外观"
+        case .statusBar: return "状态栏"
+        case .dashboard: return "Dashboard"
+        case .monitoring: return "监控"
+        case .development: return "开发统计"
+        case .system: return "系统"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .appearance: return "paintpalette"
+        case .statusBar: return "menubar.rectangle"
+        case .dashboard: return "rectangle.grid.2x2"
+        case .monitoring: return "waveform.path.ecg"
+        case .development: return "chevron.left.forwardslash.chevron.right"
+        case .system: return "gearshape"
+        }
+    }
 }

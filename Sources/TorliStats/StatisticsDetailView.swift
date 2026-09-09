@@ -12,79 +12,75 @@ enum StatisticsDetailTab: String, CaseIterable, Identifiable {
         case .development: return "开发统计"
         }
     }
+
+    var systemImage: String {
+        switch self {
+        case .typing: return "keyboard"
+        case .development: return "chevron.left.forwardslash.chevron.right"
+        }
+    }
 }
 
 struct StatisticsDetailView: View {
     @ObservedObject var typingStats: TypingStatsService
     @ObservedObject var wakaTimeUsageStore: WakaTimeUsageStore
-    let onClose: () -> Void
 
     @State private var selectedTab: StatisticsDetailTab
 
     init(
         typingStats: TypingStatsService,
         wakaTimeUsageStore: WakaTimeUsageStore,
-        initialTab: StatisticsDetailTab,
-        onClose: @escaping () -> Void
+        initialTab: StatisticsDetailTab
     ) {
         self.typingStats = typingStats
         self.wakaTimeUsageStore = wakaTimeUsageStore
-        self.onClose = onClose
         _selectedTab = State(initialValue: initialTab)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                HStack(spacing: 0) {
+        ZStack {
+            SettingsGlassBackdrop()
+                .ignoresSafeArea()
+
+            HStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 3) {
                     ForEach(StatisticsDetailTab.allCases) { tab in
-                        Button {
-                            selectedTab = tab
-                        } label: {
-                            Text(tab.title)
-                                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                                .frame(width: 118)
-                                .padding(.vertical, 8)
-                                .foregroundStyle(selectedTab == tab ? Color.white : Color.primary)
-                                .background {
-                                    if selectedTab == tab {
-                                        RoundedRectangle(cornerRadius: 9)
-                                            .fill(Color.accentColor)
-                                    }
-                                }
-                                .contentShape(RoundedRectangle(cornerRadius: 9))
+                        SettingsSidebarItem(
+                            title: tab.title,
+                            systemImage: tab.systemImage,
+                            isSelected: selectedTab == tab
+                        ) {
+                            withAnimation(.easeInOut(duration: 0.16)) {
+                                selectedTab = tab
+                            }
                         }
-                        .buttonStyle(.plain)
-                        .contentShape(RoundedRectangle(cornerRadius: 9))
-                        .focusable(false)
                     }
+                    Spacer(minLength: 0)
                 }
-                .padding(3)
-                .background(AppColors.badge)
-                .clipShape(RoundedRectangle(cornerRadius: 11))
+                .padding(14)
+                .frame(width: 160)
+                .frame(maxHeight: .infinity, alignment: .topLeading)
 
-                Spacer(minLength: 0)
-                Button("完成", action: onClose)
-                    .buttonStyle(.bordered)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+                Divider()
 
-            ScrollView(.vertical, showsIndicators: true) {
-                Group {
-                    switch selectedTab {
-                    case .typing:
-                        TypingStatisticsDetailContent(typingStats: typingStats)
-                    case .development:
-                        DevelopmentStatisticsDetailContent(store: wakaTimeUsageStore)
+                ScrollView(.vertical, showsIndicators: true) {
+                    Group {
+                        switch selectedTab {
+                        case .typing:
+                            TypingStatisticsDetailContent(typingStats: typingStats)
+                        case .development:
+                            DevelopmentStatisticsDetailContent(store: wakaTimeUsageStore)
+                        }
                     }
+                    .padding(.bottom, 4)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .padding(24)
                 }
-                .padding(.bottom, 4)
+                .background(ThinScrollViewConfigurator(verticalInset: 6))
             }
-            .background(ThinScrollViewConfigurator(verticalInset: 6))
         }
-        .padding(20)
-        .frame(width: 720, height: 640, alignment: .topLeading)
-        .background(AppColors.background)
+        .frame(width: 780, height: 640, alignment: .topLeading)
+        .background(.clear)
     }
 }
 
@@ -304,7 +300,7 @@ private struct DetailSection<Content: View>: View {
             content
         }
         .padding(14)
-        .background(AppColors.card)
+        .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
