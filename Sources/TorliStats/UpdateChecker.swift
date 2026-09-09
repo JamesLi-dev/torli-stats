@@ -26,7 +26,10 @@ enum AppUpdateCheckStatus: Equatable {
 }
 
 final class AppUpdateChecker: ObservableObject {
-    private static let latestReleaseURL = URL(string: "https://api.github.com/repos/JamesLi-dev/torli-stats/releases/latest")!
+    // The GitHub REST API has a shared unauthenticated quota of 60 requests per
+    // IP. The release page redirects to the latest tag without consuming that
+    // API quota, so it remains reliable for users behind shared networks.
+    private static let latestReleaseURL = URL(string: "https://github.com/JamesLi-dev/torli-stats/releases/latest")!
     private static let checkInterval: TimeInterval = 24 * 60 * 60
     private static let lastCheckKey = "appUpdateLastCheckDate"
 
@@ -51,20 +54,19 @@ final class AppUpdateChecker: ObservableObject {
 
         var request = URLRequest(url: Self.latestReleaseURL)
         request.timeoutInterval = 12
+        request.httpMethod = "HEAD"
         request.setValue("TorliStats/\(currentVersion)", forHTTPHeaderField: "User-Agent")
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("text/html", forHTTPHeaderField: "Accept")
 
         task = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.task = nil
-                self.defaults.set(Date(), forKey: Self.lastCheckKey)
 
                 guard error == nil,
                       let httpResponse = response as? HTTPURLResponse,
                       (200..<300).contains(httpResponse.statusCode),
-                      let data,
-                      let release = Self.parseRelease(data),
+                      let release = Self.parseReleaseRedirect(response),
                       let remoteVersion = Version(release.version),
                       let installedVersion = Version(self.currentVersion) else {
                     self.status = .failed
@@ -72,6 +74,7 @@ final class AppUpdateChecker: ObservableObject {
                     return
                 }
 
+                self.defaults.set(Date(), forKey: Self.lastCheckKey)
                 if remoteVersion > installedVersion {
                     self.status = .available(release)
                     completion?(release)
@@ -88,20 +91,16 @@ final class AppUpdateChecker: ObservableObject {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
     }
 
-    private static func parseRelease(_ data: Data) -> AppUpdateRelease? {
-        struct GitHubRelease: Decodable {
-            let tag_name: String
-            let html_url: URL
-            let published_at: Date?
-        }
-
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        guard let release = try? decoder.decode(GitHubRelease.self, from: data) else { return nil }
+    private static func parseReleaseRedirect(_ response: URLResponse?) -> AppUpdateRelease? {
+        guard let url = response?.url else { return nil }
+        let marker = "/releases/tag/"
+        guard let range = url.path.range(of: marker) else { return nil }
+        let tag = String(url.path[range.upperBound...])
+        guard !tag.isEmpty else { return nil }
         return AppUpdateRelease(
-            version: release.tag_name.trimmingCharacters(in: CharacterSet(charactersIn: "vV ")),
-            downloadURL: release.html_url,
-            publishedAt: release.published_at
+            version: tag.trimmingCharacters(in: CharacterSet(charactersIn: "vV ")),
+            downloadURL: url,
+            publishedAt: nil
         )
     }
 

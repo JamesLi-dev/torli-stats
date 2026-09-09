@@ -13,6 +13,7 @@ All notable changes to Torli Stats are documented here.
 - Brightens the shared Settings glass surface to reduce wallpaper colour cast, and adds constrained, column-following daily-chart tooltips for typing and development details.
 - Adds date ticks to detailed daily charts, and refines the Notes library with a compact, theme-aware glass shell that preserves each note's readable paper colour.
 - Makes the Notes library sidebar an AppKit-native splitter with a persisted 180–340pt width and a 200pt default, avoiding editor flicker while resizing.
+- Checks GitHub's latest-release redirect instead of its rate-limited REST API, so update checks remain available on shared networks.
 
 ### 中文
 - 重构 Torli Stats、Torli Notes 与详细统计窗口：使用紧凑的左侧导航和统一的右侧详情布局。
@@ -23,6 +24,7 @@ All notable changes to Torli Stats are documented here.
 - 提亮统一设置毛玻璃表面以减少壁纸色偏，并为输入统计和开发统计加入受边界约束、随柱子横向移动的每日 Tooltip。
 - 为详细统计的每日图表补充日期刻度，并优化所有便签窗口：使用紧凑且跟随主题的毛玻璃外壳，同时保留每张便签清晰可读的纸张主体色。
 - 所有便签左栏改为 AppKit 原生可调分栏，宽度可在 180–340pt 间调整、默认 200pt 且会记忆；拖动时不再引发编辑器闪动。
+- 更新检查改用 GitHub 最新发布页面的跳转地址，不再依赖容易触发限额的 REST API，共享网络下也能正常检查更新。
 
 ## [1.2.2] — 2026-09-08
 
