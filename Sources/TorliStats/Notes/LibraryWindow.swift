@@ -35,13 +35,13 @@ final class LibraryWindow: NSObject, NSWindowDelegate {
         if model.selection == nil { model.selection = currentList().first?.id }
 
         if window == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 940, height: 580),
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 840, height: 580),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                              backing: .buffered, defer: false)
             w.title = "Torli 便签"
             w.titlebarAppearsTransparent = true
             w.isReleasedWhenClosed = false
-            w.minSize = NSSize(width: 720, height: 420)
+            w.minSize = NSSize(width: 680, height: 420)
             w.delegate = self
             w.contentView = NSHostingView(rootView: LibraryView(model: model))
             w.center()
@@ -87,13 +87,13 @@ struct LibraryView: View {
     var body: some View {
         HStack(spacing: 0) {
             sidebar
-                .frame(width: 300)
+                .frame(width: 240)
                 .background(.regularMaterial)
             Divider()
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(minWidth: 720, minHeight: 420)
+        .frame(minWidth: 680, minHeight: 420)
         .onChange(of: model.mode) { _, _ in
             model.selection = filtered.first?.id
         }
@@ -114,7 +114,7 @@ struct LibraryView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             .padding(.horizontal, 12)
-            .padding(.top, 34)
+            .padding(.top, 8)
             .padding(.bottom, 8)
 
             HStack(spacing: 6) {
@@ -327,7 +327,7 @@ struct LibraryDetail: View {
                 .buttonStyle(.plain).foregroundStyle(.secondary)
             }
             .padding(.horizontal, 16)
-            .padding(.top, 34)
+            .padding(.top, 8)
             .padding(.bottom, 10)
             .background(pal.dash.opacity(0.12))
 

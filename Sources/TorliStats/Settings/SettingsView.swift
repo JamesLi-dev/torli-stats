@@ -78,7 +78,7 @@ struct SettingsView: View {
 
     var body: some View {
         ZStack {
-            SettingsGlassBackdrop()
+            SettingsWindowBackground()
                 .ignoresSafeArea()
 
             HStack(spacing: 0) {

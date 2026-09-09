@@ -11,6 +11,12 @@ enum AppColors {
             : NSColor(calibratedRed: 0.955, green: 0.955, blue: 0.965, alpha: 1)
     }
     static let background = Color(nsColor: backgroundNSColor)
+    // A translucent neutral veil keeps the wallpaper-backed glass bright and
+    // avoids warm/grey wallpaper colours tinting Settings surfaces.
+    static let settingsGlassTint = adaptive(
+        light: NSColor(calibratedWhite: 1.0, alpha: 0.30),
+        dark: NSColor(calibratedWhite: 1.0, alpha: 0.055)
+    )
     static let card = adaptive(
         light: NSColor(calibratedRed: 1.0, green: 1.0, blue: 1.0, alpha: 0.78),
         dark: NSColor(calibratedRed: 0.155, green: 0.155, blue: 0.170, alpha: 0.82)

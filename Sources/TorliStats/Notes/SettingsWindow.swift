@@ -309,7 +309,7 @@ struct NotesSettingsView: View {
 
     var body: some View {
         ZStack {
-            SettingsGlassBackdrop()
+            SettingsWindowBackground()
                 .ignoresSafeArea()
 
             HStack(spacing: 0) {
@@ -398,102 +398,124 @@ struct NotesSettingsView: View {
 
     @ViewBuilder
     private var deckTab: some View {
-        row(NotesL10n.text("settings.deck.language")) {
-            VStack(alignment: .leading, spacing: 4) {
-                Picker("", selection: $model.appLanguage) {
-                    ForEach(AppLanguage.allCases) { language in
-                        Text(language.localizedName).tag(language)
+        // Keep controls in one aligned group and place behaviour options in a
+        // separate block. This avoids the alternating label/control/toggle
+        // rhythm that made the panel difficult to scan.
+        VStack(alignment: .leading, spacing: 12) {
+            row(NotesL10n.text("settings.deck.language")) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Picker("", selection: $model.appLanguage) {
+                        ForEach(AppLanguage.allCases) { language in
+                            Text(language.localizedName).tag(language)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 220, alignment: .leading)
+                    Text(NotesL10n.text("settings.deck.language_help"))
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+            }
+
+            Divider().padding(.vertical, 2)
+
+            row(NotesL10n.text("settings.deck.style")) {
+                Picker("", selection: $model.deckStyle) {
+                    ForEach(DeckStyle.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(width: 240, alignment: .leading)
+            }
+            row(NotesL10n.text("settings.deck.size")) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 10) {
+                        Slider(value: $model.deckScale,
+                               in: NotesSettings.deckScaleRange.lowerBound...NotesSettings.deckScaleRange.upperBound,
+                               step: 0.05)
+                            .frame(width: 210)
+                        Text("\(Int((model.deckScale * 100).rounded()))%")
+                            .font(.system(size: 11).monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .frame(width: 52, alignment: .leading)
+                    }
+                    Text(NotesL10n.text("settings.deck.size_help"))
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+            }
+            if model.screens.count > 1 {
+                row(NotesL10n.text("settings.deck.display")) {
+                    Picker("", selection: $model.displayTarget) {
+                        Text(NotesL10n.text("display.all")).tag("all")
+                        Text(NotesL10n.text("display.main")).tag("main")
+                        ForEach(model.screens, id: \.self) { screen in
+                            if let id = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value {
+                                let name = screen.localizedName
+                                let title = screen == NSScreen.main ? NotesL10n.format("display.named_main", name) : name
+                                Text(title).tag("id:\(id)")
+                            }
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 220, alignment: .leading)
+                }
+            }
+            row("固定位置") {
+                Picker("", selection: $model.deckCorner) {
+                    ForEach(DeckCorner.allCases) { corner in
+                        Text(corner.title).tag(corner)
                     }
                 }
                 .labelsHidden()
-                .frame(width: 220)
-                Text(NotesL10n.text("settings.deck.language_help"))
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                .pickerStyle(.segmented)
+                .frame(width: 240, alignment: .leading)
             }
-        }
-        Divider().padding(.vertical, 2)
-        row(NotesL10n.text("settings.deck.style")) {
-            Picker("", selection: $model.deckStyle) {
-                ForEach(DeckStyle.allCases, id: \.self) { Text($0.title).tag($0) }
-            }.labelsHidden().pickerStyle(.segmented).frame(width: 240)
-        }
-        row(NotesL10n.text("settings.deck.size")) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 10) {
-                    Slider(value: $model.deckScale,
-                           in: NotesSettings.deckScaleRange.lowerBound...NotesSettings.deckScaleRange.upperBound,
-                           step: 0.05).frame(width: 210)
-                    Text("\(Int((model.deckScale * 100).rounded()))%")
-                        .font(.system(size: 11).monospacedDigit())
-                        .foregroundStyle(.secondary).frame(width: 52, alignment: .leading)
-                }
-                Text(NotesL10n.text("settings.deck.size_help"))
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
-            }
-        }
-        if model.screens.count > 1 {
-            row(NotesL10n.text("settings.deck.display")) {
-                Picker("", selection: $model.displayTarget) {
-                    Text(NotesL10n.text("display.all")).tag("all")
-                    Text(NotesL10n.text("display.main")).tag("main")
-                    ForEach(model.screens, id: \.self) { s in
-                        if let id = (s.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value {
-                            let name = s.localizedName
-                            let title = s == NSScreen.main ? NotesL10n.format("display.named_main", name) : name
-                            Text(title).tag("id:\(id)")
+            row(NotesL10n.text("settings.deck.detection_area")) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Picker("", selection: $model.edgeWidth) {
+                        ForEach(NotesSettings.edgeWidths, id: \.width) {
+                            Text(NotesL10n.text($0.nameKey)).tag($0.width)
                         }
                     }
-                }.labelsHidden().frame(width: 220)
-            }
-        }
-        row("固定位置") {
-            Picker("", selection: $model.deckCorner) {
-                ForEach(DeckCorner.allCases) { corner in
-                    Text(corner.title).tag(corner)
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(width: 300, alignment: .leading)
+                    Text(NotesL10n.format("settings.deck.detection_help", Int(model.edgeWidth)))
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
                 }
             }
-            .labelsHidden()
-            .pickerStyle(.segmented)
-            .frame(width: 240)
         }
-        row(NotesL10n.text("settings.deck.detection_area")) {
-            VStack(alignment: .leading, spacing: 4) {
-                Picker("", selection: $model.edgeWidth) {
-                    ForEach(NotesSettings.edgeWidths, id: \.width) { Text(NotesL10n.text($0.nameKey)).tag($0.width) }
-                }.labelsHidden().pickerStyle(.segmented).frame(width: 300)
-                Text(NotesL10n.format("settings.deck.detection_help", Int(model.edgeWidth)))
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
+
+        Divider().padding(.vertical, 3)
+
+        VStack(alignment: .leading, spacing: 12) {
+            deckToggle(
+                NotesL10n.text("settings.deck.keep_open"),
+                help: NotesL10n.text("settings.deck.keep_open_help"),
+                isOn: $model.alwaysShown
+            )
+            deckToggle(
+                NotesL10n.text("settings.deck.hide_pill"),
+                help: NotesL10n.text("settings.deck.hide_pill_help"),
+                isOn: $model.pillHidden
+            )
+            deckToggle(
+                NotesL10n.text("settings.deck.hover_open"),
+                help: NotesL10n.text("settings.deck.hover_open_help"),
+                isOn: $model.openOnHover
+            )
+            if !model.openOnHover {
+                deckToggle(
+                    NotesL10n.text("settings.deck.hover_preview"),
+                    help: NotesL10n.text("settings.deck.hover_preview_help"),
+                    isOn: $model.tabPreview
+                )
             }
+            Toggle(NotesL10n.text("menu.show_over_fullscreen"), isOn: $model.overFullScreen)
         }
-        VStack(alignment: .leading, spacing: 3) {
-            Toggle(NotesL10n.text("settings.deck.keep_open"), isOn: $model.alwaysShown)
-            Text(NotesL10n.text("settings.deck.keep_open_help"))
-                .font(.system(size: 11)).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-                    VStack(alignment: .leading, spacing: 3) {
-                        Toggle(NotesL10n.text("settings.deck.hide_pill"), isOn: $model.pillHidden)
-                        Text(NotesL10n.text("settings.deck.hide_pill_help"))
-                            .font(.system(size: 11)).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-        // Pointless alongside hover-to-open — the note itself opens — so the
-        // row disappears rather than sitting there doing nothing.
-        if !model.openOnHover {
-            VStack(alignment: .leading, spacing: 3) {
-                Toggle(NotesL10n.text("settings.deck.hover_preview"), isOn: $model.tabPreview)
-                Text(NotesL10n.text("settings.deck.hover_preview_help"))
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
-            }
-        }
-        VStack(alignment: .leading, spacing: 3) {
-            Toggle(NotesL10n.text("settings.deck.hover_open"), isOn: $model.openOnHover)
-            Text(NotesL10n.text("settings.deck.hover_open_help"))
-                .font(.system(size: 11)).foregroundStyle(.secondary)
-        }
-        Toggle(NotesL10n.text("menu.show_over_fullscreen"), isOn: $model.overFullScreen)
+
         Text(NotesL10n.text("settings.deck.drag_help"))
-            .font(.system(size: 11)).foregroundStyle(.secondary)
+            .font(.system(size: 11))
+            .foregroundStyle(.secondary)
             .padding(.top, 2)
     }
 
@@ -502,7 +524,7 @@ struct NotesSettingsView: View {
         row(NotesL10n.text("settings.notes.font")) {
             Picker("", selection: $model.fontName) {
                 ForEach(Ink.faces, id: \.body) { Text($0.localizedName).tag($0.body) }
-            }.labelsHidden().frame(width: 200)
+            }.labelsHidden().frame(width: 200, alignment: .leading)
         }
         row(NotesL10n.text("settings.notes.note_size")) {
             Picker("", selection: $model.noteSizeIndex) {
@@ -510,7 +532,7 @@ struct NotesSettingsView: View {
                     Text(NotesL10n.text(s.nameKey)).tag(i)
                 }
             }
-            .labelsHidden().pickerStyle(.segmented).frame(width: 300)
+            .labelsHidden().pickerStyle(.segmented).frame(width: 300, alignment: .leading)
         }
         row(NotesL10n.text("settings.notes.text_size")) {
             HStack(spacing: 10) {
@@ -533,6 +555,16 @@ struct NotesSettingsView: View {
 
 
     // MARK: pieces
+
+    private func deckToggle(_ title: String, help: String, isOn: Binding<Bool>) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Toggle(title, isOn: isOn)
+            Text(help)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
 
     private func subhead(_ text: String) -> some View {
         Text(text)
@@ -567,9 +599,9 @@ struct NotesSettingsView: View {
 }
 
 private enum NotesSettingsCategory: CaseIterable, Identifiable {
-    case shortcuts
     case deck
     case notes
+    case shortcuts
 
     var id: Self { self }
 

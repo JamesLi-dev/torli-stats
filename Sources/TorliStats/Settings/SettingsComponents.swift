@@ -94,7 +94,17 @@ struct DashboardModuleDropDelegate: DropDelegate {
 }
 /// A behind-window material surface covers the full-size content view,
 /// including the transparent titlebar, for one continuous frosted treatment.
-struct SettingsGlassBackdrop: NSViewRepresentable {
+struct SettingsWindowBackground: View {
+    var body: some View {
+        ZStack {
+            SettingsGlassBackdrop()
+            AppColors.settingsGlassTint
+                .allowsHitTesting(false)
+        }
+    }
+}
+
+private struct SettingsGlassBackdrop: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
         view.material = .underWindowBackground
@@ -131,6 +141,9 @@ struct SettingsSidebarItem: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // Sidebar selection is represented by its fill; keyboard focus should
+        // not add AppKit's blue focus ring to an unselected navigation row.
+        .focusable(false)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
