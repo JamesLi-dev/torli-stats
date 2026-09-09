@@ -69,17 +69,17 @@ final class MonitoringPauseController {
     func start() {
         observeWorkspaceLifecycle()
         observeScreenLockLifecycle()
-        evaluate(notifyWhenUnchanged: false)
+        evaluate(reconfigureTimers: true)
     }
 
     func updateSchedule() {
-        evaluate()
+        evaluate(reconfigureTimers: true)
     }
 
     func setDashboardVisible(_ visible: Bool) {
         guard dashboardVisible != visible else { return }
         dashboardVisible = visible
-        evaluate()
+        evaluate(reconfigureTimers: true)
     }
 
     /// Lets explicit actions (for example a menu refresh) leave low-frequency
@@ -130,13 +130,18 @@ final class MonitoringPauseController {
         observers.append((center, observer))
     }
 
-    private func evaluate(notifyWhenUnchanged: Bool = true) {
+    /// Re-evaluates policy without emitting work downstream unless it changed.
+    /// Reconfiguring timers is reserved for lifecycle and setting changes; the
+    /// repeating idle timer must not recreate itself every minute.
+    private func evaluate(reconfigureTimers: Bool = false) {
         let newMode = resolvedMode(at: Date())
         let changed = newMode != mode
         mode = newMode
-        installBoundaryTimer()
-        installIdleTimerIfNeeded()
-        if changed || notifyWhenUnchanged {
+        if changed || reconfigureTimers {
+            installBoundaryTimer()
+            installIdleTimerIfNeeded()
+        }
+        if changed {
             onSamplingModeChanged?(newMode)
         }
     }

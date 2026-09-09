@@ -78,8 +78,7 @@ struct DashboardView: View {
         if store.isAdaptiveLowFrequency {
             return "节能采样中：空闲时每 30 秒更新"
         }
-        let seconds = settings.nightMonitoringPauseEndSeconds
-        return "监控已暂停，计划于 \(String(format: "%02d:%02d", seconds / 3_600, (seconds % 3_600) / 60)) 恢复"
+        return store.monitoringPauseMessage ?? "监控已暂停"
     }
 
     private var layoutBlocks: [DashboardLayoutBlock] {

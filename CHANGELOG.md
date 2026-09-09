@@ -2,6 +2,28 @@
 
 All notable changes to Torli Stats are documented here.
 
+## [1.2.3] — 2026-09-09
+
+### English
+- Redesigns Torli Stats, Torli Notes, and detailed-statistics preferences with compact left-side navigation and a consistent right-side detail layout.
+- Unifies their neutral light/dark surfaces and adds a native frosted-glass background that extends through the titlebar, while retaining readable material setting cards.
+- Shows the specific monitoring-pause reason in Dashboard, such as night schedule, screen lock, display sleep, or system sleep.
+- Avoids redundant adaptive-sampling broadcasts and timer recreation; pause state and its Dashboard message now update atomically, while inactive Settings windows reduce visual-effect compositing work.
+- Refines Notes settings and library-window spacing, alignment, and compact sizing; navigation shortcuts appear last and inactive navigation rows no longer draw a blue focus ring.
+- Brightens the shared Settings glass surface to reduce wallpaper colour cast, and adds constrained, column-following daily-chart tooltips for typing and development details.
+- Adds date ticks to detailed daily charts, and refines the Notes library with a compact, theme-aware glass shell that preserves each note's readable paper colour.
+- Makes the Notes library sidebar an AppKit-native splitter with a persisted 180–340pt width and a 200pt default, avoiding editor flicker while resizing.
+
+### 中文
+- 重构 Torli Stats、Torli Notes 与详细统计窗口：使用紧凑的左侧导航和统一的右侧详情布局。
+- 统一亮色与暗色下的中性配色，并加入延伸至标题栏的原生毛玻璃背景，同时保留清晰可读的材质化设置卡片。
+- Dashboard 现在会按夜间时段、屏幕锁定、显示器休眠或系统睡眠展示具体的监控暂停原因。
+- 避免智能采样的冗余状态广播与定时器重建；暂停状态和 Dashboard 文案改为原子更新，设置窗口失焦后也会减少毛玻璃合成开销。
+- 优化便签设置与所有便签窗口的间距、对齐和紧凑尺寸；快捷键移至导航末尾，未选中导航项不再显示蓝色焦点框。
+- 提亮统一设置毛玻璃表面以减少壁纸色偏，并为输入统计和开发统计加入受边界约束、随柱子横向移动的每日 Tooltip。
+- 为详细统计的每日图表补充日期刻度，并优化所有便签窗口：使用紧凑且跟随主题的毛玻璃外壳，同时保留每张便签清晰可读的纸张主体色。
+- 所有便签左栏改为 AppKit 原生可调分栏，宽度可在 180–340pt 间调整、默认 200pt 且会记忆；拖动时不再引发编辑器闪动。
+
 ## [1.2.2] — 2026-09-08
 
 ### English

@@ -26,6 +26,7 @@ final class LibraryModel: ObservableObject {
 final class LibraryWindow: NSObject, NSWindowDelegate {
     static let shared = LibraryWindow()
     private var window: NSWindow?
+    private var preferredAppearance: NSAppearance?
     private let model = LibraryModel()
 
     var isOpen: Bool { window?.isVisible ?? false }
@@ -35,13 +36,16 @@ final class LibraryWindow: NSObject, NSWindowDelegate {
         if model.selection == nil { model.selection = currentList().first?.id }
 
         if window == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 940, height: 580),
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 840, height: 580),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                              backing: .buffered, defer: false)
             w.title = "Torli 便签"
             w.titlebarAppearsTransparent = true
+            w.isOpaque = false
+            w.backgroundColor = .clear
+            w.appearance = preferredAppearance
             w.isReleasedWhenClosed = false
-            w.minSize = NSSize(width: 720, height: 420)
+            w.minSize = NSSize(width: 680, height: 420)
             w.delegate = self
             w.contentView = NSHostingView(rootView: LibraryView(model: model))
             w.center()
@@ -50,6 +54,12 @@ final class LibraryWindow: NSObject, NSWindowDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
+    }
+
+    func applyAppearance(_ appearance: NSAppearance?) {
+        preferredAppearance = appearance
+        window?.appearance = appearance
+        window?.backgroundColor = .clear
     }
 
     private func currentList() -> [Note] {
@@ -85,15 +95,18 @@ struct LibraryView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            sidebar
-                .frame(width: 300)
-                .background(.regularMaterial)
-            Divider()
-            detail
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        ZStack {
+            // Share Settings' bright, neutral glass only as the window shell.
+            // The editor itself stays on its note-colour paper for readability.
+            SettingsWindowBackground()
+                .ignoresSafeArea()
+
+            PersistentLibrarySplitView(
+                sidebar: sidebar.background(.regularMaterial),
+                detail: detail.frame(minWidth: 440, maxWidth: .infinity, maxHeight: .infinity)
+            )
         }
-        .frame(minWidth: 720, minHeight: 420)
+        .frame(minWidth: 680, minHeight: 420)
         .onChange(of: model.mode) { _, _ in
             model.selection = filtered.first?.id
         }
@@ -114,7 +127,7 @@ struct LibraryView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             .padding(.horizontal, 12)
-            .padding(.top, 34)
+            .padding(.top, 8)
             .padding(.bottom, 8)
 
             HStack(spacing: 6) {
@@ -252,6 +265,87 @@ struct LibraryView: View {
     }
 }
 
+/// Uses AppKit's split view for live resizing. Unlike a SwiftUI drag gesture,
+/// it resizes the hosted editor without rebuilding it for every mouse event.
+private struct PersistentLibrarySplitView<Sidebar: View, Detail: View>: NSViewRepresentable {
+    let sidebar: Sidebar
+    let detail: Detail
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSSplitView {
+        let splitView = NSSplitView()
+        splitView.isVertical = true
+        splitView.dividerStyle = .thin
+        splitView.delegate = context.coordinator
+        splitView.autosaveName = "notesLibrarySplitView"
+
+        let sidebarHost = NSHostingView(rootView: AnyView(sidebar))
+        sidebarHost.autoresizingMask = [.height]
+        let detailHost = NSHostingView(rootView: AnyView(detail))
+        detailHost.autoresizingMask = [.width, .height]
+        splitView.addSubview(sidebarHost)
+        splitView.addSubview(detailHost)
+
+        context.coordinator.sidebarHost = sidebarHost
+        context.coordinator.detailHost = detailHost
+        let initialWidth = context.coordinator.savedSidebarWidth
+        DispatchQueue.main.async {
+            splitView.setPosition(initialWidth, ofDividerAt: 0)
+            splitView.adjustSubviews()
+        }
+        return splitView
+    }
+
+    func updateNSView(_ splitView: NSSplitView, context: Context) {
+        context.coordinator.sidebarHost?.rootView = AnyView(sidebar)
+        context.coordinator.detailHost?.rootView = AnyView(detail)
+    }
+
+    final class Coordinator: NSObject, NSSplitViewDelegate {
+        private var widthKey: String { "notesLibrarySidebarWidth" }
+        weak var sidebarHost: NSHostingView<AnyView>?
+        weak var detailHost: NSHostingView<AnyView>?
+
+        var savedSidebarWidth: CGFloat {
+            let stored = UserDefaults.standard.object(forKey: widthKey) as? Double ?? 200
+            return min(340, max(180, CGFloat(stored)))
+        }
+
+        func splitView(
+            _ splitView: NSSplitView,
+            constrainMinCoordinate proposedMinimumPosition: CGFloat,
+            ofSubviewAt dividerIndex: Int
+        ) -> CGFloat {
+            180
+        }
+
+        func splitView(
+            _ splitView: NSSplitView,
+            constrainMaxCoordinate proposedMaximumPosition: CGFloat,
+            ofSubviewAt dividerIndex: Int
+        ) -> CGFloat {
+            min(340, proposedMaximumPosition)
+        }
+
+        func splitView(_ splitView: NSSplitView, canCollapseSubview subview: NSView) -> Bool {
+            false
+        }
+
+        func splitView(_ splitView: NSSplitView, shouldAdjustSizeOfSubview subview: NSView) -> Bool {
+            subview === detailHost
+        }
+
+        func splitViewDidResizeSubviews(_ notification: Notification) {
+            guard let splitView = notification.object as? NSSplitView,
+                  let sidebar = splitView.subviews.first else {
+                return
+            }
+            UserDefaults.standard.set(Double(sidebar.frame.width), forKey: widthKey)
+        }
+    }
+}
+
 // MARK: - Detail pane
 
 struct LibraryDetail: View {
@@ -327,7 +421,7 @@ struct LibraryDetail: View {
                 .buttonStyle(.plain).foregroundStyle(.secondary)
             }
             .padding(.horizontal, 16)
-            .padding(.top, 34)
+            .padding(.top, 8)
             .padding(.bottom, 10)
             .background(pal.dash.opacity(0.12))
 

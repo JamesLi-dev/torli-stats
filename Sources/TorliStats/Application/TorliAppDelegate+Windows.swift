@@ -29,16 +29,17 @@ extension TorliAppDelegate {
             }
         )
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 860, height: 760),
-            styleMask: [.titled, .closable, .resizable],
+            contentRect: NSRect(x: 0, y: 0, width: 940, height: 760),
+            styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.title = "Torli Stats 设置"
         window.titlebarAppearsTransparent = true
-        window.backgroundColor = AppColors.backgroundNSColor
+        window.isOpaque = false
+        window.backgroundColor = .clear
         window.appearance = self.settings.theme.windowAppearance
-        window.minSize = NSSize(width: 860, height: 420)
+        window.minSize = NSSize(width: 900, height: 520)
         window.isReleasedWhenClosed = false
         window.contentViewController = NSHostingController(rootView: settings)
         window.center()
@@ -53,10 +54,7 @@ extension TorliAppDelegate {
                 rootView: StatisticsDetailView(
                     typingStats: typingStats,
                     wakaTimeUsageStore: wakaTimeUsageStore,
-                    initialTab: initialTab,
-                    onClose: { [weak statisticsDetailsWindow] in
-                        statisticsDetailsWindow?.close()
-                    }
+                    initialTab: initialTab
                 )
             )
             statisticsDetailsWindow.makeKeyAndOrderFront(nil)
@@ -65,24 +63,22 @@ extension TorliAppDelegate {
         }
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 720, height: 640),
-            styleMask: [.titled, .closable],
+            contentRect: NSRect(x: 0, y: 0, width: 780, height: 640),
+            styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.title = "详细统计"
         window.titlebarAppearsTransparent = true
-        window.backgroundColor = AppColors.backgroundNSColor
+        window.isOpaque = false
+        window.backgroundColor = .clear
         window.appearance = settings.theme.windowAppearance
         window.isReleasedWhenClosed = false
         window.contentViewController = NSHostingController(
             rootView: StatisticsDetailView(
                 typingStats: typingStats,
                 wakaTimeUsageStore: wakaTimeUsageStore,
-                initialTab: initialTab,
-                onClose: { [weak window] in
-                    window?.close()
-                }
+                initialTab: initialTab
             )
         )
         window.center()
