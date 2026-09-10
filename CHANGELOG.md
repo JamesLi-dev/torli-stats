@@ -2,6 +2,20 @@
 
 All notable changes to Torli Stats are documented here.
 
+## [1.4.1] — 2026-09-10
+
+### English
+
+- Refreshes Note typography with a clearer reading-oriented font list: System, Helvetica Neue, PingFang SC, Songti SC, Palatino, and Menlo.
+- Adds optional code-oriented faces—Maple Mono, Fira Code, Space Mono, and PT Mono—when installed on the Mac.
+- Retires the former handwriting-style and legacy choices. Existing selections of retired fonts safely fall back to System.
+
+### 中文
+
+- 更新 Note 字体列表，提供更清晰易读的 System、Helvetica Neue、PingFang SC、Songti SC、Palatino 和 Menlo。
+- 新增 Maple Mono、Fira Code、Space Mono 与 PT Mono 等代码风格字体；仅在 Mac 已安装对应字体时显示。
+- 移除原有手写风格和旧字体选项；已选择被移除字体的用户会自动回退至系统字体。
+
 ## [1.4.0] — 2026-09-10
 
 <!-- ai-changelog:3d322e73c0ef -->
