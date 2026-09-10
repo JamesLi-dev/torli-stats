@@ -130,8 +130,13 @@ struct SettingsSidebarItem: View {
 
     var body: some View {
         Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
+            HStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 16, weight: .regular))
+                    .frame(width: 22, height: 20)
+                Text(title)
+                    .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
+            }
                 .foregroundStyle(isSelected ? .primary : .secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 11)
@@ -161,7 +166,7 @@ struct SettingsSection<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Text(title)
+            Text(StatsL10n.text(title))
                 .font(.system(size: 16, weight: .semibold, design: .rounded))
                 .foregroundStyle(.primary)
 

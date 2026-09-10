@@ -14,6 +14,9 @@ final class AppSettings: ObservableObject {
     @Published var theme: ThemePreference {
         didSet { defaults.set(theme.rawValue, forKey: "themePreference") }
     }
+    @Published var appLanguage: AppLanguage {
+        didSet { AppLanguageSettings.language = appLanguage }
+    }
     @Published var showCPU: Bool {
         didSet { defaults.set(showCPU, forKey: "showCPU") }
     }
@@ -136,7 +139,7 @@ final class AppSettings: ObservableObject {
         [
             .defaultAccount(
                 homePath: codexHomePath,
-                displayName: resolvedCodexDisplayName(codexDefaultAccountName, fallback: "默认账号"),
+                displayName: resolvedCodexDisplayName(codexDefaultAccountName, fallback: StatsL10n.text("codex.settings.default_account")),
                 isDashboardVisible: showCodexCard,
                 isStatusBarIncluded: showCodexStatusItem
             )
@@ -197,6 +200,7 @@ final class AppSettings: ObservableObject {
 
     init() {
         theme = ThemePreference(rawValue: defaults.string(forKey: "themePreference") ?? "") ?? .system
+        appLanguage = AppLanguageSettings.language
         showCPU = defaults.object(forKey: "showCPU") as? Bool ?? true
         showMemory = defaults.object(forKey: "showMemory") as? Bool ?? true
         showDownload = defaults.object(forKey: "showDownload") as? Bool ?? true
@@ -228,7 +232,7 @@ final class AppSettings: ObservableObject {
         privacyMode = defaults.object(forKey: "privacyMode") as? Bool ?? false
         automaticUpdateChecks = defaults.object(forKey: "automaticUpdateChecks") as? Bool ?? true
         typingStatsEnabled = defaults.object(forKey: "typingStatsEnabled") as? Bool ?? false
-        codexDefaultAccountName = defaults.string(forKey: "codexDefaultAccountName") ?? "默认账号"
+        codexDefaultAccountName = defaults.string(forKey: "codexDefaultAccountName") ?? StatsL10n.text("codex.settings.default_account")
         codexHomePath = defaults.string(forKey: "codexHomePath") ?? ""
         codexAutoRefresh = defaults.object(forKey: "codexAutoRefresh") as? Bool ?? true
         let savedCodexRefreshInterval = defaults.integer(forKey: "codexRefreshInterval")
@@ -271,9 +275,9 @@ final class AppSettings: ObservableObject {
         sensorHelperVersion = nil
         sensorProtocolVersion = nil
         sensorSignatureMessage = nil
-        sensorFanReason = "尚未检测。"
-        sensorCPUTemperatureReason = "尚未检测。"
-        sensorGPUTemperatureReason = "尚未检测。"
+        sensorFanReason = StatsL10n.text("sensor.status.not_checked")
+        sensorCPUTemperatureReason = StatsL10n.text("sensor.status.not_checked")
+        sensorGPUTemperatureReason = StatsL10n.text("sensor.status.not_checked")
         sensorOperationDiagnostic = nil
         sensorHelperMessage = nil
         probeSensorHelper()
@@ -307,7 +311,7 @@ final class AppSettings: ObservableObject {
         let rootURL = URL(fileURLWithPath: NSHomeDirectory())
             .appendingPathComponent(".torli-stats-codex", isDirectory: true)
         let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedName = trimmedName.isEmpty ? "账号 \(codexManagedAccounts.count + 1)" : trimmedName
+        let resolvedName = trimmedName.isEmpty ? StatsL10n.format("codex.settings.account_number", codexManagedAccounts.count + 1) : trimmedName
         let baseDirectoryName = codexDirectoryName(for: resolvedName)
         let directoryName = uniqueCodexDirectoryName(base: baseDirectoryName, rootURL: rootURL)
         let homeURL = rootURL.appendingPathComponent(directoryName, isDirectory: true)
@@ -446,7 +450,7 @@ final class AppSettings: ObservableObject {
     func installSensorHelper() {
         runSensorHelperScript(
             named: "install-sensor-helper",
-            successMessage: "辅助进程已安装，正在读取传感器。"
+            successMessage: StatsL10n.text("sensor.operation.installed")
         ) { [weak self] in
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                 self?.probeSensorHelper()
@@ -457,7 +461,7 @@ final class AppSettings: ObservableObject {
     func uninstallSensorHelper() {
         runSensorHelperScript(
             named: "uninstall-sensor-helper",
-            successMessage: "传感器辅助进程已卸载。"
+            successMessage: StatsL10n.text("sensor.operation.uninstalled")
         ) { [weak self] in
             self?.sensorHelperEnabled = false
             self?.sensorHelperReachable = false
@@ -468,9 +472,9 @@ final class AppSettings: ObservableObject {
             self?.sensorHelperVersion = nil
             self?.sensorProtocolVersion = nil
             self?.sensorSignatureMessage = nil
-            self?.sensorFanReason = "辅助进程已卸载。"
-            self?.sensorCPUTemperatureReason = "辅助进程已卸载。"
-            self?.sensorGPUTemperatureReason = "辅助进程已卸载。"
+            self?.sensorFanReason = StatsL10n.text("sensor.operation.uninstalled")
+            self?.sensorCPUTemperatureReason = StatsL10n.text("sensor.operation.uninstalled")
+            self?.sensorGPUTemperatureReason = StatsL10n.text("sensor.operation.uninstalled")
             self?.sensorOperationDiagnostic = nil
         }
     }
@@ -485,14 +489,14 @@ final class AppSettings: ObservableObject {
         onSuccess: @escaping () -> Void = {}
     ) {
         guard let scriptURL = Bundle.main.url(forResource: name, withExtension: "sh") else {
-            sensorHelperMessage = "找不到传感器安装脚本。"
-            sensorOperationDiagnostic = "应用包中缺少 \(name).sh。请重新安装 Torli Stats。"
+            sensorHelperMessage = StatsL10n.text("sensor.operation.script_not_found")
+            sensorOperationDiagnostic = StatsL10n.format("sensor.operation.script_missing", name)
             return
         }
 
         sensorHelperChecking = true
         sensorOperationDiagnostic = nil
-        sensorHelperMessage = "正在处理传感器辅助进程…"
+        sensorHelperMessage = StatsL10n.text("sensor.operation.in_progress")
         let scriptPath = escapeForAppleScript(scriptURL.path)
         let appPath = escapeForAppleScript(Bundle.main.bundlePath)
         let appleScript = "do shell script \"/bin/bash \" & quoted form of \"\(scriptPath)\" & \" \" & quoted form of \"\(appPath)\" with administrator privileges"
@@ -518,15 +522,15 @@ final class AppSettings: ObservableObject {
                         self.sensorHelperMessage = successMessage
                         onSuccess()
                     } else {
-                        self.sensorOperationDiagnostic = diagnostic ?? "osascript 以退出码 \(task.terminationStatus) 结束。"
-                        self.sensorHelperMessage = "传感器辅助进程操作失败：\(Self.sensorOperationSummary(self.sensorOperationDiagnostic!))"
+                        self.sensorOperationDiagnostic = diagnostic ?? StatsL10n.format("sensor.operation.osascript_exit", Int(task.terminationStatus))
+                        self.sensorHelperMessage = StatsL10n.format("sensor.operation.failed_with_reason", Self.sensorOperationSummary(self.sensorOperationDiagnostic!))
                     }
                 }
             } catch {
                 DispatchQueue.main.async {
                     self?.sensorHelperChecking = false
-                    self?.sensorOperationDiagnostic = "无法启动授权操作：\(error.localizedDescription)"
-                    self?.sensorHelperMessage = "传感器辅助进程操作失败。"
+                    self?.sensorOperationDiagnostic = StatsL10n.format("sensor.operation.authorization_launch_failed", error.localizedDescription)
+                    self?.sensorHelperMessage = StatsL10n.text("sensor.operation.failed")
                 }
             }
         }
@@ -557,19 +561,19 @@ final class AppSettings: ObservableObject {
 
                     if helperIsVerified && values.isAvailable {
                         self.sensorLastReadAt = Date()
-                        self.sensorHelperMessage = "辅助进程已运行，版本和签名验证通过。"
+                        self.sensorHelperMessage = StatsL10n.text("sensor.operation.running_verified")
                     } else if !values.isHelperReachable {
                         self.sensorLastReadAt = nil
                         self.sensorHelperMessage = values.diagnosticMessage
                     } else if !protocolIsCompatible {
                         self.sensorLastReadAt = nil
-                        self.sensorHelperMessage = "辅助进程版本不兼容，请重新安装。"
+                        self.sensorHelperMessage = StatsL10n.text("sensor.operation.incompatible")
                     } else if !installation.signatureIsValid {
                         self.sensorLastReadAt = nil
                         self.sensorHelperMessage = installation.signatureMessage
                     } else {
                         self.sensorLastReadAt = nil
-                        self.sensorHelperMessage = values.diagnosticMessage ?? "SMC 传感器当前不可用。"
+                        self.sensorHelperMessage = values.diagnosticMessage ?? StatsL10n.text("sensor.smc.unavailable")
                     }
                 }
             }
@@ -582,32 +586,36 @@ final class AppSettings: ObservableObject {
         #elseif arch(x86_64)
         "Intel (x86_64)"
         #else
-        "未知"
+        StatsL10n.text("sensor.diagnostics.unknown")
         #endif
     }
 
     func copySensorDiagnostics() {
-        let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "未知"
-        let helperVersion = sensorHelperVersion ?? "未读取"
-        let protocolVersion = sensorProtocolVersion.map(String.init) ?? "未读取"
-        let report = """
-        Torli Stats 传感器诊断（不包含设备名称、序列号或账号信息）
-        App 版本：\(appVersion)
-        macOS：\(ProcessInfo.processInfo.operatingSystemVersionString)
-        架构：\(Self.currentArchitecture)
-        辅助进程连接：\(sensorHelperEnabled ? "正常" : "不可用或未验证")
-        Helper 版本：\(helperVersion)
-        协议版本：\(protocolVersion)（期望 \(SensorServiceConstants.protocolVersion)）
-        签名：\(sensorSignatureMessage ?? "未检测")
-        风扇：\(sensorFanAvailable ? "可用" : "不可用")；\(sensorFanReason)
-        CPU 温度：\(sensorCPUTemperatureAvailable ? "可用" : "不可用")；\(sensorCPUTemperatureReason)
-        GPU 温度：\(sensorGPUTemperatureAvailable ? "可用" : "不可用")；\(sensorGPUTemperatureReason)
-        最近成功读取：\(sensorLastReadAt?.formatted(date: .numeric, time: .standard) ?? "无")
-        最近操作诊断：\(sensorOperationDiagnostic.map(Self.sanitizedSensorDiagnostic) ?? "无")
-        """
+        let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? StatsL10n.text("sensor.diagnostics.unknown")
+        let helperVersion = sensorHelperVersion ?? StatsL10n.text("sensor.diagnostics.not_read")
+        let protocolVersion = sensorProtocolVersion.map(String.init) ?? StatsL10n.text("sensor.diagnostics.not_read")
+        let report = StatsL10n.format(
+            "sensor.diagnostics.report",
+            appVersion,
+            ProcessInfo.processInfo.operatingSystemVersionString,
+            Self.currentArchitecture,
+            StatsL10n.text(sensorHelperEnabled ? "sensor.diagnostics.connected" : "sensor.diagnostics.unavailable_or_unverified"),
+            helperVersion,
+            protocolVersion,
+            SensorServiceConstants.protocolVersion,
+            sensorSignatureMessage ?? StatsL10n.text("sensor.diagnostics.not_checked"),
+            StatsL10n.text(sensorFanAvailable ? "sensor.diagnostics.available" : "sensor.diagnostics.unavailable"),
+            sensorFanReason,
+            StatsL10n.text(sensorCPUTemperatureAvailable ? "sensor.diagnostics.available" : "sensor.diagnostics.unavailable"),
+            sensorCPUTemperatureReason,
+            StatsL10n.text(sensorGPUTemperatureAvailable ? "sensor.diagnostics.available" : "sensor.diagnostics.unavailable"),
+            sensorGPUTemperatureReason,
+            sensorLastReadAt?.formatted(date: .numeric, time: .standard) ?? StatsL10n.text("sensor.diagnostics.none"),
+            sensorOperationDiagnostic.map(Self.sanitizedSensorDiagnostic) ?? StatsL10n.text("sensor.diagnostics.none")
+        )
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(report, forType: .string)
-        sensorHelperMessage = "已复制脱敏传感器诊断信息。"
+        sensorHelperMessage = StatsL10n.text("sensor.diagnostics.copied")
     }
 
     private static func sensorOperationOutput(_ output: Data, errorOutput: Data) -> String? {
@@ -678,7 +686,7 @@ final class AppSettings: ObservableObject {
         privacyMode = false
         automaticUpdateChecks = true
         typingStatsEnabled = false
-        codexDefaultAccountName = "默认账号"
+        codexDefaultAccountName = StatsL10n.text("codex.settings.default_account")
         codexHomePath = ""
         codexAutoRefresh = true
         codexRefreshInterval = 5
@@ -706,7 +714,7 @@ final class AppSettings: ObservableObject {
             launchAtLogin = enabled
         } catch {
             // 未打包、未签名或系统拒绝注册时保持原状态，避免界面显示错误。
-            print("无法更新开机启动设置：\(error.localizedDescription)")
+            print(StatsL10n.format("settings.system.launch_at_login_error", error.localizedDescription))
         }
     }
 }

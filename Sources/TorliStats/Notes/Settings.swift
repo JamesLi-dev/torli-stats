@@ -1,62 +1,13 @@
 import Foundation
 
-/// The language macOS should use for Torli Notes. `system` means there is no
-/// application-specific override, so the normal language preference chain wins.
-enum AppLanguage: String, CaseIterable, Identifiable {
-    case system
-    case english = "en"
-    case simplifiedChinese = "zh-Hans"
-
-    var id: String { rawValue }
-
-    var localizedName: String {
-        switch self {
-        case .system:            NotesL10n.text("language.system")
-        case .english:           NotesL10n.text("language.english")
-        case .simplifiedChinese: NotesL10n.text("language.simplified_chinese")
-        }
-    }
-
-    var appleLanguageIdentifier: String? {
-        self == .system ? nil : rawValue
-    }
-
-    static func resolve(_ identifiers: [String]?) -> AppLanguage {
-        guard let identifier = identifiers?.first?.lowercased() else { return .system }
-        if identifier.hasPrefix("en") { return .english }
-        if identifier == "zh" || identifier.hasPrefix("zh-hans")
-            || identifier.hasPrefix("zh-cn") || identifier.hasPrefix("zh-sg") {
-            return .simplifiedChinese
-        }
-        return .system
-    }
-}
-
 /// Thin UserDefaults wrapper for the handful of togglable preferences.
 enum NotesSettings {
     private static let d = UserDefaults.standard
-    private static let applicationDomain = Bundle.main.bundleIdentifier ?? "local.torli.stats"
-
-    /// Uses the same application-domain preference as macOS System NotesSettings,
-    /// rather than maintaining a second Torli Notes-only language setting.
+    /// Compatibility bridge for Notes call sites. The preference itself is
+    /// application-wide and also controls Torli Stats UI localization.
     static var appLanguage: AppLanguage {
-        get { appLanguage(in: d, applicationDomain: applicationDomain) }
-        set { setAppLanguage(newValue, in: d) }
-    }
-
-    static func appLanguage(in defaults: UserDefaults,
-                            applicationDomain: String) -> AppLanguage {
-        let identifiers = defaults.persistentDomain(forName: applicationDomain)?["AppleLanguages"]
-            as? [String]
-        return AppLanguage.resolve(identifiers)
-    }
-
-    static func setAppLanguage(_ language: AppLanguage, in defaults: UserDefaults) {
-        if let identifier = language.appleLanguageIdentifier {
-            defaults.set([identifier], forKey: "AppleLanguages")
-        } else {
-            defaults.removeObject(forKey: "AppleLanguages")
-        }
+        get { AppLanguageSettings.language }
+        set { AppLanguageSettings.language = newValue }
     }
 
     /// Master visibility switch for the optional desktop notes feature.

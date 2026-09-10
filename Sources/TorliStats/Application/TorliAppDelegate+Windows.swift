@@ -34,7 +34,7 @@ extension TorliAppDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Torli Stats 设置"
+        window.title = StatsL10n.text("window.settings_title")
         window.titlebarAppearsTransparent = true
         window.isOpaque = false
         window.backgroundColor = .clear
@@ -49,42 +49,10 @@ extension TorliAppDelegate {
     }
 
     func showStatisticsDetails(initialTab: StatisticsDetailTab) {
-        if let statisticsDetailsWindow {
-            statisticsDetailsWindow.contentViewController = NSHostingController(
-                rootView: StatisticsDetailView(
-                    typingStats: typingStats,
-                    wakaTimeUsageStore: wakaTimeUsageStore,
-                    initialTab: initialTab
-                )
-            )
-            statisticsDetailsWindow.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 780, height: 640),
-            styleMask: [.titled, .closable, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "详细统计"
-        window.titlebarAppearsTransparent = true
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.appearance = settings.theme.windowAppearance
-        window.isReleasedWhenClosed = false
-        window.contentViewController = NSHostingController(
-            rootView: StatisticsDetailView(
-                typingStats: typingStats,
-                wakaTimeUsageStore: wakaTimeUsageStore,
-                initialTab: initialTab
-            )
-        )
-        window.center()
-        statisticsDetailsWindow = window
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        statisticsDetailsWindow?.close()
+        SettingsNavigation.shared.selectedStatisticsTab = initialTab
+        SettingsNavigation.shared.selectedCategory = .statistics
+        openSettings()
     }
 
     func checkForUpdatesIfNeeded() {
@@ -104,10 +72,10 @@ extension TorliAppDelegate {
         announcedUpdateVersion = release.version
 
         let alert = NSAlert()
-        alert.messageText = "Torli Stats \(release.version) 已可更新"
-        alert.informativeText = "当前版本可在 GitHub Releases 页面下载。"
-        alert.addButton(withTitle: "查看下载")
-        alert.addButton(withTitle: "稍后")
+        alert.messageText = StatsL10n.format("update.alert.title", release.version)
+        alert.informativeText = StatsL10n.text("update.alert.message")
+        alert.addButton(withTitle: StatsL10n.text("update.alert.download"))
+        alert.addButton(withTitle: StatsL10n.text("update.alert.later"))
         if alert.runModal() == .alertFirstButtonReturn {
             NSWorkspace.shared.open(release.downloadURL)
         }

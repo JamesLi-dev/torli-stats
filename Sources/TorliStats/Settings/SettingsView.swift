@@ -1,6 +1,12 @@
 import AppKit
 import SwiftUI
 
+final class SettingsNavigation: ObservableObject {
+    static let shared = SettingsNavigation()
+    @Published var selectedCategory: SettingsCategory = .appearance
+    @Published var selectedStatisticsTab: StatisticsDetailTab = .typing
+}
+
 struct SettingsView: View {
     // Section extensions share this state so sheet and input lifetimes stay unchanged.
     @ObservedObject var settings: AppSettings
@@ -17,7 +23,10 @@ struct SettingsView: View {
     @State var wakaTimeAPIKey = ""
     @State var hasWakaTimeAPIKey: Bool
     @State var wakaTimeMessage: String?
-    @State private var selectedCategory: SettingsCategory = .appearance
+    @State var languageRestartRequired = false
+    @State var initialLanguage: AppLanguage
+    @ObservedObject private var navigation = SettingsNavigation.shared
+    @StateObject private var notesSettings = SettingsModel()
     let onCodexRefresh: () -> Void
     let onWakaTimeRefresh: () -> Void
     let onRequestTypingStatsPermission: () -> Void
@@ -35,6 +44,7 @@ struct SettingsView: View {
         onCheckForUpdates: @escaping () -> Void
     ) {
         self.settings = settings
+        self._initialLanguage = State(initialValue: settings.appLanguage)
         self.codexUsageStore = codexUsageStore
         self.wakaTimeUsageStore = wakaTimeUsageStore
         self._hasWakaTimeAPIKey = State(initialValue: WakaTimeKeychain.readAPIKey() != nil)
@@ -112,10 +122,10 @@ struct SettingsView: View {
                 SettingsSidebarItem(
                     title: category.title,
                     systemImage: category.systemImage,
-                    isSelected: selectedCategory == category
+                    isSelected: navigation.selectedCategory == category
                 ) {
                     withAnimation(.easeInOut(duration: 0.16)) {
-                        selectedCategory = category
+                        navigation.selectedCategory = category
                     }
                 }
             }
@@ -130,7 +140,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var settingsContent: some View {
-        switch selectedCategory {
+        switch navigation.selectedCategory {
         case .appearance:
             settingsPage { appearanceSection }
         case .statusBar:
@@ -144,7 +154,7 @@ struct SettingsView: View {
             settingsPage {
                 monitoringSection
                 sensorsSection
-                Text("更新间隔越短，数据越及时，但耗电和资源占用也会略有增加。")
+                Text(StatsL10n.text("settings.refresh_interval_hint"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -152,6 +162,16 @@ struct SettingsView: View {
             settingsPage {
                 codexSection
                 wakaTimeSection
+            }
+        case .statistics:
+            StatisticsSettingsPage(
+                typingStats: typingStats,
+                wakaTimeUsageStore: wakaTimeUsageStore,
+                selectedTab: $navigation.selectedStatisticsTab
+            )
+        case .notes:
+            settingsPage {
+                NotesSettingsView(model: notesSettings)
             }
         case .system:
             settingsPage { systemSection }
@@ -166,24 +186,28 @@ struct SettingsView: View {
 
 }
 
-private enum SettingsCategory: CaseIterable, Identifiable {
+enum SettingsCategory: CaseIterable, Identifiable {
     case appearance
     case statusBar
     case dashboard
     case monitoring
     case development
+    case statistics
+    case notes
     case system
 
     var id: Self { self }
 
     var title: String {
         switch self {
-        case .appearance: return "外观"
-        case .statusBar: return "状态栏"
-        case .dashboard: return "Dashboard"
-        case .monitoring: return "监控"
-        case .development: return "开发统计"
-        case .system: return "系统"
+        case .appearance: return StatsL10n.text("settings.category.appearance")
+        case .statusBar: return StatsL10n.text("settings.category.status_bar")
+        case .dashboard: return StatsL10n.text("settings.category.dashboard")
+        case .monitoring: return StatsL10n.text("settings.category.monitoring")
+        case .development: return StatsL10n.text("settings.category.development")
+        case .statistics: return StatsL10n.text("settings.category.statistics")
+        case .notes: return StatsL10n.text("settings.category.notes")
+        case .system: return StatsL10n.text("settings.category.system")
         }
     }
 
@@ -194,6 +218,8 @@ private enum SettingsCategory: CaseIterable, Identifiable {
         case .dashboard: return "rectangle.grid.2x2"
         case .monitoring: return "waveform.path.ecg"
         case .development: return "chevron.left.forwardslash.chevron.right"
+        case .statistics: return "chart.bar.xaxis"
+        case .notes: return "note.text"
         case .system: return "gearshape"
         }
     }

@@ -14,7 +14,7 @@ extension TorliAppDelegate {
         menu.showsStateColumn = false
 
         let aboutItem = NSMenuItem(
-            title: "关于 Torli Stats",
+            title: StatsL10n.text("menu.about"),
             action: #selector(showAbout),
             keyEquivalent: ""
         )
@@ -22,7 +22,7 @@ extension TorliAppDelegate {
         menu.addItem(aboutItem)
 
         let settingsItem = NSMenuItem(
-            title: "打开设置",
+            title: StatsL10n.text("menu.open_settings"),
             action: #selector(openSettings),
             keyEquivalent: ","
         )
@@ -30,7 +30,7 @@ extension TorliAppDelegate {
         menu.addItem(settingsItem)
 
         let notesToggleItem = NSMenuItem(
-            title: NotesSettings.notesDeckEnabled ? "关闭桌面便签" : "开启桌面便签",
+            title: StatsL10n.text(NotesSettings.notesDeckEnabled ? "menu.disable_notes" : "menu.enable_notes"),
             action: #selector(toggleNotesDeck),
             keyEquivalent: ""
         )
@@ -38,22 +38,22 @@ extension TorliAppDelegate {
         menu.addItem(notesToggleItem)
 
         if NotesSettings.notesDeckEnabled {
-            let newNoteItem = NSMenuItem(title: "新建便签", action: #selector(newNote), keyEquivalent: "n")
+            let newNoteItem = NSMenuItem(title: StatsL10n.text("menu.new_note"), action: #selector(newNote), keyEquivalent: "n")
             newNoteItem.image = menuSymbol("square.and.pencil")
             menu.addItem(newNoteItem)
 
-            let allNotesItem = NSMenuItem(title: "全部便签", action: #selector(openAllNotes), keyEquivalent: "")
+            let allNotesItem = NSMenuItem(title: StatsL10n.text("menu.all_notes"), action: #selector(openAllNotes), keyEquivalent: "")
             allNotesItem.image = menuSymbol("note.text")
             menu.addItem(allNotesItem)
         }
 
-        let noteSettingsItem = NSMenuItem(title: "便签设置…", action: #selector(openNoteSettings), keyEquivalent: "")
+        let noteSettingsItem = NSMenuItem(title: StatsL10n.text("menu.notes_settings"), action: #selector(openNoteSettings), keyEquivalent: "")
         noteSettingsItem.image = menuSymbol("slider.horizontal.3")
         menu.addItem(noteSettingsItem)
         menu.addItem(.separator())
 
         let refreshItem = NSMenuItem(
-            title: "刷新全部数据",
+            title: StatsL10n.text("menu.refresh_all"),
             action: #selector(refreshAllData),
             keyEquivalent: "r"
         )
@@ -61,7 +61,7 @@ extension TorliAppDelegate {
         menu.addItem(refreshItem)
 
         let privacyItem = NSMenuItem(
-            title: "隐私展示模式",
+            title: StatsL10n.text("menu.privacy_mode"),
             action: #selector(togglePrivacyMode),
             keyEquivalent: ""
         )
@@ -70,7 +70,7 @@ extension TorliAppDelegate {
 
         menu.addItem(.separator())
         let quitItem = NSMenuItem(
-            title: "退出 Torli Stats",
+            title: StatsL10n.text("menu.quit"),
             action: #selector(quitApplication),
             keyEquivalent: "q"
         )
@@ -102,16 +102,19 @@ extension TorliAppDelegate {
     }
 
     @objc private func showAbout() {
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "开发版本"
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? StatsL10n.text("about.development_version")
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
         let system = ProcessInfo.processInfo.operatingSystemVersion
-        let sensorStatus = settings.sensorHelperEnabled ? "已授权" : "未授权或不可用"
+        let sensorStatus = StatsL10n.text(settings.sensorHelperEnabled ? "about.sensor.authorized" : "about.sensor.unavailable")
         let alert = NSAlert()
         alert.messageText = "Torli Stats"
-        alert.informativeText = "版本 \(version)（构建 \(build)）\n架构：\(appArchitecture)\n系统：macOS \(system.majorVersion).\(system.minorVersion).\(system.patchVersion)\n传感器辅助进程：\(sensorStatus)"
-        alert.addButton(withTitle: "好")
-        alert.addButton(withTitle: "复制诊断信息")
-        alert.addButton(withTitle: "第三方许可证")
+        alert.informativeText = StatsL10n.format(
+            "about.diagnostic", version, build, appArchitecture,
+            system.majorVersion, system.minorVersion, system.patchVersion, sensorStatus
+        )
+        alert.addButton(withTitle: StatsL10n.text("about.ok"))
+        alert.addButton(withTitle: StatsL10n.text("about.copy_diagnostics"))
+        alert.addButton(withTitle: StatsL10n.text("about.third_party_licenses"))
 
         switch alert.runModal() {
         case .alertSecondButtonReturn:
@@ -131,18 +134,16 @@ extension TorliAppDelegate {
         #elseif arch(x86_64)
         return "Intel"
         #else
-        return "未知"
+        return StatsL10n.text("common.unknown")
         #endif
     }
 
     private func copyDiagnosticInfo(version: String, build: String, sensorStatus: String) {
         let system = ProcessInfo.processInfo.operatingSystemVersion
-        let diagnostic = """
-        Torli Stats \(version) (\(build))
-        架构：\(appArchitecture)
-        系统：macOS \(system.majorVersion).\(system.minorVersion).\(system.patchVersion)
-        传感器辅助进程：\(sensorStatus)
-        """
+        let diagnostic = StatsL10n.format(
+            "about.diagnostic", version, build, appArchitecture,
+            system.majorVersion, system.minorVersion, system.patchVersion, sensorStatus
+        )
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(diagnostic, forType: .string)
     }

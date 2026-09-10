@@ -53,10 +53,11 @@ private enum SMCReader {
                 "helperVersion": SensorServiceConstants.helperVersion,
                 "protocolVersion": SensorServiceConstants.protocolVersion,
                 "smcAvailable": false,
-                "diagnosticMessage": smc.openFailureDescription ?? "无法打开 AppleSMC 服务。",
-                "fanReason": "SMC 服务不可用。",
-                "cpuTemperatureReason": "SMC 服务不可用。",
-                "gpuTemperatureReason": "SMC 服务不可用。"
+                "diagnosticMessage": smc.openFailureDescription ?? "sensor.smc.open_failed",
+                "diagnosticStatus": smc.openFailureStatus as Any,
+                "fanReason": "sensor.smc.unavailable",
+                "cpuTemperatureReason": "sensor.smc.unavailable",
+                "gpuTemperatureReason": "sensor.smc.unavailable"
             ]
         }
 
@@ -88,9 +89,9 @@ private enum SMCReader {
             .filter { $0 >= 0 && $0 < 20_000 }
         if let rpm = fanValues.max() {
             lastFanRPM = Int(rpm.rounded())
-            result["fanReason"] = "已读取风扇转速。"
+            result["fanReason"] = "sensor.fan.read"
         } else {
-            result["fanReason"] = "此 Mac 未暴露可读取的风扇转速。"
+            result["fanReason"] = "sensor.fan.unavailable"
         }
 
         // Ignore implausibly low values. Those are usually non-temperature /
@@ -119,8 +120,8 @@ private enum SMCReader {
             if let temperature { lastCPUTemperature = temperature }
         }
         result["cpuTemperatureReason"] = lastCPUTemperature == nil
-            ? "未发现可读取的 CPU 温度传感器。"
-            : "已读取 CPU 温度。"
+            ? "sensor.cpu_temperature.unavailable"
+            : "sensor.cpu_temperature.read"
 
         let gpuReadings = gpuKeys.compactMap { key -> (String, Double)? in
             guard let value = smc.readNumber(key), value >= 10, value <= 125 else { return nil }
@@ -133,8 +134,8 @@ private enum SMCReader {
             lastGPUTemperature = temperature
         }
         result["gpuTemperatureReason"] = lastGPUTemperature == nil
-            ? "未发现可读取的 GPU 温度传感器。"
-            : "已读取 GPU 温度。"
+            ? "sensor.gpu_temperature.unavailable"
+            : "sensor.gpu_temperature.read"
 
         if let lastFanRPM { result["fanRPM"] = NSNumber(value: lastFanRPM) }
         if let lastCPUTemperature { result["cpuTemperature"] = NSNumber(value: lastCPUTemperature) }
@@ -167,6 +168,7 @@ private final class SMCConnection {
     private var connection: io_connect_t = 0
     private var isOpen = false
     private(set) var openFailureDescription: String?
+    private(set) var openFailureStatus: Int?
     private var keyInfoCache: [String: (type: UInt32, size: UInt32)?] = [:]
     private var discoveredKeysCache: [String]?
 
@@ -183,16 +185,20 @@ private final class SMCConnection {
             if status == kIOReturnSuccess {
                 isOpen = true
                 openFailureDescription = nil
+                openFailureStatus = nil
                 return true
             }
             lastStatus = status
         }
         if !didFindService {
-            openFailureDescription = "未找到 AppleSMC 服务；此 Mac 或当前系统可能不提供可访问的 SMC 传感器。"
+            openFailureDescription = "sensor.smc.service_not_found"
+            openFailureStatus = nil
         } else if let lastStatus {
-            openFailureDescription = "无法打开 AppleSMC 服务（IOKit 错误 \(lastStatus)）。"
+            openFailureDescription = "sensor.smc.open_failed_iokit"
+            openFailureStatus = Int(lastStatus)
         } else {
-            openFailureDescription = "无法打开 AppleSMC 服务。"
+            openFailureDescription = "sensor.smc.open_failed"
+            openFailureStatus = nil
         }
         return false
     }

@@ -135,11 +135,12 @@ extension TorliAppDelegate {
     @objc func quit() { NSApp.terminate(nil) }
 
     @objc func openNoteSettings() {
-        NotesSettingsWindow.shared.show()
+        SettingsNavigation.shared.selectedCategory = .notes
+        openSettings()
     }
 
     func relaunchForLanguageChange(previous: AppLanguage) {
-        // Notes language is currently scoped to the shared Torli app bundle.
-        // Apply the preference to future launches without interrupting metrics.
+        // The language preference is application-wide. It is read on the next
+        // launch so AppKit menus, SwiftUI, and Notes resolve one locale.
     }
 }

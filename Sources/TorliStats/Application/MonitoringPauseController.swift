@@ -22,10 +22,10 @@ enum MonitoringPauseReason: Equatable {
 
     var dashboardMessage: String {
         switch self {
-        case .nightSchedule: return "夜间暂停监控"
-        case .systemSleep: return "系统睡眠，监控已暂停"
-        case .displaySleep: return "显示器休眠，监控已暂停"
-        case .screenLocked: return "屏幕锁定，监控已暂停"
+        case .nightSchedule: return StatsL10n.text("monitoring.pause_reason.night")
+        case .systemSleep: return StatsL10n.text("monitoring.pause_reason.system_sleep")
+        case .displaySleep: return StatsL10n.text("monitoring.pause_reason.display_sleep")
+        case .screenLocked: return StatsL10n.text("monitoring.pause_reason.screen_locked")
         }
     }
 }

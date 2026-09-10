@@ -50,7 +50,7 @@ final class MetricsStore: ObservableObject {
         cycleCount: nil,
         adapterWatts: nil,
         isCharging: false,
-        powerSource: "电池"
+        powerSource: StatsL10n.text("dashboard.power_source.battery")
     )
     private(set) var deviceInfo = DeviceInfo.placeholder()
     private(set) var bluetoothBatteries: [BluetoothBatterySnapshot] = []
@@ -109,6 +109,10 @@ final class MetricsStore: ObservableObject {
     private var processSort: ProcessSortOption = .cpu
     private var powerSavingMode = false
     private var sensorHelperEnabled = false
+    private var diskMonitoringEnabled = true
+    private var bluetoothMonitoringEnabled = true
+    private var processMonitoringEnabled = true
+    private var sensorReadingsNeeded = true
     private var sensorPollingStopped = false
     private var deviceInfoLoaded = false
     private let sensorClient = SensorClient()
@@ -233,9 +237,8 @@ final class MetricsStore: ObservableObject {
     func setSensorHelperEnabled(_ enabled: Bool) {
         lowMetricsQueue.async { [weak self] in
             guard let self else { return }
-            // AppDelegate also forwards unrelated settings changes here. Do
-            // not restart a failed sensor session unless the enabled state
-            // actually changed; otherwise a theme/toggle change would defeat
+            // Do not restart a failed sensor session unless authorization
+            // actually changed; otherwise unrelated settings edits would defeat
             // the no-retry rule for unavailable fan permissions.
             guard self.sensorHelperEnabled != enabled else { return }
             self.sensorHelperEnabled = enabled
@@ -249,6 +252,40 @@ final class MetricsStore: ObservableObject {
                     self.gpuTemperature = nil
                 }
             }
+        }
+    }
+
+    /// Low-frequency readers can be substantially more expensive than CPU and
+    /// network sampling (notably process enumeration and the privileged sensor
+    /// helper). Keep them dormant until a visible Dashboard module needs them.
+    func setLowFrequencyMonitoring(
+        disk: Bool,
+        bluetooth: Bool,
+        processes: Bool,
+        sensorReadings: Bool
+    ) {
+        lowMetricsQueue.async { [weak self] in
+            guard let self else { return }
+            let changed = self.diskMonitoringEnabled != disk
+                || self.bluetoothMonitoringEnabled != bluetooth
+                || self.processMonitoringEnabled != processes
+                || self.sensorReadingsNeeded != sensorReadings
+            guard changed else { return }
+
+            self.diskMonitoringEnabled = disk
+            self.bluetoothMonitoringEnabled = bluetooth
+            self.processMonitoringEnabled = processes
+            self.sensorReadingsNeeded = sensorReadings
+            if !sensorReadings {
+                DispatchQueue.main.async {
+                    self.fanRPM = nil
+                    self.cpuTemperature = nil
+                    self.gpuTemperature = nil
+                }
+            }
+            // Populate newly enabled cards immediately rather than making the
+            // user wait for the next low-frequency tick.
+            self.collectLowFrequency()
         }
     }
 
@@ -401,10 +438,14 @@ final class MetricsStore: ObservableObject {
 
     private func collectLowFrequency(force: Bool = false) {
         guard force || !isAutomaticallyPaused else { return }
-        let disk = DiskReader.snapshot()
+        let disk = diskMonitoringEnabled ? DiskReader.snapshot() : nil
+        // Battery data remains active even with the power card hidden because
+        // the power policy uses it to select the high-frequency interval.
         let battery = BatteryReader.snapshot()
-        let bluetooth = BluetoothReader.snapshot()
-        let processes = ProcessReader.topProcesses(limit: processLimit, sort: processSort)
+        let bluetooth = bluetoothMonitoringEnabled ? BluetoothReader.snapshot() : []
+        let processes = processMonitoringEnabled
+            ? ProcessReader.topProcesses(limit: processLimit, sort: processSort)
+            : []
         let info: DeviceInfo?
         if deviceInfoLoaded {
             info = nil
@@ -416,9 +457,9 @@ final class MetricsStore: ObservableObject {
         updatePowerSource(battery)
 
         let snapshot = LowFrequencySnapshot(
-            diskUsage: disk.usage,
-            diskTotal: formatBytes(disk.total),
-            diskFree: formatBytes(disk.free),
+            diskUsage: disk?.usage ?? 0,
+            diskTotal: disk.map { formatBytes($0.total) } ?? "—",
+            diskFree: disk.map { formatBytes($0.free) } ?? "—",
             battery: battery,
             bluetoothBatteries: bluetooth,
             processes: processes,
@@ -434,7 +475,7 @@ final class MetricsStore: ObservableObject {
             guard let self else { return }
             let wasUsingBattery = self.isUsingBatteryPower
             let wasLowBattery = self.isLowBattery
-            self.isUsingBatteryPower = !battery.isCharging && battery.powerSource == "电池"
+            self.isUsingBatteryPower = !battery.isCharging
             self.batteryPercentage = battery.percentage
 
             guard wasUsingBattery != self.isUsingBatteryPower || wasLowBattery != self.isLowBattery else { return }
@@ -463,7 +504,8 @@ final class MetricsStore: ObservableObject {
     }
 
     private func pollSensorIfNeeded(force: Bool = false) {
-        guard (force || !isAutomaticallyPaused), sensorHelperEnabled, !sensorPollingStopped else { return }
+        guard (force || !isAutomaticallyPaused), sensorHelperEnabled,
+              sensorReadingsNeeded, !sensorPollingStopped else { return }
         sensorClient.read { [weak self] values in
             guard let self else { return }
             self.lowMetricsQueue.async {

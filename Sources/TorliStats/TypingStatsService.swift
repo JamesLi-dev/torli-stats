@@ -20,11 +20,11 @@ enum TypingStatsPermissionStatus: Equatable {
 
     var description: String {
         switch self {
-        case .disabled: return "输入统计未启用"
-        case .needsPermission: return "需要“输入监控”权限"
-        case .monitoring: return "正在本机统计，不记录输入内容"
-        case .paused: return "夜间暂停输入统计"
-        case .unavailable: return "输入监控暂不可用"
+        case .disabled: return StatsL10n.text("typing.status.disabled")
+        case .needsPermission: return StatsL10n.text("typing.status.needs_permission")
+        case .monitoring: return StatsL10n.text("typing.status.monitoring")
+        case .paused: return StatsL10n.text("typing.status.paused")
+        case .unavailable: return StatsL10n.text("typing.status.unavailable")
         }
     }
 }

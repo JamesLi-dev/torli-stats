@@ -146,6 +146,11 @@
 "settings.deck.hide_pill_help" = "空闲时不显示任何内容——没有胶囊，也没有色条。将指针移到屏幕边缘即可唤出标签。";
 "settings.deck.keep_open" = "保持便笺栏展开";
 "settings.deck.keep_open_help" = "指针移开后，标签及其文字仍显示在边缘，不会折叠成胶囊。";
+"settings.deck.position" = "固定位置";
+"settings.deck.position.top_left" = "左上";
+"settings.deck.position.bottom_left" = "左下";
+"settings.deck.position.top_right" = "右上";
+"settings.deck.position.bottom_right" = "右下";
 "settings.deck.language" = "语言";
 "settings.deck.language_help" = "更改语言后，Torli 便签 会自动重新启动。";
 "settings.deck.size" = "大小";

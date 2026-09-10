@@ -54,6 +54,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
         )
         store.setSensorHelperEnabled(settings.sensorHelperEnabled)
         store.setGPUMonitoringEnabled(settings.showGPUCard)
+        updateMetricsCollectionRequirements()
         store.setMonitoringPauseState(monitoringPauseController.isPaused, message: nil)
     }
 
@@ -134,6 +135,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
         observeSetting(settings.$sensorHelperEnabled) { $0.store.setSensorHelperEnabled($0.settings.sensorHelperEnabled) }
         observeSetting(settings.$showGPUCard) { app in
             app.store.setGPUMonitoringEnabled(app.settings.showGPUCard)
+            app.updateMetricsCollectionRequirements()
             app.updatePopoverSize()
         }
         observeSetting(settings.$typingStatsEnabled) { app in
@@ -141,14 +143,29 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
             app.updateStatusTitle(app.store.statusLine)
         }
 
-        observeSetting(settings.$showCPUCard) { $0.updatePopoverSize() }
+        observeSetting(settings.$showCPUCard) { app in
+            app.updateMetricsCollectionRequirements()
+            app.updatePopoverSize()
+        }
         observeSetting(settings.$showMemoryCard) { $0.updatePopoverSize() }
-        observeSetting(settings.$showDiskCard) { $0.updatePopoverSize() }
+        observeSetting(settings.$showDiskCard) { app in
+            app.updateMetricsCollectionRequirements()
+            app.updatePopoverSize()
+        }
         observeSetting(settings.$showNetworkCard) { $0.updatePopoverSize() }
-        observeSetting(settings.$showFanCard) { $0.updatePopoverSize() }
+        observeSetting(settings.$showFanCard) { app in
+            app.updateMetricsCollectionRequirements()
+            app.updatePopoverSize()
+        }
         observeSetting(settings.$showTypingCard) { $0.updatePopoverSize() }
-        observeSetting(settings.$showPowerCard) { $0.updatePopoverSize() }
-        observeSetting(settings.$showProcessesCard) { $0.updatePopoverSize() }
+        observeSetting(settings.$showPowerCard) { app in
+            app.updateMetricsCollectionRequirements()
+            app.updatePopoverSize()
+        }
+        observeSetting(settings.$showProcessesCard) { app in
+            app.updateMetricsCollectionRequirements()
+            app.updatePopoverSize()
+        }
         observeSetting(settings.$showCodexCard) { app in
             app.updatePopoverSize()
             app.codexUsageStore.synchronize()
@@ -246,7 +263,6 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
     private func applyTheme() {
         settingsWindow?.appearance = settings.theme.windowAppearance
         settingsWindow?.backgroundColor = .clear
-        NotesSettingsWindow.shared.applyAppearance(settings.theme.windowAppearance)
         LibraryWindow.shared.applyAppearance(settings.theme.windowAppearance)
         statisticsDetailsWindow?.appearance = settings.theme.windowAppearance
         statisticsDetailsWindow?.backgroundColor = AppColors.backgroundNSColor
@@ -274,14 +290,23 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
         switch reason {
         case .nightSchedule:
             let seconds = settings.nightMonitoringPauseEndSeconds
-            return "夜间暂停监控，\(String(format: "%02d:%02d", seconds / 3_600, (seconds % 3_600) / 60)) 恢复"
+            return StatsL10n.format("monitoring.pause_until", seconds / 3_600, (seconds % 3_600) / 60)
         case .systemSleep:
-            return "系统睡眠，唤醒后恢复监控"
+            return StatsL10n.text("monitoring.pause_resume.system_sleep")
         case .displaySleep:
-            return "显示器休眠，唤醒后恢复监控"
+            return StatsL10n.text("monitoring.pause_resume.display_sleep")
         case .screenLocked:
-            return "屏幕锁定，解锁后恢复监控"
+            return StatsL10n.text("monitoring.pause_resume.screen_locked")
         }
+    }
+
+    private func updateMetricsCollectionRequirements() {
+        store.setLowFrequencyMonitoring(
+            disk: settings.showDiskCard,
+            bluetooth: settings.showPowerCard,
+            processes: settings.showProcessesCard,
+            sensorReadings: settings.showCPUCard || settings.showGPUCard || settings.showFanCard
+        )
     }
 
     private func applyPowerPolicy() {

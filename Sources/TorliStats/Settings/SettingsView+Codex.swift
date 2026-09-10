@@ -4,14 +4,14 @@ import UniformTypeIdentifiers
 
 extension SettingsView {
     var codexSection: some View {
-        SettingsSection(title: "Codex 账号") {
+        SettingsSection(title: StatsL10n.text("codex.settings.title")) {
             VStack(alignment: .leading, spacing: 10) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 10) {
-                        Text("默认账号")
+                        Text(StatsL10n.text("codex.settings.default_account"))
                             .font(.caption.weight(.semibold))
                             .frame(width: 64, alignment: .leading)
-                        TextField("显示名称", text: $settings.codexDefaultAccountName)
+                        TextField(StatsL10n.text("codex.settings.display_name"), text: $settings.codexDefaultAccountName)
                             .textFieldStyle(.roundedBorder)
                             .frame(maxWidth: 260)
                         Spacer(minLength: 0)
@@ -28,11 +28,11 @@ extension SettingsView {
                             .truncationMode(.middle)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .help(CodexUsageClient.validate(homePath: defaultCodexAccount.homePath).resolvedPath)
-                        Button("选择") {
+                        Button(StatsL10n.text("codex.settings.choose")) {
                             chooseCodexHome()
                         }
                         .buttonStyle(.bordered)
-                        Button("测试连接") {
+                        Button(StatsL10n.text("codex.settings.test_connection")) {
                             testCodexConnection(for: defaultCodexAccount)
                         }
                         .buttonStyle(.bordered)
@@ -51,13 +51,13 @@ extension SettingsView {
                 Divider()
 
                 HStack(spacing: 10) {
-                    Text("自动刷新")
+                    Text(StatsL10n.text("codex.settings.auto_refresh"))
                         .font(.caption.weight(.semibold))
                         .frame(width: 64, alignment: .leading)
-                    Toggle("启用 Codex 自动刷新", isOn: $settings.codexAutoRefresh)
+                    Toggle(StatsL10n.text("codex.settings.enable_auto_refresh"), isOn: $settings.codexAutoRefresh)
                     Picker("", selection: $settings.codexRefreshInterval) {
                         ForEach(AppSettings.supportedCodexRefreshIntervals, id: \.self) { interval in
-                            Text("每 \(interval) 分钟").tag(interval)
+                            Text(StatsL10n.format("codex.settings.refresh_interval", interval)).tag(interval)
                         }
                     }
                     .labelsHidden()
@@ -68,22 +68,22 @@ extension SettingsView {
 
                 if !settings.codexManagedAccounts.isEmpty {
                     Divider()
-                    Text("Torli Stats 管理的账号")
+                    Text(StatsL10n.text("codex.settings.managed_accounts"))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
 
                     ForEach($settings.codexManagedAccounts) { $account in
                         VStack(alignment: .leading, spacing: 5) {
                             HStack(spacing: 10) {
-                                TextField("显示名称", text: $account.displayName)
+                                TextField(StatsL10n.text("codex.settings.display_name"), text: $account.displayName)
                                     .textFieldStyle(.roundedBorder)
                                     .frame(maxWidth: 260)
                                 Spacer(minLength: 0)
-                                Toggle("面板", isOn: $account.isDashboardVisible)
+                                Toggle(StatsL10n.text("codex.settings.dashboard"), isOn: $account.isDashboardVisible)
                                     .toggleStyle(.checkbox)
-                                Toggle("状态栏", isOn: $account.isStatusBarIncluded)
+                                Toggle(StatsL10n.text("codex.settings.status_bar"), isOn: $account.isStatusBarIncluded)
                                     .toggleStyle(.checkbox)
-                                Button("移除", role: .destructive) {
+                                Button(StatsL10n.text("codex.settings.remove"), role: .destructive) {
                                     settings.removeCodexManagedAccount(id: account.id)
                                 }
                                 .buttonStyle(.borderless)
@@ -97,16 +97,16 @@ extension SettingsView {
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .help(account.homePath)
                                 HStack(spacing: 6) {
-                                    Button("测试连接") {
+                                    Button(StatsL10n.text("codex.settings.test_connection")) {
                                         testCodexConnection(for: account)
                                     }
                                     .buttonStyle(.bordered)
                                     .disabled(testingCodexAccountIDs.contains(account.id))
-                                    Button("登录 / 重新登录") {
+                                    Button(StatsL10n.text("codex.settings.login_or_relogin")) {
                                         let didStart = settings.startCodexLogin(for: account)
                                         codexAccountMessage = didStart
-                                            ? "已在终端打开 \(account.displayName) 的 Codex 登录。完成后点击“刷新全部”验证。"
-                                            : "无法启动 Codex 登录。请确认 Codex CLI 已安装。"
+                                            ? StatsL10n.format("codex.settings.login_started", account.displayName)
+                                            : StatsL10n.text("codex.settings.login_failed")
                                     }
                                     .buttonStyle(.bordered)
                                 }
@@ -121,19 +121,19 @@ extension SettingsView {
                 }
 
                 HStack(spacing: 8) {
-                    Button("添加账号") {
+                    Button(StatsL10n.text("codex.settings.add_account")) {
                         newCodexAccountName = ""
                         isAddingCodexAccount = true
                     }
                     .buttonStyle(.borderedProminent)
 
-                    Button("刷新全部") {
+                    Button(StatsL10n.text("codex.settings.refresh_all")) {
                         onCodexRefresh()
                     }
                     .buttonStyle(.bordered)
                 }
 
-                Text(codexAccountMessage ?? "显示名称会用于 Dashboard、状态栏和提示信息；新增账号保存在 ~/.torli-stats-codex/<账号目录>，移除只删除本应用配置，不删除本地登录态。")
+                Text(codexAccountMessage ?? StatsL10n.text("codex.settings.managed_accounts_help"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -143,29 +143,29 @@ extension SettingsView {
 
     var addCodexAccountSheet: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("添加 Codex 账号")
+            Text(StatsL10n.text("codex.settings.add_account"))
                 .font(.headline)
-            Text("账号将使用独立目录 ~/.torli-stats-codex/<名称>，并在终端完成一次 Codex 登录。")
+            Text(StatsL10n.text("codex.settings.add_account_help"))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            TextField("账号名称，例如：个人账号", text: $newCodexAccountName)
+            TextField(StatsL10n.text("codex.settings.account_name_placeholder"), text: $newCodexAccountName)
                 .textFieldStyle(.roundedBorder)
             HStack {
                 Spacer()
-                Button("取消") {
+                Button(StatsL10n.text("common.cancel")) {
                     isAddingCodexAccount = false
                 }
-                Button("创建并登录") {
+                Button(StatsL10n.text("codex.settings.create_and_login")) {
                     guard let account = settings.addCodexManagedAccount(named: newCodexAccountName) else {
-                        codexAccountMessage = "无法创建 ~/.torli-stats-codex 账号目录。"
+                        codexAccountMessage = StatsL10n.text("codex.settings.create_failed")
                         isAddingCodexAccount = false
                         return
                     }
                     let didStart = settings.startCodexLogin(for: account)
                     codexAccountMessage = didStart
-                        ? "已创建 \(account.displayName)，并在终端打开 Codex 登录。"
-                        : "已创建 \(account.displayName)，但未找到 Codex CLI。"
+                        ? StatsL10n.format("codex.settings.created_and_login_started", account.displayName)
+                        : StatsL10n.format("codex.settings.created_cli_missing", account.displayName)
                     isAddingCodexAccount = false
                 }
                 .keyboardShortcut(.defaultAction)
@@ -188,20 +188,20 @@ extension SettingsView {
     private func testCodexConnection(for account: CodexAccountConfiguration) {
         let validation = CodexUsageClient.validate(homePath: account.homePath)
         guard validation.isReady else {
-            codexAccountMessage = "\(account.resolvedDisplayName)：\(validation.summary)。"
+            codexAccountMessage = StatsL10n.format("codex.settings.connection_validation_failed", account.resolvedDisplayName, validation.summary)
             return
         }
 
         testingCodexAccountIDs.insert(account.id)
-        codexAccountMessage = "正在测试 \(account.resolvedDisplayName) 的 Codex 连接…"
+        codexAccountMessage = StatsL10n.format("codex.settings.testing_connection", account.resolvedDisplayName)
         codexUsageStore.testConnection(for: account) { result in
             DispatchQueue.main.async {
                 testingCodexAccountIDs.remove(account.id)
                 switch result {
                 case .success:
-                    codexAccountMessage = "\(account.resolvedDisplayName)：连接正常，已成功读取使用情况。"
+                    codexAccountMessage = StatsL10n.format("codex.settings.connection_succeeded", account.resolvedDisplayName)
                 case let .failure(error):
-                    codexAccountMessage = "\(account.resolvedDisplayName)：连接失败，\(error.localizedDescription)。"
+                    codexAccountMessage = StatsL10n.format("codex.settings.connection_failed", account.resolvedDisplayName, error.localizedDescription)
                 }
             }
         }
@@ -209,7 +209,7 @@ extension SettingsView {
 
     private func displayCodexHomePath(_ path: String) -> String {
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "自动：CODEX_HOME / ~/.codex" }
+        guard !trimmed.isEmpty else { return StatsL10n.text("codex.settings.home_path_automatic") }
 
         let home = NSHomeDirectory()
         if trimmed == home { return "~" }
@@ -221,8 +221,8 @@ extension SettingsView {
 
     private func chooseCodexHome() {
         let panel = NSOpenPanel()
-        panel.title = "选择 Codex Home"
-        panel.message = "请选择包含 auth.json 的 Codex Home 目录。"
+        panel.title = StatsL10n.text("codex.settings.choose_home_title")
+        panel.message = StatsL10n.text("codex.settings.choose_home_message")
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false

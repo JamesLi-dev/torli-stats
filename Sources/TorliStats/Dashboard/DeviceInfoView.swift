@@ -14,7 +14,7 @@ struct DeviceInfoView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(isPrivacyMode ? "此 Mac" : info.model)
+                    Text(isPrivacyMode ? StatsL10n.text("dashboard.this_mac") : info.model)
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                     Text(info.system)
                         .font(.system(size: 8, weight: .medium, design: .monospaced))
@@ -28,7 +28,7 @@ struct DeviceInfoView: View {
                 if density != .compact {
                     HStack(spacing: 6) {
                         InfoTag(text: "CPU  \(displayCPUModel)")
-                        InfoTag(text: "内存  \(info.memory)")
+                        InfoTag(text: StatsL10n.format("dashboard.memory_tag", info.memory))
                     }
                 }
             }
@@ -37,7 +37,7 @@ struct DeviceInfoView: View {
 
             if density != .compact {
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text("运行时间")
+                    Text(StatsL10n.text("dashboard.uptime"))
                         .font(.system(size: 9, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary)
                     Text(info.uptime)

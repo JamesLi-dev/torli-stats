@@ -10,8 +10,8 @@ enum WakaTimeRange: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .last7Days: return "近 7 天"
-        case .last30Days: return "近 30 天"
+        case .last7Days: return StatsL10n.text("wakatime.last_7_days")
+        case .last30Days: return StatsL10n.text("wakatime.last_30_days")
         }
     }
 }
@@ -117,9 +117,9 @@ enum WakaTimeUsageState: Equatable {
 
     var statusText: String {
         switch self {
-        case .notConfigured: return "未配置 WakaTime API Key"
-        case .loading: return "正在同步 WakaTime"
-        case .available(_, let date): return "更新于 \(date.formatted(date: .omitted, time: .shortened))"
+        case .notConfigured: return StatsL10n.text("wakatime.status.not_configured")
+        case .loading: return StatsL10n.text("wakatime.status.syncing")
+        case .available(_, let date): return StatsL10n.format("wakatime.status.updated_at", date.formatted(date: .omitted, time: .shortened))
         case .unavailable(let message, _): return message
         }
     }
@@ -144,6 +144,7 @@ final class WakaTimeUsageStore: ObservableObject {
     private let rangeProvider: () -> WakaTimeRange
     private var refreshTimer: DispatchSourceTimer?
     private var refreshInFlight = false
+    private var pendingSnapshotRange: WakaTimeRange?
     private var isEnabled = false
     private var automaticRefreshPaused = false
 
@@ -197,7 +198,13 @@ final class WakaTimeUsageStore: ObservableObject {
     /// User-initiated refreshes remain available while automatic monitoring is paused.
     func refresh() {
         dispatchPrecondition(condition: .onQueue(.main))
-        guard isEnabled, !refreshInFlight else { return }
+        guard isEnabled else { return }
+        guard !refreshInFlight else {
+            // A range change while the regular refresh is running should still
+            // populate the requested breakdown once that work finishes.
+            pendingSnapshotRange = rangeProvider()
+            return
+        }
         guard let apiKey = apiKeyProvider(), !apiKey.isEmpty else {
             update(.notConfigured)
             return
@@ -210,29 +217,29 @@ final class WakaTimeUsageStore: ObservableObject {
         let lock = NSLock()
         var fetchedSnapshots: [WakaTimeRange: WakaTimeSnapshot] = [:]
         var fetchedTodayPeriod: WakaTimePeriod?
-        var fetchedLastSevenDaysPeriod: WakaTimePeriod?
         var fetchedLastThirtyDaysPeriod: WakaTimePeriod?
         var fetchError: Error?
 
-        for range in WakaTimeRange.allCases {
-            group.enter()
-            WakaTimeUsageClient.fetch(apiKey: apiKey, range: range) { result in
-                lock.lock()
-                switch result {
-                case .success(let snapshot):
-                    fetchedSnapshots[range] = snapshot
-                case .failure(let error):
-                    fetchError = fetchError ?? error
-                }
-                lock.unlock()
-                group.leave()
+        // The Dashboard only displays the selected breakdown. Fetching both
+        // 7- and 30-day breakdowns every cycle doubled that request for no
+        // visible benefit; the other range is loaded when its detail view opens.
+        let selectedRange = rangeProvider()
+        group.enter()
+        WakaTimeUsageClient.fetch(apiKey: apiKey, range: selectedRange) { result in
+            lock.lock()
+            switch result {
+            case .success(let snapshot):
+                fetchedSnapshots[selectedRange] = snapshot
+            case .failure(let error):
+                fetchError = fetchError ?? error
             }
+            lock.unlock()
+            group.leave()
         }
 
         let calendar = Calendar.autoupdatingCurrent
         let today = calendar.startOfDay(for: Date())
         let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
-        let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: today)!
         let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: today)!
 
         group.enter()
@@ -240,17 +247,6 @@ final class WakaTimeUsageStore: ObservableObject {
             lock.lock()
             switch result {
             case .success(let period): fetchedTodayPeriod = period
-            case .failure(let error): fetchError = fetchError ?? error
-            }
-            lock.unlock()
-            group.leave()
-        }
-
-        group.enter()
-        WakaTimeUsageClient.fetchPeriod(apiKey: apiKey, start: sevenDaysAgo, end: yesterday) { result in
-            lock.lock()
-            switch result {
-            case .success(let period): fetchedLastSevenDaysPeriod = period
             case .failure(let error): fetchError = fetchError ?? error
             }
             lock.unlock()
@@ -273,14 +269,49 @@ final class WakaTimeUsageStore: ObservableObject {
             self.refreshInFlight = false
             self.snapshots.merge(fetchedSnapshots) { _, new in new }
             self.todayPeriod = fetchedTodayPeriod ?? self.todayPeriod
-            self.lastSevenDaysPeriod = fetchedLastSevenDaysPeriod ?? self.lastSevenDaysPeriod
             self.lastThirtyDaysPeriod = fetchedLastThirtyDaysPeriod ?? self.lastThirtyDaysPeriod
-            if let snapshot = self.snapshots[.last30Days] {
+            self.lastSevenDaysPeriod = fetchedLastThirtyDaysPeriod.map {
+                Self.trailingPeriod($0, days: 7, endingAt: today)
+            } ?? self.lastSevenDaysPeriod
+            if let snapshot = self.snapshots[self.rangeProvider()] {
                 self.update(.available(snapshot, refreshedAt: Date()))
             } else if let fetchError {
                 self.update(.unavailable(fetchError.localizedDescription, self.state.snapshot))
             } else {
-                self.update(.unavailable("WakaTime 未返回统计数据", self.state.snapshot))
+                self.update(.unavailable(StatsL10n.text("wakatime.error.no_data"), self.state.snapshot))
+            }
+            if let pendingRange = self.pendingSnapshotRange {
+                self.pendingSnapshotRange = nil
+                self.loadSnapshotIfNeeded(for: pendingRange)
+            }
+        }
+    }
+
+    /// Loads a breakdown on demand for the detailed-statistics range picker.
+    /// Daily periods are already derived from the regular refresh and do not
+    /// require another request here.
+    func loadSnapshotIfNeeded(for range: WakaTimeRange) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard isEnabled, snapshots[range] == nil,
+              let apiKey = apiKeyProvider(), !apiKey.isEmpty else { return }
+        guard !refreshInFlight else {
+            pendingSnapshotRange = range
+            return
+        }
+        refreshInFlight = true
+        WakaTimeUsageClient.fetch(apiKey: apiKey, range: range) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.refreshInFlight = false
+                switch result {
+                case let .success(snapshot):
+                    self.snapshots[range] = snapshot
+                    if let current = self.snapshots[self.rangeProvider()] {
+                        self.update(.available(current, refreshedAt: Date()))
+                    }
+                case let .failure(error):
+                    self.update(.unavailable(error.localizedDescription, self.state.snapshot))
+                }
             }
         }
     }
@@ -288,6 +319,29 @@ final class WakaTimeUsageStore: ObservableObject {
     private func refreshAutomatically() {
         guard !automaticRefreshPaused else { return }
         refresh()
+    }
+
+    private static func trailingPeriod(
+        _ period: WakaTimePeriod,
+        days: Int,
+        endingAt date: Date
+    ) -> WakaTimePeriod {
+        let calendar = Calendar.autoupdatingCurrent
+        let end = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: date)) ?? date
+        let start = calendar.date(byAdding: .day, value: -(days - 1), to: end) ?? end
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        let startID = formatter.string(from: start)
+        let endID = formatter.string(from: end)
+        let records = period.dailyRecords.filter { $0.dateID >= startID && $0.dateID <= endID }
+        return WakaTimePeriod(
+            totalSeconds: records.reduce(0) { $0 + $1.totalSeconds },
+            activeDayCount: records.filter { $0.totalSeconds > 0 }.count,
+            dailyRecords: records
+        )
     }
 
     private func update(_ state: WakaTimeUsageState) {
@@ -402,9 +456,9 @@ private enum WakaTimeUsageClient {
             guard (200...299).contains(httpResponse.statusCode), let data else {
                 let message: String
                 switch httpResponse.statusCode {
-                case 401: message = "API Key 无效或已失效"
-                case 429: message = "WakaTime 请求过于频繁，请稍后重试"
-                default: message = "WakaTime 请求失败（HTTP \(httpResponse.statusCode)）"
+                case 401: message = StatsL10n.text("wakatime.error.invalid_api_key")
+                case 429: message = StatsL10n.text("wakatime.error.rate_limited")
+                default: message = StatsL10n.format("wakatime.error.http", httpResponse.statusCode)
                 }
                 completion(.failure(WakaTimeClientError(message: message)))
                 return

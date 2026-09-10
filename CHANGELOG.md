@@ -2,7 +2,7 @@
 
 All notable changes to Torli Stats are documented here.
 
-## [1.2.3] — 2026-09-09
+## [1.3.0] — 2026-09-10
 
 ### English
 - Redesigns Torli Stats, Torli Notes, and detailed-statistics preferences with compact left-side navigation and a consistent right-side detail layout.
@@ -14,6 +14,14 @@ All notable changes to Torli Stats are documented here.
 - Adds date ticks to detailed daily charts, and refines the Notes library with a compact, theme-aware glass shell that preserves each note's readable paper colour.
 - Makes the Notes library sidebar an AppKit-native splitter with a persisted 180–340pt width and a 200pt default, avoiding editor flicker while resizing.
 - Checks GitHub's latest-release redirect instead of its rate-limited REST API, so update checks remain available on shared networks.
+- Stops low-frequency disk, Bluetooth, process, and sensor reads when no visible Dashboard module needs them, while retaining battery reads for power policy decisions.
+- Reduces each automatic WakaTime refresh from five requests to three by fetching only the selected breakdown and deriving the 7-day trend from the 30-day summary; the alternate breakdown loads only when its detail view is opened.
+- Consolidates Notes preferences into the main Settings window, with existing Notes menu and Deck entry points opening its new Notes page.
+- Establishes an application-wide language preference shared by Torli Stats and Torli Notes, preserving the existing System Default, English, and Simplified Chinese choices.
+- Completes English and Simplified Chinese coverage across Settings, Dashboard, statistics, WakaTime, Codex, sensors, status-bar content, diagnostics, tooltips, and accessibility labels; adds a safe Restart action when a language change needs relaunching.
+- Moves Typing and Developer Statistics into the main Settings window as a dedicated Statistics page, so all preferences and detailed metrics share one navigation surface.
+- Refines Settings visual consistency with aligned sidebar icons, responsive Menu Bar controls, compact English labels, and matching material cards for Notes and Statistics pages.
+- Makes legacy installed sensor helpers return localized diagnostic text and corrects localized numeric-format paths that could otherwise display corrupted values or crash.
 
 ### 中文
 - 重构 Torli Stats、Torli Notes 与详细统计窗口：使用紧凑的左侧导航和统一的右侧详情布局。
@@ -25,6 +33,14 @@ All notable changes to Torli Stats are documented here.
 - 为详细统计的每日图表补充日期刻度，并优化所有便签窗口：使用紧凑且跟随主题的毛玻璃外壳，同时保留每张便签清晰可读的纸张主体色。
 - 所有便签左栏改为 AppKit 原生可调分栏，宽度可在 180–340pt 间调整、默认 200pt 且会记忆；拖动时不再引发编辑器闪动。
 - 更新检查改用 GitHub 最新发布页面的跳转地址，不再依赖容易触发限额的 REST API，共享网络下也能正常检查更新。
+- 未显示对应 Dashboard 模块时，不再进行低频磁盘、蓝牙、进程和传感器读取；电池读取仍会保留，以支持电源策略判断。
+- WakaTime 自动刷新从每次 5 个请求降至 3 个：仅请求当前选择的概览，并由 30 天汇总推导近 7 天趋势；另一周期的概览仅在打开其详情时按需加载。
+- 便签设置已并入主设置窗口；菜单和便签栏入口会直接打开新的“便签”页面。
+- 建立由 Torli Stats 与 Torli 便签共用的应用语言偏好，保留原有的跟随系统、English 与简体中文选项。
+- 完成 Settings、Dashboard、统计、WakaTime、Codex、传感器、状态栏、诊断、Tooltip 与无障碍文案的 English / 简体中文覆盖；语言变更需要重启时提供安全的“重启”操作。
+- 输入统计与开发统计已并入主设置窗口的“统计”页面，偏好与详细指标共用同一套导航入口。
+- 统一设置视觉细节：对齐侧栏图标，优化状态栏设置的自适应布局和英文短文案，并为便签、统计页面补齐一致的材质化圆角卡片。
+- 兼容旧版已安装传感器辅助进程的诊断文案本地化，并修复可能显示异常数值或导致闪退的本地化数字格式路径。
 
 ## [1.2.2] — 2026-09-08
 

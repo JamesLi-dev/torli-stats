@@ -14,17 +14,17 @@ struct ProcessListView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label("高占用进程", systemImage: "chart.bar.xaxis")
+                Label(StatsL10n.text("dashboard.high_usage_processes"), systemImage: "chart.bar.xaxis")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text(density == .detailed ? "PID     CPU          内存" : "CPU          内存")
+                Text(StatsL10n.text(density == .detailed ? "dashboard.process_headers" : "dashboard.process_headers_compact"))
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
 
             if processes.isEmpty {
-                Text("正在读取进程…")
+                Text(StatsL10n.text("dashboard.loading_processes"))
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(displayedProcesses) { process in

@@ -48,7 +48,7 @@ struct CodexUsageView: View {
             header
 
             if visibleAccounts.isEmpty {
-                Text("尚未启用 Codex 使用情况展示。")
+                Text(StatsL10n.text("codex.usage.not_enabled"))
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
             } else {
@@ -67,7 +67,7 @@ struct CodexUsageView: View {
 
                 if hiddenAccountCount > 0 {
                     Divider()
-                    Button(showsAllAccounts ? "收起其他账号" : "显示其余 \(hiddenAccountCount) 个账号") {
+                    Button(showsAllAccounts ? StatsL10n.text("codex.usage.collapse_accounts") : StatsL10n.format("codex.usage.show_other_accounts", hiddenAccountCount)) {
                         withAnimation(.easeInOut(duration: 0.18)) {
                             showsAllAccounts.toggle()
                         }
@@ -110,7 +110,7 @@ struct CodexUsageView: View {
 
     private var header: some View {
         HStack {
-            Label("Codex 使用情况", systemImage: "command.circle")
+            Label(StatsL10n.text("codex.usage.title"), systemImage: "command.circle")
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(.secondary)
             Spacer()
@@ -121,7 +121,7 @@ struct CodexUsageView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
-            .help("刷新全部 Codex 账号")
+            .help(StatsL10n.text("codex.usage.refresh_all"))
         }
     }
 }
@@ -140,7 +140,7 @@ private struct CodexAccountUsageRow: View {
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .lineLimit(1)
                     .minimumScaleFactor(0.55)
-                Text(account.id == CodexAccountConfiguration.defaultAccountID ? "默认" : "配置")
+                Text(account.id == CodexAccountConfiguration.defaultAccountID ? StatsL10n.text("codex.usage.default") : StatsL10n.text("codex.usage.configured"))
                     .font(.system(size: 8, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 5)
@@ -158,7 +158,7 @@ private struct CodexAccountUsageRow: View {
                 }
                 Spacer(minLength: 0)
                 if density == .detailed, let snapshot = state.snapshot {
-                    Text("更新 \(snapshot.fetchedAt, style: .time)")
+                    Text(StatsL10n.format("codex.usage.updated", snapshot.fetchedAt.formatted(date: .omitted, time: .shortened)))
                         .font(.system(size: 8, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
@@ -167,7 +167,7 @@ private struct CodexAccountUsageRow: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-                .help("刷新 \(displayName)")
+                .help(StatsL10n.format("codex.usage.refresh_account", displayName))
             }
 
             switch state {
@@ -183,7 +183,7 @@ private struct CodexAccountUsageRow: View {
                 if let snapshot {
                     snapshotContent(snapshot, isRefreshing: false)
                 }
-                Text("\(error.localizedDescription)，\(retryAt, style: .relative) 后重试（\(attempt)/2）")
+                Text(StatsL10n.format("codex.usage.retrying", error.localizedDescription, retryAt.formatted(.relative(presentation: .named)), attempt))
                     .font(.system(size: 9, weight: .medium, design: .rounded))
                     .foregroundStyle(.orange)
             case let .available(snapshot):
@@ -191,7 +191,7 @@ private struct CodexAccountUsageRow: View {
             case let .unavailable(error, snapshot):
                 if let snapshot {
                     snapshotContent(snapshot, isRefreshing: false)
-                    Text("上次更新失败：\(error.localizedDescription)")
+                    Text(StatsL10n.format("codex.usage.last_update_failed", error.localizedDescription))
                         .font(.system(size: 9, weight: .medium, design: .rounded))
                         .foregroundStyle(.orange)
                 } else {
@@ -207,7 +207,7 @@ private struct CodexAccountUsageRow: View {
         HStack(spacing: 8) {
             ProgressView()
                 .controlSize(.small)
-            Text("正在读取 Codex 使用情况…")
+            Text(StatsL10n.text("codex.usage.loading"))
                 .font(.system(size: 10, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
         }
@@ -216,24 +216,24 @@ private struct CodexAccountUsageRow: View {
     private func snapshotContent(_ snapshot: CodexUsageSnapshot, isRefreshing: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             if snapshot.isStale() {
-                Label("数据可能已过期", systemImage: "clock.badge.exclamationmark")
+                Label(StatsL10n.text("codex.usage.stale"), systemImage: "clock.badge.exclamationmark")
                     .font(.system(size: 9, weight: .semibold, design: .rounded))
                     .foregroundStyle(.orange)
             }
             if let primary = snapshot.primary {
                 let used = percentage(primary.usedPercent)
                 HStack(alignment: .firstTextBaseline, spacing: 7) {
-                    Text("用量 \(used)%")
+                    Text(StatsL10n.format("codex.usage.used_percent", used))
                         .font(.system(size: 9, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
                         .fixedSize()
-                    Text("剩余 \(100 - used)%")
+                    Text(StatsL10n.format("codex.usage.remaining_percent", 100 - used))
                         .font(.system(size: 9, weight: .medium, design: .monospaced))
                         .foregroundStyle(quotaColor(forRemaining: 100 - primary.usedPercent))
                         .fixedSize()
                     Spacer(minLength: 4)
                     if let resetsAt = primary.resetsAt {
-                        Text("重置：\(resetsAt, style: .relative)")
+                        Text(StatsL10n.format("codex.usage.reset", resetsAt.formatted(.relative(presentation: .named))))
                             .font(.system(size: 9, weight: .medium, design: .monospaced))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -253,9 +253,9 @@ private struct CodexAccountUsageRow: View {
 
                 if density != .compact, let secondary = snapshot.secondary {
                     HStack(spacing: 8) {
-                        Text("周使用量 \(percentage(secondary.usedPercent))%")
+                        Text(StatsL10n.format("codex.usage.weekly_used_percent", percentage(secondary.usedPercent)))
                         if let resetsAt = secondary.resetsAt {
-                            Text("周重置：\(resetsAt, style: .relative)")
+                            Text(StatsL10n.format("codex.usage.weekly_reset", resetsAt.formatted(.relative(presentation: .named))))
                         }
                     }
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
@@ -264,7 +264,7 @@ private struct CodexAccountUsageRow: View {
                     .minimumScaleFactor(0.7)
                 }
             } else {
-                Text("账号已登录，但暂时没有额度信息")
+                Text(StatsL10n.text("codex.usage.no_quota"))
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
             }

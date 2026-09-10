@@ -16,11 +16,11 @@ enum AppUpdateCheckStatus: Equatable {
 
     var description: String {
         switch self {
-        case .idle: return "尚未检查更新"
-        case .checking: return "正在检查更新…"
-        case let .upToDate(date): return "已是最新版本（检查于 \(date.formatted(date: .abbreviated, time: .shortened))）"
-        case let .available(release): return "发现新版本 \(release.version)"
-        case .failed: return "暂时无法检查更新"
+        case .idle: return StatsL10n.text("update.idle")
+        case .checking: return StatsL10n.text("update.checking")
+        case let .upToDate(date): return StatsL10n.format("update.up_to_date", date.formatted(date: .abbreviated, time: .shortened))
+        case let .available(release): return StatsL10n.format("update.available", release.version)
+        case .failed: return StatsL10n.text("update.failed")
         }
     }
 }

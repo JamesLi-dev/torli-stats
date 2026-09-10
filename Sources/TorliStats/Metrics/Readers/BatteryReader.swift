@@ -32,7 +32,7 @@ enum BatteryReader {
                 cycleCount: registry.cycleCount,
                 adapterWatts: charging ? adapterWatts() : nil,
                 isCharging: charging,
-                powerSource: charging ? "电源供电" : "电池"
+                powerSource: charging ? StatsL10n.text("dashboard.power_source.plugged_in") : StatsL10n.text("dashboard.power_source.battery")
             )
         }
 
@@ -42,7 +42,7 @@ enum BatteryReader {
             cycleCount: registry.cycleCount,
             adapterWatts: adapterWatts(),
             isCharging: true,
-            powerSource: "电源供电"
+            powerSource: StatsL10n.text("dashboard.power_source.plugged_in")
         )
     }
 

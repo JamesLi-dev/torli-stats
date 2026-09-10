@@ -11,7 +11,7 @@ struct SensorCapabilityRow: View {
                 .foregroundStyle(isAvailable ? .green : .secondary)
             Text(title)
                 .font(.caption.weight(.medium))
-                .frame(width: 58, alignment: .leading)
+                .frame(width: 72, alignment: .leading)
             Text(reason)
                 .font(.caption2)
                 .foregroundStyle(.secondary)

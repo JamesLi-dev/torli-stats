@@ -28,14 +28,14 @@ struct PowerStatusView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Label("电源", systemImage: battery.isCharging ? "bolt.fill" : "battery.75percent")
+                Label(StatsL10n.text("dashboard.power"), systemImage: battery.isCharging ? "bolt.fill" : "battery.75percent")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(.secondary)
                 Spacer()
                 if density != .compact {
                     HStack(spacing: 5) {
-                        PowerTag(text: battery.health.map { "健康 \(Int($0))%" } ?? "健康 —", color: healthColor)
-                        PowerTag(text: battery.cycleCount.map { "循环 \($0) 次" } ?? "循环 —")
+                        PowerTag(text: battery.health.map { StatsL10n.format("dashboard.health", Int($0)) } ?? StatsL10n.text("dashboard.health_unavailable"), color: healthColor)
+                        PowerTag(text: battery.cycleCount.map { StatsL10n.format("dashboard.cycles", $0) } ?? StatsL10n.text("dashboard.cycles_unavailable"))
                     }
                 }
             }
@@ -51,7 +51,7 @@ struct PowerStatusView: View {
                         CompactBluetoothBatteryRing(
                             value: device.percentage,
                             icon: device.kind.icon,
-                            accessibilityName: isPrivacyMode ? "蓝牙设备 \(index + 1)" : device.name
+                            accessibilityName: isPrivacyMode ? StatsL10n.format("dashboard.bluetooth_device", index + 1) : device.name
                         )
                     }
                     Spacer(minLength: 0)
@@ -63,7 +63,7 @@ struct PowerStatusView: View {
                     BatteryRing(
                         value: battery.percentage,
                         title: "MacBook",
-                        detail: battery.adapterWatts.map { "\(battery.powerSource)  \($0) W" } ?? battery.powerSource,
+                        detail: battery.adapterWatts.map { StatsL10n.format("dashboard.power_source.watts", battery.powerSource, $0) } ?? battery.powerSource,
                         icon: "laptopcomputer",
                         color: batteryColor
                     )
@@ -73,12 +73,12 @@ struct PowerStatusView: View {
                             CompactBluetoothBatteryRing(
                                 value: device.percentage,
                                 icon: device.kind.icon,
-                                accessibilityName: isPrivacyMode ? "蓝牙设备 \(index + 1)" : device.name
+                                accessibilityName: isPrivacyMode ? StatsL10n.format("dashboard.bluetooth_device", index + 1) : device.name
                             )
                         } else {
                             BatteryRing(
                                 value: device.percentage,
-                                title: isPrivacyMode ? "蓝牙设备 \(index + 1)" : device.name,
+                                title: isPrivacyMode ? StatsL10n.format("dashboard.bluetooth_device", index + 1) : device.name,
                                 detail: device.detail,
                                 icon: device.kind.icon
                             )
@@ -140,7 +140,7 @@ private struct CompactBluetoothBatteryRing: View {
         .help(accessibilityName)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityName)
-        .accessibilityValue(value.map { "\(Int($0))%" } ?? "电量不可用")
+        .accessibilityValue(value.map { "\(Int($0))%" } ?? StatsL10n.text("dashboard.battery_unavailable"))
     }
 }
 

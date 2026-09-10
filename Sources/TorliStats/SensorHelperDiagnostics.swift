@@ -12,7 +12,7 @@ struct SensorHelperInstallationStatus {
             return Self(
                 isInstalled: false,
                 signatureIsValid: false,
-                signatureMessage: "未找到已安装的辅助进程。"
+                signatureMessage: StatsL10n.text("sensor.signature.helper_not_found")
             )
         }
 
@@ -25,13 +25,13 @@ struct SensorHelperInstallationStatus {
             return Self(
                 isInstalled: true,
                 signatureIsValid: task.terminationStatus == 0,
-                signatureMessage: task.terminationStatus == 0 ? "辅助进程签名已验证。" : "辅助进程签名验证失败。"
+                signatureMessage: task.terminationStatus == 0 ? StatsL10n.text("sensor.signature.verified") : StatsL10n.text("sensor.signature.verification_failed")
             )
         } catch {
             return Self(
                 isInstalled: true,
                 signatureIsValid: false,
-                signatureMessage: "无法验证辅助进程签名。"
+                signatureMessage: StatsL10n.text("sensor.signature.unable_to_verify")
             )
         }
     }

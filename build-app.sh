@@ -28,6 +28,7 @@ for runner_asset in "$ROOT"/Resources/runner-*.png; do
   cp "$runner_asset" "$APP/Contents/Resources/$(basename "$runner_asset")"
 done
 cp -R "$ROOT"/Sources/TorliStats/NotesResources/. "$APP/Contents/Resources/"
+cp -R "$ROOT"/Sources/TorliStats/StatsResources/. "$APP/Contents/Resources/"
 cp "$ROOT/THIRD_PARTY_NOTICES.md" "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md"
 cp "$ROOT/LICENSES/Apache-2.0.txt" "$APP/Contents/Resources/Licenses/Apache-2.0.txt"
 cp "$ROOT/LICENSES/Notes-Engine-MIT.txt" "$APP/Contents/Resources/Licenses/Notes-Engine-MIT.txt"

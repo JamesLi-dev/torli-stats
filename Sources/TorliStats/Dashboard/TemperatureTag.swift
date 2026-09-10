@@ -12,14 +12,14 @@ struct TemperatureTag: View {
     }
 
     var body: some View {
-        Text(value.map { String(format: "温度 %.0f°C", $0) } ?? "温度 —")
+        Text(value.map { StatsL10n.format("dashboard.temperature", $0) } ?? StatsL10n.text("dashboard.temperature_unavailable"))
             .font(.system(size: 9, weight: .medium, design: .monospaced))
             .foregroundStyle(color)
             .padding(.horizontal, 6)
             .padding(.vertical, 4)
             .background(color.opacity(value == nil ? 0.08 : 0.14))
             .clipShape(RoundedRectangle(cornerRadius: 6))
-            .accessibilityLabel("温度")
-            .accessibilityValue(value.map { String(format: "%.0f 摄氏度", $0) } ?? "不可用")
+            .accessibilityLabel(StatsL10n.text("dashboard.temperature_accessibility"))
+            .accessibilityValue(value.map { StatsL10n.format("dashboard.temperature_celsius", $0) } ?? StatsL10n.text("dashboard.unavailable"))
     }
 }

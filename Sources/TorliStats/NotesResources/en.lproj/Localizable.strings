@@ -146,6 +146,11 @@
 "settings.deck.hide_pill_help" = "Nothing shows at rest — no pill, no dashes. Slide the pointer to the screen edge to wake the tabs.";
 "settings.deck.keep_open" = "Keep the deck open";
 "settings.deck.keep_open_help" = "Tabs stay on the edge with their labels showing, instead of folding back into the pill when the pointer leaves.";
+"settings.deck.position" = "Position";
+"settings.deck.position.top_left" = "Top Left";
+"settings.deck.position.bottom_left" = "Bottom Left";
+"settings.deck.position.top_right" = "Top Right";
+"settings.deck.position.bottom_right" = "Bottom Right";
 "settings.deck.language" = "Language";
 "settings.deck.language_help" = "Torli Notes restarts automatically when you change the language.";
 "settings.deck.size" = "Size";

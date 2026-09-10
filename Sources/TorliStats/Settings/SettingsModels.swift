@@ -9,8 +9,8 @@ enum CodexStatusMetric: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .remaining: return "剩余量"
-        case .used: return "用量"
+        case .remaining: return StatsL10n.text("codex.metric.remaining")
+        case .used: return StatsL10n.text("codex.metric.used")
         }
     }
 }
@@ -24,9 +24,9 @@ enum CodexStatusBarMode: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .defaultAccount: return "默认账号"
-        case .lowestRemaining: return "最低剩余"
-        case .eachAccount: return "逐账号"
+        case .defaultAccount: return StatsL10n.text("codex.status_mode.default_account")
+        case .lowestRemaining: return StatsL10n.text("codex.status_mode.lowest_remaining")
+        case .eachAccount: return StatsL10n.text("codex.status_mode.each_account")
         }
     }
 }
@@ -42,11 +42,11 @@ enum StatusBarMetricGroup: String, CaseIterable, Codable, Identifiable {
 
     var title: String {
         switch self {
-        case .system: return "系统（CPU / 内存）"
-        case .network: return "网络（下载 / 上传）"
-        case .typing: return "输入统计"
-        case .codex: return "Codex 使用情况"
-        case .logo: return "状态栏 Logo"
+        case .system: return StatsL10n.text("status_group.system")
+        case .network: return StatsL10n.text("status_group.network")
+        case .typing: return StatsL10n.text("status_group.typing")
+        case .codex: return StatsL10n.text("status_group.codex")
+        case .logo: return StatsL10n.text("status_group.logo")
         }
     }
 }
@@ -59,8 +59,8 @@ enum SystemStatusBarStyle: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .compact: return "紧凑"
-        case .stacked: return "分栏"
+        case .compact: return StatsL10n.text("display.compact")
+        case .stacked: return StatsL10n.text("display.stacked")
         }
     }
 }
@@ -74,9 +74,9 @@ enum ThemePreference: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .system: return "跟随系统"
-        case .light: return "亮色"
-        case .dark: return "暗色"
+        case .system: return StatsL10n.text("theme.system")
+        case .light: return StatsL10n.text("theme.light")
+        case .dark: return StatsL10n.text("theme.dark")
         }
     }
 
@@ -106,9 +106,9 @@ enum DashboardDensity: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .compact: return "紧凑"
-        case .standard: return "标准"
-        case .detailed: return "详细"
+        case .compact: return StatsL10n.text("display.compact")
+        case .standard: return StatsL10n.text("display.standard")
+        case .detailed: return StatsL10n.text("display.detailed")
         }
     }
 }
@@ -132,15 +132,15 @@ enum DashboardModule: String, CaseIterable, Codable, Identifiable {
         switch self {
         case .cpu: return "CPU"
         case .gpu: return "GPU"
-        case .memory: return "内存"
-        case .disk: return "磁盘"
-        case .network: return "网络"
-        case .fan: return "风扇"
-        case .typing: return "输入"
-        case .power: return "电源"
+        case .memory: return StatsL10n.text("module.memory")
+        case .disk: return StatsL10n.text("module.disk")
+        case .network: return StatsL10n.text("module.network")
+        case .fan: return StatsL10n.text("module.fan")
+        case .typing: return StatsL10n.text("module.typing")
+        case .power: return StatsL10n.text("module.power")
         case .codex: return "Codex"
         case .wakatime: return "WakaTime"
-        case .processes: return "进程"
+        case .processes: return StatsL10n.text("module.processes")
         }
     }
 
@@ -161,7 +161,7 @@ enum ProcessSortOption: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .cpu: return "CPU"
-        case .memory: return "内存"
+        case .memory: return StatsL10n.text("module.memory")
         }
     }
 }

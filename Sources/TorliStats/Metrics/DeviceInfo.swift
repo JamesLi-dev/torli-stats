@@ -13,8 +13,8 @@ struct DeviceInfo {
     static func placeholder() -> DeviceInfo {
         DeviceInfo(
             model: "Mac",
-            cpuModel: "未知 CPU",
-            gpuModel: "未知 GPU",
+            cpuModel: StatsL10n.text("device.unknown_cpu"),
+            gpuModel: StatsL10n.text("device.unknown_gpu"),
             gpuCores: nil,
             memory: "—",
             system: "macOS",
@@ -31,7 +31,7 @@ struct DeviceInfo {
             cpuModel: value(for: "Chip:", in: hardware)
                 ?? value(for: "Processor Name:", in: hardware)
                 ?? hardwareIdentifier(),
-            gpuModel: value(for: "Chipset Model:", in: displays) ?? "未知 GPU",
+            gpuModel: value(for: "Chipset Model:", in: displays) ?? StatsL10n.text("device.unknown_gpu"),
             gpuCores: coreCount(in: displays),
             memory: formatMemory(ProcessInfo.processInfo.physicalMemory),
             system: "macOS \(version.majorVersion).\(version.minorVersion).\(version.patchVersion)",
@@ -47,9 +47,9 @@ struct DeviceInfo {
         remaining %= 3_600
         let minutes = remaining / 60
 
-        if days > 0 { return "\(days)天 \(hours)小时" }
-        if hours > 0 { return "\(hours)小时 \(minutes)分" }
-        return "\(minutes)分钟"
+        if days > 0 { return StatsL10n.format("device.uptime.days_hours", days, hours) }
+        if hours > 0 { return StatsL10n.format("device.uptime.hours_minutes", hours, minutes) }
+        return StatsL10n.format("device.uptime.minutes", minutes)
     }
 
     private static func formatMemory(_ bytes: UInt64) -> String {
