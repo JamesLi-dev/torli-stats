@@ -361,7 +361,10 @@ extension TorliAppDelegate {
             }
             return StatusBarGroupContent(
                 firstLine: statusBarText(StatsL10n.text("status_bar.typing.label"), attributes: attributes),
-                secondLine: statusBarText(StatsL10n.format("status_bar.typing.key_count", typingStats.todayKeyCount), attributes: attributes)
+                secondLine: statusBarText(
+                    StatsL10n.format("statistics.keys", compactTypingCount(typingStats.todayKeyCount)),
+                    attributes: attributes
+                )
             )
 
         case .codex:
@@ -513,7 +516,7 @@ extension TorliAppDelegate {
     }
 
     private func compactTypingCount(_ value: Int) -> String {
-        value >= 1_000 ? String(format: "%.1fk", Double(value) / 1_000) : String(value)
+        value >= 1_000 ? String(format: "%.1fK", Double(value) / 1_000) : String(value)
     }
 
     private func resourceUsageColor(usage: Double) -> NSColor {
