@@ -4,25 +4,23 @@ import UniformTypeIdentifiers
 
 extension SettingsView {
     var statusBarSection: some View {
-        SettingsSection(title: "状态栏") {
+        SettingsSection(title: StatsL10n.text("settings.category.status_bar")) {
             VStack(alignment: .leading, spacing: 12) {
-                SettingsSubsectionTitle("菜单栏显示内容")
+                SettingsSubsectionTitle(StatsL10n.text("settings.status_bar.displayed_content"))
                     LazyVGrid(columns: [
-                        GridItem(.flexible(), alignment: .leading),
-                        GridItem(.flexible(), alignment: .leading),
-                        GridItem(.flexible(), alignment: .leading),
-                        GridItem(.flexible(), alignment: .leading)
+                        GridItem(.flexible(minimum: 130), alignment: .leading),
+                        GridItem(.flexible(minimum: 130), alignment: .leading),
+                        GridItem(.flexible(minimum: 130), alignment: .leading),
+                        GridItem(.flexible(minimum: 130), alignment: .leading)
                     ], alignment: .leading, spacing: 10) {
                         Toggle("CPU", isOn: $settings.showCPU)
-                        Toggle("内存", isOn: $settings.showMemory)
-                        Toggle("下载", isOn: $settings.showDownload)
-                        Toggle("上传", isOn: $settings.showUpload)
-                    }
-                    HStack(spacing: 12) {
-                        Toggle("Codex 进度", isOn: $settings.showCodexStatusItem)
-                            .frame(width: 110, alignment: .leading)
-                        Toggle("输入统计", isOn: $settings.showTypingStatusItem)
-                            .frame(width: 90, alignment: .leading)
+                        Toggle(StatsL10n.text("module.memory"), isOn: $settings.showMemory)
+                        Toggle(StatsL10n.text("settings.status_bar.download"), isOn: $settings.showDownload)
+                        Toggle(StatsL10n.text("settings.status_bar.upload"), isOn: $settings.showUpload)
+                        Toggle(StatsL10n.text("settings.status_bar.codex_progress"), isOn: $settings.showCodexStatusItem)
+                            .fixedSize(horizontal: true, vertical: false)
+                        Toggle(StatsL10n.text("settings.status_bar.typing"), isOn: $settings.showTypingStatusItem)
+                            .fixedSize(horizontal: true, vertical: false)
                         Picker("", selection: $settings.codexStatusMetric) {
                             ForEach(CodexStatusMetric.allCases) { metric in
                                 Text(metric.title).tag(metric)
@@ -30,10 +28,13 @@ extension SettingsView {
                         }
                         .labelsHidden()
                         .pickerStyle(.menu)
-                        .frame(width: 90)
+                        .frame(width: 110)
                     }
                     HStack(spacing: 12) {
-                        SettingsFieldLabel("Codex 展示")
+                        Text(StatsL10n.text("settings.status_bar.codex_display"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 118, alignment: .leading)
                         Picker("", selection: $settings.codexStatusBarMode) {
                             ForEach(CodexStatusBarMode.allCases) { mode in
                                 Text(mode.title).tag(mode)
@@ -46,9 +47,9 @@ extension SettingsView {
 
                     Divider()
 
-                    SettingsSubsectionTitle("系统指标样式")
+                    SettingsSubsectionTitle(StatsL10n.text("settings.status_bar.system_metrics_style"))
                     HStack(spacing: 12) {
-                        SettingsFieldLabel("显示方式")
+                        SettingsFieldLabel(StatsL10n.text("settings.status_bar.display_style"))
                         Picker("", selection: $settings.systemStatusBarStyle) {
                             ForEach(SystemStatusBarStyle.allCases) { style in
                                 Text(style.title).tag(style)
@@ -63,15 +64,18 @@ extension SettingsView {
 
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 14) {
-                            Toggle("显示 Logo", isOn: $settings.showStatusBarLogo)
+                            Toggle(StatsL10n.text("settings.status_bar.show_logo"), isOn: $settings.showStatusBarLogo)
                                 .fixedSize(horizontal: true, vertical: false)
-                            Toggle("随 CPU 加速", isOn: $settings.statusBarLogoAnimation)
+                            Toggle(StatsL10n.text("settings.status_bar.animate_with_cpu"), isOn: $settings.statusBarLogoAnimation)
                                 .toggleStyle(.switch)
                                 .fixedSize(horizontal: true, vertical: false)
                                 .disabled(!settings.showStatusBarLogo)
                         }
                         HStack(spacing: 12) {
-                            SettingsFieldLabel("动画样式")
+                            Text(StatsL10n.text("settings.status_bar.animation_style"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 118, alignment: .leading)
                             Picker("", selection: $settings.statusBarRunner) {
                                 ForEach(StatusBarRunner.allCases) { runner in
                                     Text(runner.title).tag(runner)
@@ -83,7 +87,7 @@ extension SettingsView {
                             .disabled(!settings.showStatusBarLogo)
                         }
                     }
-                Text("关闭“随 CPU 加速”后以固定 8 FPS 播放；系统启用“减少动态效果”时自动显示静态图标。")
+                Text(StatsL10n.text("settings.status_bar.animation_hint"))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -92,14 +96,14 @@ extension SettingsView {
     }
 
     var statusBarOrderSection: some View {
-        SettingsSection(title: "菜单栏项目顺序") {
+        SettingsSection(title: StatsL10n.text("settings.status_bar.item_order")) {
             VStack(alignment: .leading, spacing: 7) {
-                    Text("仅显示已启用的项目；拖动调整其状态栏顺序。")
+                    Text(StatsL10n.text("settings.status_bar.item_order_hint"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
                     LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: 185), alignment: .leading)],
+                        columns: [GridItem(.adaptive(minimum: 300), alignment: .leading)],
                         alignment: .leading,
                         spacing: 8
                     ) {
@@ -133,7 +137,7 @@ extension SettingsView {
                         }
                     }
 
-                    Button("恢复默认顺序") {
+                    Button(StatsL10n.text("common.restore_default_order")) {
                         settings.resetStatusBarMetricOrder()
                     }
                     .buttonStyle(.link)

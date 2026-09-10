@@ -21,7 +21,8 @@ let package = Package(
             dependencies: ["TorliStatsShared"],
             path: "Sources/TorliStats",
             resources: [
-                .process("NotesResources")
+                .process("NotesResources"),
+                .process("StatsResources")
             ],
             linkerSettings: [
                 .linkedFramework("AppKit"),

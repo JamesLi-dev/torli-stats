@@ -8,8 +8,8 @@ enum StatisticsDetailTab: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .typing: return "输入统计"
-        case .development: return "开发统计"
+        case .typing: return StatsL10n.text("statistics.tab.typing")
+        case .development: return StatsL10n.text("statistics.tab.development")
         }
     }
 
@@ -18,6 +18,56 @@ enum StatisticsDetailTab: String, CaseIterable, Identifiable {
         case .typing: return "keyboard"
         case .development: return "chevron.left.forwardslash.chevron.right"
         }
+    }
+}
+
+struct StatisticsSettingsPage: View {
+    @ObservedObject var typingStats: TypingStatsService
+    @ObservedObject var wakaTimeUsageStore: WakaTimeUsageStore
+    @Binding var selectedTab: StatisticsDetailTab
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 8) {
+                ForEach(StatisticsDetailTab.allCases) { tab in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            selectedTab = tab
+                        }
+                    } label: {
+                        Label(tab.title, systemImage: tab.systemImage)
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .padding(.horizontal, 15)
+                            .padding(.vertical, 10)
+                            .foregroundStyle(selectedTab == tab ? .white : .primary)
+                            .background(selectedTab == tab ? Color.accentColor : AppColors.badge)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Group {
+                switch selectedTab {
+                case .typing:
+                    TypingStatisticsDetailContent(typingStats: typingStats)
+                case .development:
+                    DevelopmentStatisticsDetailContent(store: wakaTimeUsageStore)
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(.regularMaterial)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .shadow(color: Color.black.opacity(0.04), radius: 8, y: 3)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 }
 
@@ -111,28 +161,28 @@ private struct TypingStatisticsDetailContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Picker("输入统计周期", selection: $selectedPeriod) {
-                Text("近 7 天").tag(7)
-                Text("近 30 天").tag(30)
+            Picker(StatsL10n.text("statistics.typing.period"), selection: $selectedPeriod) {
+                Text(StatsL10n.text("wakatime.last_7_days")).tag(7)
+                Text(StatsL10n.text("wakatime.last_30_days")).tag(30)
             }
             .pickerStyle(.segmented)
 
-            DetailSection(title: "输入概览", subtitle: "仅保存按日键数和活跃时长，不记录输入内容、键码或应用信息") {
+            DetailSection(title: StatsL10n.text("statistics.typing.overview"), subtitle: StatsL10n.text("statistics.typing.privacy")) {
                 DetailMetricGrid(items: [
-                    ("键数", compactNumber(periodTotal)),
-                    ("活跃天数", "\(activeDays) 天"),
-                    ("活跃日均", compactNumber(averagePerActiveDay)),
-                    ("最高", compactNumber(peakRecord?.keyCount ?? 0))
+                    (StatsL10n.text("statistics.typing.key_count"), compactNumber(periodTotal)),
+                    (StatsL10n.text("statistics.typing.active_days"), StatsL10n.format("statistics.days", activeDays)),
+                    (StatsL10n.text("statistics.typing.active_daily_average"), compactNumber(averagePerActiveDay)),
+                    (StatsL10n.text("statistics.typing.peak"), compactNumber(peakRecord?.keyCount ?? 0))
                 ])
             }
 
-            DetailSection(title: "每日键数", subtitle: dateRangeText(records.map(\.dateID))) {
+            DetailSection(title: StatsL10n.text("statistics.typing.daily_key_count"), subtitle: dateRangeText(records.map(\.dateID))) {
                 DetailedDailyBarChart(
                     values: records.map {
                         DetailDailyValue(
                             dateID: $0.dateID,
                             value: Double($0.keyCount),
-                            tooltip: "日期：\($0.dateID)\n键数：\(String(format: "%d", $0.keyCount))\n活跃：\(formatDuration($0.activeSeconds))"
+                            tooltip: StatsL10n.format("statistics.typing.daily_tooltip", $0.dateID, $0.keyCount, formatDuration($0.activeSeconds))
                         )
                     },
                     color: .cyan
@@ -140,7 +190,7 @@ private struct TypingStatisticsDetailContent: View {
                     .frame(height: 202)
             }
 
-            DetailSection(title: "每日明细") {
+            DetailSection(title: StatsL10n.text("statistics.daily_details")) {
                 LazyVStack(spacing: 0) {
                     ForEach(records.reversed()) { record in
                         HStack {
@@ -149,7 +199,7 @@ private struct TypingStatisticsDetailContent: View {
                             Spacer()
                             Text(formatDuration(record.activeSeconds))
                                 .foregroundStyle(.secondary)
-                            Text("\(compactNumber(record.keyCount)) 键")
+                            Text(StatsL10n.format("statistics.keys", compactNumber(record.keyCount)))
                                 .frame(width: 86, alignment: .trailing)
                         }
                         .font(.system(size: 11, weight: .medium, design: .rounded))
@@ -167,7 +217,7 @@ private struct DevelopmentStatisticsDetailContent: View {
     @State private var selectedRange: WakaTimeRange = .last30Days
 
     private var snapshot: WakaTimeSnapshot? {
-        store.snapshots[selectedRange] ?? store.state.snapshot
+        store.snapshots[selectedRange]
     }
 
     private var period: WakaTimePeriod? {
@@ -177,7 +227,7 @@ private struct DevelopmentStatisticsDetailContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
-                Picker("开发统计周期", selection: $selectedRange) {
+                Picker(StatsL10n.text("statistics.development.period"), selection: $selectedRange) {
                     ForEach(WakaTimeRange.allCases) { range in
                         Text(range.title).tag(range)
                     }
@@ -187,7 +237,7 @@ private struct DevelopmentStatisticsDetailContent: View {
                 Button {
                     store.refresh()
                 } label: {
-                    Label("刷新", systemImage: "arrow.clockwise")
+                    Label(StatsL10n.text("wakatime.refresh"), systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(.bordered)
                 .disabled(matchesLoadingState)
@@ -200,7 +250,7 @@ private struct DevelopmentStatisticsDetailContent: View {
                     Image(systemName: "chart.bar.xaxis")
                         .font(.system(size: 28))
                         .foregroundStyle(.secondary)
-                    Text("暂无开发统计")
+                    Text(StatsL10n.text("statistics.development.empty"))
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                     Text(store.state.statusText)
                         .font(.system(size: 11, weight: .medium, design: .rounded))
@@ -208,6 +258,12 @@ private struct DevelopmentStatisticsDetailContent: View {
                 }
                 .frame(maxWidth: .infinity, minHeight: 280)
             }
+        }
+        .onAppear {
+            store.loadSnapshotIfNeeded(for: selectedRange)
+        }
+        .onChange(of: selectedRange) { _, range in
+            store.loadSnapshotIfNeeded(for: range)
         }
     }
 
@@ -218,23 +274,23 @@ private struct DevelopmentStatisticsDetailContent: View {
 
     @ViewBuilder
     private func developmentContent(_ snapshot: WakaTimeSnapshot) -> some View {
-        DetailSection(title: "编码概览", subtitle: store.state.statusText) {
+        DetailSection(title: StatsL10n.text("statistics.development.overview"), subtitle: store.state.statusText) {
             DetailMetricGrid(items: [
-                ("今天", compactDuration(store.todayPeriod?.totalSeconds ?? 0)),
+                (StatsL10n.text("wakatime.today"), compactDuration(store.todayPeriod?.totalSeconds ?? 0)),
                 ("\(selectedRange.title)", compactDuration(period?.totalSeconds ?? snapshot.totalSeconds)),
-                ("活跃日均", compactDuration(period?.averageActiveDaySeconds ?? 0)),
-                ("活跃天数", "\(period?.activeDayCount ?? 0) 天")
+                (StatsL10n.text("statistics.typing.active_daily_average"), compactDuration(period?.averageActiveDaySeconds ?? 0)),
+                (StatsL10n.text("statistics.typing.active_days"), StatsL10n.format("statistics.days", period?.activeDayCount ?? 0))
             ])
         }
 
         if let period, !period.dailyRecords.isEmpty {
-            DetailSection(title: "每日编码时长", subtitle: dateRangeText(period.dailyRecords.map(\.dateID))) {
+            DetailSection(title: StatsL10n.text("statistics.development.daily_coding_duration"), subtitle: dateRangeText(period.dailyRecords.map(\.dateID))) {
                 DetailedDailyBarChart(
                     values: period.dailyRecords.map {
                         DetailDailyValue(
                             dateID: $0.dateID,
                             value: $0.totalSeconds,
-                            tooltip: "日期：\($0.dateID)\n时长：\(compactDuration($0.totalSeconds))"
+                            tooltip: StatsL10n.format("statistics.development.daily_tooltip", $0.dateID, compactDuration($0.totalSeconds))
                         )
                     },
                     color: .blue
@@ -243,30 +299,30 @@ private struct DevelopmentStatisticsDetailContent: View {
             }
         }
 
-        DetailSection(title: "语言", subtitle: "按 WakaTime 聚合时长") {
+        DetailSection(title: StatsL10n.text("wakatime.languages"), subtitle: StatsL10n.text("statistics.development.wakatime_aggregation")) {
             BreakdownList(values: Array(snapshot.languages.prefix(5)), color: .blue)
         }
 
         if let aiCoding = snapshot.categories.first(where: { $0.name.caseInsensitiveCompare("AI Coding") == .orderedSame }) {
-            DetailSection(title: "AI Coding", subtitle: "占全部编码时长 \(String(format: "%.0f", aiCoding.percent))%") {
+            DetailSection(title: "AI Coding", subtitle: StatsL10n.format("statistics.development.ai_coding_share", aiCoding.percent)) {
                 DetailMetricGrid(items: [
-                    ("AI 时长", compactDuration(aiCoding.totalSeconds)),
-                    ("AI 占比", String(format: "%.1f%%", aiCoding.percent)),
-                    ("输入 Token", compactNumber(snapshot.aiInputTokens)),
-                    ("输出 Token", compactNumber(snapshot.aiOutputTokens))
+                    (StatsL10n.text("statistics.development.ai_duration"), compactDuration(aiCoding.totalSeconds)),
+                    (StatsL10n.text("statistics.development.ai_share"), String(format: "%.1f%%", aiCoding.percent)),
+                    (StatsL10n.text("statistics.development.input_tokens"), compactNumber(snapshot.aiInputTokens)),
+                    (StatsL10n.text("statistics.development.output_tokens"), compactNumber(snapshot.aiOutputTokens))
                 ])
             }
         }
 
         if !snapshot.aiModelBreakdown.isEmpty {
-            DetailSection(title: "AI 模型", subtitle: snapshot.aiModelTotalCost > 0 ? String(format: "模型总成本 $%.2f", snapshot.aiModelTotalCost) : nil) {
+            DetailSection(title: StatsL10n.text("statistics.development.ai_models"), subtitle: snapshot.aiModelTotalCost > 0 ? StatsL10n.format("statistics.development.model_total_cost", snapshot.aiModelTotalCost) : nil) {
                 LazyVStack(spacing: 0) {
                     ForEach(snapshot.aiModelBreakdown) { model in
                         HStack {
                             Text(model.name)
                                 .lineLimit(1)
                             Spacer()
-                            Text("\(compactNumber(Double(model.lines))) 行")
+                            Text(StatsL10n.format("statistics.lines", compactNumber(Double(model.lines))))
                                 .foregroundStyle(.secondary)
                             if model.cost > 0 {
                                 Text(String(format: "$%.2f", model.cost))
@@ -282,12 +338,12 @@ private struct DevelopmentStatisticsDetailContent: View {
         }
 
         if !snapshot.editors.isEmpty {
-            DetailSection(title: "编辑器") {
+            DetailSection(title: StatsL10n.text("statistics.development.editors")) {
                 BreakdownList(values: Array(snapshot.editors.prefix(3)), color: .purple)
             }
         }
 
-        Text("仅展示 WakaTime 提供的聚合时长、语言、AI 和工具统计，不展示项目、文件、分支或路径。")
+        Text(StatsL10n.text("statistics.development.privacy"))
             .font(.system(size: 10, weight: .medium, design: .rounded))
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -428,7 +484,7 @@ private struct DetailedDailyBarChart: View {
                             .shadow(color: .black.opacity(0.10), radius: 4, y: 1)
                             .position(x: tooltipCenter, y: tooltipHeight / 2)
                     } else {
-                        Text("悬停柱子查看当天汇总")
+                        Text(StatsL10n.text("statistics.chart.hover_hint"))
                             .font(.system(size: 10, weight: .medium, design: .rounded))
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
@@ -463,7 +519,7 @@ private struct DetailedDailyBarChart: View {
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("每日趋势图")
+        .accessibilityLabel(StatsL10n.text("statistics.chart.daily_trend"))
     }
 
     private func dailyBar(_ entry: DetailDailyValue, width: CGFloat, height: CGFloat) -> some View {
@@ -547,7 +603,7 @@ private func compactDuration(_ seconds: Double) -> String {
 
 private func formatDuration(_ seconds: TimeInterval) -> String {
     let minutes = Int(seconds) / 60
-    return minutes >= 60 ? "\(minutes / 60) 小时 \(minutes % 60) 分" : "\(minutes) 分"
+    return minutes >= 60 ? StatsL10n.format("statistics.duration", minutes / 60, minutes % 60) : StatsL10n.format("statistics.minutes", minutes)
 }
 
 private func dateRangeText(_ dateIDs: [String]) -> String? {

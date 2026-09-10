@@ -19,19 +19,19 @@ enum StatusBarRunner: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .runCat: return "跑步猫"
-        case .beagle: return "小猎犬"
-        case .chicken: return "小鸡"
-        case .dinosaur: return "恐龙"
-        case .fishman: return "鱼人"
-        case .frog: return "青蛙"
-        case .horse: return "马"
-        case .rabbit: return "兔"
-        case .rubberDuck: return "橡皮鸭"
-        case .classicCat: return "经典猫"
-        case .goldenRetriever: return "金毛寻回犬"
-        case .wallBreaker: return "破墙者"
-        case .dojoPanda: return "道场熊猫"
+        case .runCat: return StatsL10n.text("runner.run_cat")
+        case .beagle: return StatsL10n.text("runner.beagle")
+        case .chicken: return StatsL10n.text("runner.chicken")
+        case .dinosaur: return StatsL10n.text("runner.dinosaur")
+        case .fishman: return StatsL10n.text("runner.fishman")
+        case .frog: return StatsL10n.text("runner.frog")
+        case .horse: return StatsL10n.text("runner.horse")
+        case .rabbit: return StatsL10n.text("runner.rabbit")
+        case .rubberDuck: return StatsL10n.text("runner.rubber_duck")
+        case .classicCat: return StatsL10n.text("runner.classic_cat")
+        case .goldenRetriever: return StatsL10n.text("runner.golden_retriever")
+        case .wallBreaker: return StatsL10n.text("runner.wall_breaker")
+        case .dojoPanda: return StatsL10n.text("runner.dojo_panda")
         }
     }
 

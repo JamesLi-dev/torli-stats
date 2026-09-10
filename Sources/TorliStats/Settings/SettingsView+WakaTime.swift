@@ -4,28 +4,28 @@ import UniformTypeIdentifiers
 
 extension SettingsView {
     var wakaTimeSection: some View {
-        SettingsSection(title: "WakaTime 开发统计") {
+        SettingsSection(title: StatsL10n.text("settings.wakatime.title")) {
             VStack(alignment: .leading, spacing: 10) {
-                Text("配置自己的 API Key 后才会请求 WakaTime；密钥仅保存在本机钥匙串，启用后每 30 分钟自动同步一次。")
+                Text(StatsL10n.text("settings.wakatime.help"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: 8) {
-                    SecureField(hasWakaTimeAPIKey ? "已保存 API Key（可输入新值替换）" : "WakaTime API Key", text: $wakaTimeAPIKey)
+                    SecureField(hasWakaTimeAPIKey ? StatsL10n.text("settings.wakatime.api_key_saved") : StatsL10n.text("settings.wakatime.api_key"), text: $wakaTimeAPIKey)
                         .textFieldStyle(.roundedBorder)
-                    Button("保存并连接") {
+                    Button(StatsL10n.text("settings.wakatime.save_connect")) {
                         let key = wakaTimeAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !key.isEmpty else {
-                            wakaTimeMessage = "请输入 WakaTime API Key。"
+                            wakaTimeMessage = StatsL10n.text("settings.wakatime.enter_api_key")
                             return
                         }
                         guard WakaTimeKeychain.saveAPIKey(key) else {
-                            wakaTimeMessage = "无法保存 API Key 到钥匙串。"
+                            wakaTimeMessage = StatsL10n.text("settings.wakatime.save_failed")
                             return
                         }
                         wakaTimeAPIKey = ""
                         hasWakaTimeAPIKey = true
-                        wakaTimeMessage = "已保存到钥匙串，正在连接。"
+                        wakaTimeMessage = StatsL10n.text("settings.wakatime.saved_connecting")
                         settings.showWakaTimeCard = true
                         settings.wakaTimeEnabled = true
                         onWakaTimeRefresh()
@@ -34,10 +34,10 @@ extension SettingsView {
                 }
 
                 HStack(spacing: 10) {
-                    Toggle("启用 WakaTime 统计", isOn: $settings.wakaTimeEnabled)
+                    Toggle(StatsL10n.text("settings.wakatime.enabled"), isOn: $settings.wakaTimeEnabled)
                         .disabled(!hasWakaTimeAPIKey)
                     Spacer(minLength: 0)
-                    Button("刷新") {
+                    Button(StatsL10n.text("wakatime.refresh")) {
                         onWakaTimeRefresh()
                     }
                     .disabled(!settings.wakaTimeEnabled)
@@ -50,11 +50,11 @@ extension SettingsView {
                         .lineLimit(2)
                     Spacer(minLength: 0)
                     if hasWakaTimeAPIKey {
-                        Button("移除 API Key", role: .destructive) {
+                        Button(StatsL10n.text("settings.wakatime.remove_api_key"), role: .destructive) {
                             WakaTimeKeychain.deleteAPIKey()
                             wakaTimeAPIKey = ""
                             hasWakaTimeAPIKey = false
-                            wakaTimeMessage = "已从钥匙串移除 API Key。"
+                            wakaTimeMessage = StatsL10n.text("settings.wakatime.removed_api_key")
                             settings.wakaTimeEnabled = false
                         }
                         .buttonStyle(.borderless)

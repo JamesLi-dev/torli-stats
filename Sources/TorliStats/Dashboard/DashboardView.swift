@@ -76,9 +76,9 @@ struct DashboardView: View {
 
     private var monitoringStatusMessage: String {
         if store.isAdaptiveLowFrequency {
-            return "节能采样中：空闲时每 30 秒更新"
+            return StatsL10n.text("dashboard.low_impact_sampling")
         }
-        return store.monitoringPauseMessage ?? "监控已暂停"
+        return store.monitoringPauseMessage ?? StatsL10n.text("dashboard.monitoring_paused")
     }
 
     private var layoutBlocks: [DashboardLayoutBlock] {
@@ -125,13 +125,13 @@ struct DashboardView: View {
     private func metricCard(for module: DashboardModule) -> some View {
         switch module {
         case .cpu:
-            MetricCard(title: "CPU", icon: "cpu", value: "\(Int(store.cpu))%", badge: "\(store.cpuPerCore.count) 核", density: settings.dashboardDensity, valueColor: highUsageColor(store.cpu, warning: 70, critical: 90)) {
+            MetricCard(title: "CPU", icon: "cpu", value: "\(Int(store.cpu))%", badge: StatsL10n.format("dashboard.cpu_cores", store.cpuPerCore.count), density: settings.dashboardDensity, valueColor: highUsageColor(store.cpu, warning: 70, critical: 90)) {
                 CPUBarChart(values: store.cpuPerCore)
             } footer: {
                 TemperatureTag(value: settings.sensorHelperEnabled ? store.cpuTemperature : nil)
             }
         case .gpu:
-            MetricCard(title: "GPU", icon: "display", value: "\(Int(store.gpu))%", badge: store.deviceInfo.gpuCores.map { "\($0) 核" } ?? "—", density: settings.dashboardDensity) {
+            MetricCard(title: "GPU", icon: "display", value: "\(Int(store.gpu))%", badge: store.deviceInfo.gpuCores.map { StatsL10n.format("dashboard.gpu_cores", $0) } ?? "—", density: settings.dashboardDensity) {
                 Sparkline(values: store.gpuHistory, color: .orange)
             } footer: {
                 HStack(spacing: 6) {
@@ -142,20 +142,20 @@ struct DashboardView: View {
                 }
             }
         case .memory:
-            MetricCard(title: "内存", icon: "memorychip", value: "\(Int(store.memory))%", badge: "已使用", density: settings.dashboardDensity, valueColor: highUsageColor(store.memory, warning: 75, critical: 90)) {
+            MetricCard(title: StatsL10n.text("dashboard.memory"), icon: "memorychip", value: "\(Int(store.memory))%", badge: StatsL10n.text("dashboard.used"), density: settings.dashboardDensity, valueColor: highUsageColor(store.memory, warning: 75, critical: 90)) {
                 Sparkline(values: store.memoryHistory, color: .yellow)
             } footer: {
-                Text("已使用 \(store.memoryUsed) / \(store.memoryTotal)")
+                Text(StatsL10n.format("dashboard.memory_usage", store.memoryUsed, store.memoryTotal))
             }
         case .disk:
-            MetricCard(title: "磁盘", icon: "internaldrive", value: "\(Int(store.diskUsage))%", badge: store.diskTotal, density: settings.dashboardDensity, valueColor: highUsageColor(store.diskUsage, warning: 80, critical: 90)) {
+            MetricCard(title: StatsL10n.text("dashboard.disk"), icon: "internaldrive", value: "\(Int(store.diskUsage))%", badge: store.diskTotal, density: settings.dashboardDensity, valueColor: highUsageColor(store.diskUsage, warning: 80, critical: 90)) {
                 ProgressView(value: store.diskUsage / 100)
                     .tint(.blue)
             } footer: {
-                Text("可用  \(store.diskFree)")
+                Text(StatsL10n.format("dashboard.available_space", store.diskFree))
             }
         case .network:
-            MetricCard(title: "网络", icon: "network", value: formatRate(store.download), badge: "实时", density: settings.dashboardDensity) {
+            MetricCard(title: StatsL10n.text("dashboard.network"), icon: "network", value: formatRate(store.download), badge: StatsL10n.text("dashboard.live"), density: settings.dashboardDensity) {
                 NetworkChart(download: store.networkDownloadHistory, upload: store.networkUploadHistory)
             } footer: {
                 HStack(spacing: 14) {
@@ -164,22 +164,22 @@ struct DashboardView: View {
                 }
             }
         case .fan:
-            MetricCard(title: "风扇", icon: "fanblades.fill", value: store.fanRPM.map(String.init) ?? "—", badge: "RPM", density: settings.dashboardDensity) {
+            MetricCard(title: StatsL10n.text("dashboard.fan"), icon: "fanblades.fill", value: store.fanRPM.map(String.init) ?? "—", badge: "RPM", density: settings.dashboardDensity) {
                 HStack(spacing: 6) {
                     Image(systemName: "gauge.with.dots.needle.67percent")
                     Text(settings.sensorHelperEnabled
-                        ? (store.fanRPM == nil ? "传感器暂不可用" : "当前转速")
-                        : "需要授权读取风扇")
+                        ? (store.fanRPM == nil ? StatsL10n.text("dashboard.sensor_unavailable") : StatsL10n.text("dashboard.current_speed"))
+                        : StatsL10n.text("dashboard.authorize_fan"))
                 }
                 .foregroundStyle(.secondary)
             } footer: {
                 Text(settings.sensorHelperEnabled
-                    ? (store.fanRPM == nil ? "当前机型未提供 RPM" : "风扇转速")
-                    : "需要授权读取风扇")
+                    ? (store.fanRPM == nil ? StatsL10n.text("dashboard.rpm_unavailable") : StatsL10n.text("dashboard.fan_speed"))
+                    : StatsL10n.text("dashboard.authorize_fan"))
             }
         case .typing:
             MetricCard(
-                title: "输入",
+                title: StatsL10n.text("dashboard.typing"),
                 icon: "keyboard",
                 value: compactNumber(typingStats.todayKeyCount),
                 badge: typingTrendBadge,
@@ -192,7 +192,7 @@ struct DashboardView: View {
             } footer: {
                 HStack(spacing: 4) {
                     Text(typingStats.permissionStatus == .monitoring
-                        ? "累计 \(compactNumber(typingStats.totalKeyCount)) · 活跃 \(formatTypingDuration(typingStats.activeSeconds))"
+                        ? StatsL10n.format("dashboard.typing_summary", compactNumber(typingStats.totalKeyCount), formatTypingDuration(typingStats.activeSeconds))
                         : typingStats.permissionStatus.description)
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.right")
@@ -201,7 +201,7 @@ struct DashboardView: View {
             }
             .contentShape(RoundedRectangle(cornerRadius: 13))
             .onTapGesture(perform: onTypingDetails)
-            .help("查看输入统计趋势")
+            .help(StatsL10n.text("dashboard.typing_details"))
         case .power, .codex, .wakatime, .processes:
             EmptyView()
         }
@@ -312,7 +312,7 @@ struct DashboardView: View {
 
     private var typingTrendBadge: String {
         let speed = typingStats.keysPerMinute > 0 ? "\(typingStats.keysPerMinute) KPM" : "— KPM"
-        return settings.dashboardDensity == .compact ? "今日 · \(speed)" : speed
+        return settings.dashboardDensity == .compact ? StatsL10n.format("dashboard.typing_today_badge", speed) : speed
     }
 
     private func compactNumber(_ value: Int) -> String {
@@ -321,7 +321,7 @@ struct DashboardView: View {
 
     private func formatTypingDuration(_ value: TimeInterval) -> String {
         let minutes = Int(value) / 60
-        return minutes >= 60 ? "\(minutes / 60) 小时 \(minutes % 60) 分" : "\(minutes) 分"
+        return minutes >= 60 ? StatsL10n.format("statistics.duration", minutes / 60, minutes % 60) : StatsL10n.format("statistics.minutes", minutes)
     }
 
 }

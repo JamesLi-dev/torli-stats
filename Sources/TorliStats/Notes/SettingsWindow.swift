@@ -107,10 +107,10 @@ enum DeckCorner: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .topLeft: return "左上"
-        case .bottomLeft: return "左下"
-        case .topRight: return "右上"
-        case .bottomRight: return "右下"
+        case .topLeft: return NotesL10n.text("settings.deck.position.top_left")
+        case .bottomLeft: return NotesL10n.text("settings.deck.position.bottom_left")
+        case .topRight: return NotesL10n.text("settings.deck.position.top_right")
+        case .bottomRight: return NotesL10n.text("settings.deck.position.bottom_right")
         }
     }
 
@@ -250,57 +250,6 @@ final class SettingsModel: ObservableObject {
     }
 }
 
-// MARK: - Window
-
-final class NotesSettingsWindow: NSObject, NSWindowDelegate {
-    static let shared = NotesSettingsWindow()
-    private var window: NSWindow?
-    private let model = SettingsModel()
-
-    var isOpen: Bool { window?.isVisible ?? false }
-
-    func syncPreferences() {
-        model.syncFromDefaults()
-    }
-
-    func show() {
-        if window == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 700, height: 540),
-                             styleMask: [.titled, .closable, .fullSizeContentView],
-                             backing: .buffered, defer: false)
-            w.title = NotesL10n.text("settings.window_title")
-            w.titlebarAppearsTransparent = true
-            w.isOpaque = false
-            w.backgroundColor = .clear
-            w.appearance = currentThemeAppearance
-            w.isReleasedWhenClosed = false
-            w.delegate = self
-            w.contentView = NSHostingView(rootView: NotesSettingsView(model: model))
-            w.center()
-            window = w
-        }
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate()
-        window?.makeKeyAndOrderFront(nil)
-    }
-
-    func applyAppearance(_ appearance: NSAppearance?) {
-        window?.appearance = appearance
-        window?.backgroundColor = .clear
-    }
-
-    private var currentThemeAppearance: NSAppearance? {
-        let rawValue = UserDefaults.standard.string(forKey: "themePreference")
-        return ThemePreference(rawValue: rawValue ?? "system")?.windowAppearance
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        DispatchQueue.main.async {
-            if LibraryWindow.shared.isOpen == false { NSApp.setActivationPolicy(.accessory) }
-        }
-    }
-}
-
 // MARK: - View
 
 struct NotesSettingsView: View {
@@ -308,60 +257,54 @@ struct NotesSettingsView: View {
     @State private var selectedCategory: NotesSettingsCategory = .deck
 
     var body: some View {
-        ZStack {
-            SettingsWindowBackground()
-                .ignoresSafeArea()
-
-            HStack(spacing: 0) {
-            sidebar
-            Divider()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        switch selectedCategory {
-                        case .shortcuts: shortcutsTab
-                        case .deck: deckTab
-                        case .notes: notesTab
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 8) {
+                ForEach(NotesSettingsCategory.allCases) { category in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            selectedCategory = category
                         }
+                    } label: {
+                        Label(category.title, systemImage: category.systemImage)
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .padding(.horizontal, 15)
+                            .padding(.vertical, 10)
+                            .foregroundStyle(selectedCategory == category ? .white : .primary)
+                            .background(
+                                selectedCategory == category
+                                    ? Color.accentColor
+                                    : AppColors.badge
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .padding(18)
-                    .background(.regularMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(selectedCategory == category ? .isSelected : [])
                 }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            settingsPage
+                .padding(12)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
-                .padding(26)
-            }
-            .scrollIndicators(.hidden)
-            .background(.clear)
-            }
+                .background(.regularMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .shadow(color: Color.black.opacity(0.04), radius: 8, y: 3)
         }
-        .frame(width: 700, height: 540)
     }
 
-    private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            ForEach(NotesSettingsCategory.allCases) { category in
-                SettingsSidebarItem(
-                    title: category.title,
-                    systemImage: category.systemImage,
-                    isSelected: selectedCategory == category
-                ) {
-                    withAnimation(.easeInOut(duration: 0.16)) {
-                        selectedCategory = category
-                    }
-                }
+    @ViewBuilder
+    private var settingsPage: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            switch selectedCategory {
+            case .shortcuts: shortcutsTab
+            case .deck: deckTab
+            case .notes: notesTab
             }
-            Spacer(minLength: 0)
         }
-        .padding(14)
-        .frame(width: 160)
-        .frame(maxHeight: .infinity, alignment: .topLeading)
-        .background(.clear)
     }
 
     @ViewBuilder
@@ -402,22 +345,6 @@ struct NotesSettingsView: View {
         // separate block. This avoids the alternating label/control/toggle
         // rhythm that made the panel difficult to scan.
         VStack(alignment: .leading, spacing: 12) {
-            row(NotesL10n.text("settings.deck.language")) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Picker("", selection: $model.appLanguage) {
-                        ForEach(AppLanguage.allCases) { language in
-                            Text(language.localizedName).tag(language)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(width: 220, alignment: .leading)
-                    Text(NotesL10n.text("settings.deck.language_help"))
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
-                }
-            }
-
-            Divider().padding(.vertical, 2)
-
             row(NotesL10n.text("settings.deck.style")) {
                 Picker("", selection: $model.deckStyle) {
                     ForEach(DeckStyle.allCases, id: \.self) { Text($0.title).tag($0) }
@@ -459,7 +386,7 @@ struct NotesSettingsView: View {
                     .frame(width: 220, alignment: .leading)
                 }
             }
-            row("固定位置") {
+            row(NotesL10n.text("settings.deck.position")) {
                 Picker("", selection: $model.deckCorner) {
                     ForEach(DeckCorner.allCases) { corner in
                         Text(corner.title).tag(corner)

@@ -48,13 +48,13 @@ enum BluetoothReader {
 
             let detail: String
             if let left, let right {
-                detail = "左 \(Int(left))%  ·  右 \(Int(right))%"
+                detail = StatsL10n.format("bluetooth.battery.left_right", Int(left), Int(right))
             } else if let left {
-                detail = "左 \(Int(left))%"
+                detail = StatsL10n.format("bluetooth.battery.left", Int(left))
             } else if let right {
-                detail = "右 \(Int(right))%"
+                detail = StatsL10n.format("bluetooth.battery.right", Int(right))
             } else {
-                detail = "电量 \(Int(level))%"
+                detail = StatsL10n.format("bluetooth.battery.level", Int(level))
             }
             snapshots.append(BluetoothBatterySnapshot(
                 name: currentName,

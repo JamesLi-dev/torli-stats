@@ -12,22 +12,22 @@ struct WakaTimeUsageView: View {
 
             switch store.state {
             case .notConfigured:
-                Text("请先在设置中配置自己的 WakaTime API Key。")
+                Text(StatsL10n.text("wakatime.not_configured"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             case .loading(let snapshot):
                 if let snapshot {
-                    snapshotContent(snapshot, status: "正在刷新")
+                    snapshotContent(snapshot, status: StatsL10n.text("wakatime.refreshing"))
                 } else {
-                    ProgressView("正在同步 WakaTime 数据")
+                    ProgressView(StatsL10n.text("wakatime.syncing"))
                         .controlSize(.small)
                         .font(.caption)
                 }
             case .available(let snapshot, let refreshedAt):
-                snapshotContent(snapshot, status: "更新于 \(refreshedAt.formatted(date: .omitted, time: .shortened))")
+                snapshotContent(snapshot, status: StatsL10n.format("wakatime.status.updated_at", refreshedAt.formatted(date: .omitted, time: .shortened)))
             case .unavailable(let message, let snapshot):
                 if let snapshot {
-                    snapshotContent(snapshot, status: "\(message) · 显示缓存")
+                    snapshotContent(snapshot, status: StatsL10n.format("wakatime.cached", message))
                 } else {
                     Text(message)
                         .font(.caption)
@@ -46,11 +46,11 @@ struct WakaTimeUsageView: View {
 
     private var header: some View {
         HStack(spacing: 7) {
-            Label("开发统计", systemImage: "chart.bar.xaxis")
+            Label(StatsL10n.text("wakatime.dashboard_title"), systemImage: "chart.bar.xaxis")
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(.secondary)
             if density != .compact {
-                Text("近 30 天明细")
+                Text(StatsL10n.text("wakatime.details_30_days"))
                     .font(.system(size: 8, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 5)
@@ -64,9 +64,9 @@ struct WakaTimeUsageView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
-            .help("查看开发统计明细")
+            .help(StatsL10n.text("wakatime.open_details"))
             if case .available(_, let refreshedAt) = store.state {
-                Text("更新 \(refreshedAt.formatted(date: .omitted, time: .shortened))")
+                Text(StatsL10n.format("wakatime.updated", refreshedAt.formatted(date: .omitted, time: .shortened)))
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
@@ -77,7 +77,7 @@ struct WakaTimeUsageView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
-            .help("刷新 WakaTime 数据")
+            .help(StatsL10n.text("wakatime.refresh"))
         }
     }
 
@@ -89,7 +89,7 @@ struct WakaTimeUsageView: View {
             if density == .compact {
                 aiCodingSummary(snapshot)
             } else {
-                statisticsSection(title: "语言", values: snapshot.languages, limit: density == .standard ? 3 : 5)
+                statisticsSection(title: StatsL10n.text("wakatime.languages"), values: snapshot.languages, limit: density == .standard ? 3 : 5)
 
                 Divider()
 
@@ -119,15 +119,15 @@ struct WakaTimeUsageView: View {
     private var durationSummary: some View {
         if density == .detailed {
             HStack(alignment: .lastTextBaseline, spacing: 0) {
-                durationValue(title: "今天", seconds: store.todayPeriod?.totalSeconds)
-                durationValue(title: "日均", seconds: store.lastSevenDaysPeriod?.averageActiveDaySeconds)
-                durationValue(title: "近 7 天", seconds: store.lastSevenDaysPeriod?.totalSeconds)
-                durationValue(title: "近 30 天", seconds: store.lastThirtyDaysPeriod?.totalSeconds)
+                durationValue(title: StatsL10n.text("wakatime.today"), seconds: store.todayPeriod?.totalSeconds)
+                durationValue(title: StatsL10n.text("wakatime.daily_average"), seconds: store.lastSevenDaysPeriod?.averageActiveDaySeconds)
+                durationValue(title: StatsL10n.text("wakatime.last_7_days"), seconds: store.lastSevenDaysPeriod?.totalSeconds)
+                durationValue(title: StatsL10n.text("wakatime.last_30_days"), seconds: store.lastThirtyDaysPeriod?.totalSeconds)
             }
         } else {
             HStack(alignment: .lastTextBaseline, spacing: 0) {
-                durationValue(title: "今天", seconds: store.todayPeriod?.totalSeconds)
-                durationValue(title: "近 7 天", seconds: store.lastSevenDaysPeriod?.totalSeconds)
+                durationValue(title: StatsL10n.text("wakatime.today"), seconds: store.todayPeriod?.totalSeconds)
+                durationValue(title: StatsL10n.text("wakatime.last_7_days"), seconds: store.lastSevenDaysPeriod?.totalSeconds)
             }
         }
     }
@@ -149,7 +149,7 @@ struct WakaTimeUsageView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title)编码时长")
+        .accessibilityLabel(StatsL10n.format("wakatime.duration_accessibility", title))
     }
 
     private func statisticsSection(title: String, values: [WakaTimeBreakdown], limit: Int) -> some View {
@@ -179,11 +179,11 @@ struct WakaTimeUsageView: View {
                         .minimumScaleFactor(0.75)
                         .frame(width: 48, alignment: .trailing)
                 }
-                .help("\(value.name)：\(value.text)，\(String(format: "%.2f", value.percent))%")
+                .help(StatsL10n.format("wakatime.breakdown_help", value.name, value.text, value.percent))
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title)统计")
+        .accessibilityLabel(StatsL10n.format("wakatime.statistics_accessibility", title))
     }
 
     private func aiCodingSummary(_ snapshot: WakaTimeSnapshot) -> some View {
@@ -206,25 +206,25 @@ struct WakaTimeUsageView: View {
                 .minimumScaleFactor(0.7)
                 .frame(width: 82, alignment: .trailing)
         }
-        .help(value.map { "AI Coding：\($0.text)，\(String(format: "%.2f", $0.percent))%" } ?? "暂无 AI Coding 分类数据")
+        .help(value.map { StatsL10n.format("wakatime.ai_coding_help", $0.text, $0.percent) } ?? StatsL10n.text("wakatime.ai_coding_empty"))
     }
 
     private func tokenSection(_ snapshot: WakaTimeSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .top, spacing: 10) {
-                Text("Token")
+                Text(StatsL10n.text("wakatime.tokens"))
                     .font(.system(size: 9, weight: .semibold, design: .rounded))
                     .foregroundStyle(.secondary)
                     .frame(width: 76, alignment: .leading)
-                tokenValue(title: "输入", value: snapshot.aiInputTokens)
-                tokenValue(title: "缓存", value: snapshot.aiCachedInputTokens)
-                tokenValue(title: "输出", value: snapshot.aiOutputTokens)
+                tokenValue(title: StatsL10n.text("wakatime.input"), value: snapshot.aiInputTokens)
+                tokenValue(title: StatsL10n.text("wakatime.cached_input"), value: snapshot.aiCachedInputTokens)
+                tokenValue(title: StatsL10n.text("wakatime.output"), value: snapshot.aiOutputTokens)
                 Spacer(minLength: 0)
             }
 
             if !snapshot.aiModelBreakdown.isEmpty {
                 HStack(alignment: .top, spacing: 8) {
-                    Text("模型")
+                    Text(StatsL10n.text("wakatime.models"))
                         .font(.system(size: 9, weight: .semibold, design: .rounded))
                         .foregroundStyle(.secondary)
                         .frame(width: 76, alignment: .leading)
@@ -233,7 +233,7 @@ struct WakaTimeUsageView: View {
                             HStack(spacing: 5) {
                                 Text(model.name)
                                     .lineLimit(1)
-                                Text("\(compactNumber(Double(model.lines))) 行")
+                                Text(StatsL10n.format("statistics.lines", compactNumber(Double(model.lines))))
                                     .foregroundStyle(.secondary)
                                 if model.cost > 0 {
                                     Text(String(format: "$%.2f", model.cost))
@@ -248,7 +248,7 @@ struct WakaTimeUsageView: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("AI Token 与模型统计")
+        .accessibilityLabel(StatsL10n.text("wakatime.ai_tokens_models_accessibility"))
     }
 
     private func tokenValue(title: String, value: Double) -> some View {

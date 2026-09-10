@@ -11,7 +11,7 @@ struct CodexAccountConfiguration: Codable, Identifiable, Equatable {
 
     var resolvedDisplayName: String {
         let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "Codex 账号" : trimmed
+        return trimmed.isEmpty ? StatsL10n.text("codex.account") : trimmed
     }
 
     static func defaultAccount(
@@ -46,10 +46,10 @@ struct CodexHomeValidation {
     }
 
     var summary: String {
-        if !directoryExists { return "Codex Home 目录不存在" }
-        if !authFileExists { return "未找到 auth.json，请先登录 Codex" }
-        if executablePath == nil { return "未找到可执行的 Codex CLI" }
-        return "Home、登录文件和 Codex CLI 已就绪"
+        if !directoryExists { return StatsL10n.text("codex.home_missing") }
+        if !authFileExists { return StatsL10n.text("codex.auth_missing") }
+        if executablePath == nil { return StatsL10n.text("codex.executable_missing") }
+        return StatsL10n.text("codex.home_ready")
     }
 }
 
@@ -78,18 +78,18 @@ enum CodexUsageError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .codexHomeNotFound: return "未找到 Codex Home"
-        case .authFileNotFound: return "Codex 尚未登录"
-        case .executableNotFound: return "未找到 Codex CLI"
-        case .processLaunchFailed: return "无法启动 Codex CLI"
-        case .initializeFailed: return "Codex 初始化失败"
-        case .unauthorized: return "Codex 登录已失效"
-        case .protocolError: return "Codex 协议错误"
-        case .invalidResponse: return "Codex 返回数据无法识别"
-        case .timeout: return "Codex 刷新超时"
-        case .networkUnavailable: return "网络不可用"
-        case .unsupportedAuthMode: return "当前 Codex 认证方式暂不支持"
-        case .processExited: return "Codex CLI 意外退出"
+        case .codexHomeNotFound: return StatsL10n.text("codex.home_not_found")
+        case .authFileNotFound: return StatsL10n.text("codex.not_logged_in")
+        case .executableNotFound: return StatsL10n.text("codex.cli_not_found")
+        case .processLaunchFailed: return StatsL10n.text("codex.cli_launch_failed")
+        case .initializeFailed: return StatsL10n.text("codex.initialization_failed")
+        case .unauthorized: return StatsL10n.text("codex.login_expired")
+        case .protocolError: return StatsL10n.text("codex.protocol_error")
+        case .invalidResponse: return StatsL10n.text("codex.invalid_response")
+        case .timeout: return StatsL10n.text("codex.refresh_timed_out")
+        case .networkUnavailable: return StatsL10n.text("codex.network_unavailable")
+        case .unsupportedAuthMode: return StatsL10n.text("codex.unsupported_auth")
+        case .processExited: return StatsL10n.text("codex.process_exited")
         }
     }
 }

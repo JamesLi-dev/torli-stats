@@ -4,10 +4,10 @@ import UniformTypeIdentifiers
 
 extension SettingsView {
     var dashboardSection: some View {
-        SettingsSection(title: "面板模块") {
+        SettingsSection(title: StatsL10n.text("settings.dashboard_modules")) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 10) {
-                    Text("显示密度")
+                    Text(StatsL10n.text("dashboard.density"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(width: 60, alignment: .leading)
@@ -29,13 +29,13 @@ extension SettingsView {
                 ], alignment: .leading, spacing: 10) {
                     Toggle("CPU", isOn: $settings.showCPUCard)
                     Toggle("GPU", isOn: $settings.showGPUCard)
-                    Toggle("内存", isOn: $settings.showMemoryCard)
-                    Toggle("磁盘", isOn: $settings.showDiskCard)
-                    Toggle("网络", isOn: $settings.showNetworkCard)
-                    Toggle("风扇", isOn: $settings.showFanCard)
-                    Toggle("输入", isOn: $settings.showTypingCard)
-                    Toggle("电源", isOn: $settings.showPowerCard)
-                    Toggle("进程", isOn: $settings.showProcessesCard)
+                    Toggle(StatsL10n.text("module.memory"), isOn: $settings.showMemoryCard)
+                    Toggle(StatsL10n.text("module.disk"), isOn: $settings.showDiskCard)
+                    Toggle(StatsL10n.text("module.network"), isOn: $settings.showNetworkCard)
+                    Toggle(StatsL10n.text("module.fan"), isOn: $settings.showFanCard)
+                    Toggle(StatsL10n.text("module.typing"), isOn: $settings.showTypingCard)
+                    Toggle(StatsL10n.text("module.power"), isOn: $settings.showPowerCard)
+                    Toggle(StatsL10n.text("module.processes"), isOn: $settings.showProcessesCard)
                     Toggle("Codex", isOn: $settings.showCodexCard)
                     Toggle("WakaTime", isOn: $settings.showWakaTimeCard)
                 }
@@ -43,7 +43,7 @@ extension SettingsView {
                 Divider()
 
                 VStack(alignment: .leading, spacing: 7) {
-                Text("仅显示已启用的模块；拖动调整 Dashboard 顺序。")
+                Text(StatsL10n.text("dashboard.order_hint"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -82,7 +82,7 @@ extension SettingsView {
                     }
                 }
 
-                Button("恢复默认顺序") {
+                Button(StatsL10n.text("common.restore_default_order")) {
                     settings.resetDashboardModuleOrder()
                 }
                 .buttonStyle(.link)

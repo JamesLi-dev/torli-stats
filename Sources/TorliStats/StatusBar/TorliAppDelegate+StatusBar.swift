@@ -176,9 +176,9 @@ extension TorliAppDelegate {
             let details = codexValues.map { value in
                 let used = Int(min(100, max(0, value.usedPercent)).rounded())
                 let remaining = 100 - used
-                return "\(value.prefix) · 已使用 \(used)% · 剩余 \(remaining)%"
+                return StatsL10n.format("status_bar.codex.tooltip.detail", value.prefix, used, remaining)
             }
-            button.toolTip = "Torli Stats · Codex · \(details.joined(separator: "；"))"
+            button.toolTip = StatsL10n.format("status_bar.codex.tooltip", details.joined(separator: StatsL10n.text("status_bar.codex.tooltip.separator")))
         }
     }
 
@@ -280,8 +280,8 @@ extension TorliAppDelegate {
                 return StatusBarGroupContent(firstLine: nil, secondLine: nil)
             }
             return StatusBarGroupContent(
-                firstLine: statusBarText("输入", attributes: attributes),
-                secondLine: statusBarText("\(compactTypingCount(typingStats.todayKeyCount))键", attributes: attributes)
+                firstLine: statusBarText(StatsL10n.text("status_bar.typing.label"), attributes: attributes),
+                secondLine: statusBarText(StatsL10n.format("status_bar.typing.key_count", typingStats.todayKeyCount), attributes: attributes)
             )
 
         case .codex:

@@ -4,41 +4,41 @@ import UniformTypeIdentifiers
 
 extension SettingsView {
     var monitoringSection: some View {
-        SettingsSection(title: "监控") {
+        SettingsSection(title: StatsL10n.text("settings.category.monitoring")) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 10) {
-                    Text("接电间隔")
+                    Text(StatsL10n.text("monitoring.plugged_in_interval"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(width: 60, alignment: .leading)
                     Picker("", selection: $settings.refreshInterval) {
                         ForEach(AppSettings.supportedRefreshIntervals, id: \.self) { interval in
-                            Text("\(interval) 秒").tag(interval)
+                            Text(StatsL10n.format("monitoring.seconds", interval)).tag(interval)
                         }
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
                     .frame(width: 80)
-                    Toggle("始终省电", isOn: $settings.powerSavingMode)
+                    Toggle(StatsL10n.text("monitoring.always_save_power"), isOn: $settings.powerSavingMode)
                 }
                 HStack(spacing: 10) {
-                    Text("电池间隔")
+                    Text(StatsL10n.text("monitoring.battery_interval"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(width: 60, alignment: .leading)
                     Picker("", selection: $settings.batteryRefreshInterval) {
                         ForEach(AppSettings.supportedRefreshIntervals, id: \.self) { interval in
-                            Text("\(interval) 秒").tag(interval)
+                            Text(StatsL10n.format("monitoring.seconds", interval)).tag(interval)
                         }
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
                     .frame(width: 80)
-                    Toggle("低电量自动省电", isOn: $settings.lowBatterySavingEnabled)
+                    Toggle(StatsL10n.text("monitoring.low_battery_saving"), isOn: $settings.lowBatterySavingEnabled)
                 }
                 if settings.lowBatterySavingEnabled {
                     HStack(spacing: 10) {
-                        Text("低电量阈值")
+                        Text(StatsL10n.text("monitoring.low_battery_threshold"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .frame(width: 60, alignment: .leading)
@@ -50,59 +50,59 @@ extension SettingsView {
                         .labelsHidden()
                         .pickerStyle(.menu)
                         .frame(width: 80)
-                        Text("低于阈值时最慢每 30 秒刷新一次")
+                        Text(StatsL10n.text("monitoring.low_battery_hint"))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
                 }
                 Divider()
-                Toggle("智能节能采样", isOn: $settings.adaptiveSamplingEnabled)
+                Toggle(StatsL10n.text("monitoring.adaptive_sampling"), isOn: $settings.adaptiveSamplingEnabled)
                 if settings.adaptiveSamplingEnabled {
-                    Text("Dashboard 打开时保持实时；连续 25 分钟无输入后降低采样频率，恢复输入后立即恢复。")
+                    Text(StatsL10n.text("monitoring.adaptive_sampling_hint"))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
-                Toggle("夜间暂停监控", isOn: $settings.nightMonitoringPauseEnabled)
+                Toggle(StatsL10n.text("monitoring.night_pause"), isOn: $settings.nightMonitoringPauseEnabled)
                 if settings.nightMonitoringPauseEnabled {
                     HStack(spacing: 10) {
-                        Text("暂停时段")
+                        Text(StatsL10n.text("monitoring.pause_schedule"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .frame(width: 60, alignment: .leading)
                         DatePicker(
-                            "开始",
+                            StatsL10n.text("monitoring.start"),
                             selection: timeBinding(\.nightMonitoringPauseStartSeconds),
                             displayedComponents: .hourAndMinute
                         )
                         .labelsHidden()
                         DatePicker(
-                            "结束",
+                            StatsL10n.text("monitoring.end"),
                             selection: timeBinding(\.nightMonitoringPauseEndSeconds),
                             displayedComponents: .hourAndMinute
                         )
                         .labelsHidden()
                         Spacer()
                     }
-                    Text("暂停 CPU、网络、传感器、进程及自动 Codex/WakaTime 刷新；手动刷新仍可使用。")
+                    Text(StatsL10n.text("monitoring.pause_hint"))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
                 HStack(spacing: 10) {
-                    Text("进程数量")
+                    Text(StatsL10n.text("monitoring.process_count"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(width: 60, alignment: .leading)
                     Picker("", selection: $settings.processLimit) {
-                        Text("3 个").tag(3)
-                        Text("5 个").tag(5)
-                        Text("8 个").tag(8)
-                        Text("10 个").tag(10)
-                        Text("15 个").tag(15)
+                        Text(StatsL10n.format("monitoring.items", 3)).tag(3)
+                        Text(StatsL10n.format("monitoring.items", 5)).tag(5)
+                        Text(StatsL10n.format("monitoring.items", 8)).tag(8)
+                        Text(StatsL10n.format("monitoring.items", 10)).tag(10)
+                        Text(StatsL10n.format("monitoring.items", 15)).tag(15)
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
                     .frame(width: 80)
-                    Text("排序")
+                    Text(StatsL10n.text("monitoring.sort"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Picker("", selection: $settings.processSort) {

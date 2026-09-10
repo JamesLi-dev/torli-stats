@@ -13,8 +13,8 @@ struct CPUBarChart: View {
                     RoundedRectangle(cornerRadius: min(2, barWidth / 2))
                         .fill(Color.green.opacity(0.9))
                         .frame(width: barWidth, height: max(2, geometry.size.height * CGFloat(min(100, max(0, value)) / 100)))
-                        .help("核心 \(index + 1)：\(Int(value))%")
-                        .accessibilityLabel("核心 \(index + 1)")
+                        .help(StatsL10n.format("charts.cpu_core_help", index + 1, Int(value)))
+                        .accessibilityLabel(StatsL10n.format("charts.cpu_core_accessibility", index + 1))
                         .accessibilityValue("\(Int(value))%")
                 }
             }
@@ -61,7 +61,7 @@ struct TypingTrendSparkline: View {
                         .fill(record.keyCount == 0 ? Color.secondary.opacity(0.16) : Color.cyan.opacity(0.82))
                         .frame(width: width, height: max(2, geometry.size.height * CGFloat(record.keyCount) / CGFloat(maximum)))
                         .accessibilityLabel(record.dateID)
-                        .accessibilityValue("\(record.keyCount) 键")
+                        .accessibilityValue(StatsL10n.format("statistics.keys_count", record.keyCount))
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)

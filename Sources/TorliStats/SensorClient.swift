@@ -69,15 +69,41 @@ final class SensorClient {
                     gpuTemperature: (values["gpuTemperature"] as? NSNumber)?.doubleValue,
                     helperVersion: values["helperVersion"] as? String,
                     protocolVersion: (values["protocolVersion"] as? NSNumber)?.intValue,
-                    diagnosticMessage: values["diagnosticMessage"] as? String,
-                    fanReason: values["fanReason"] as? String ?? "未返回风扇诊断信息。",
-                    cpuTemperatureReason: values["cpuTemperatureReason"] as? String ?? "未返回 CPU 温度诊断信息。",
-                    gpuTemperatureReason: values["gpuTemperatureReason"] as? String ?? "未返回 GPU 温度诊断信息。"
+                    diagnosticMessage: Self.localizedMessage(
+                        values["diagnosticMessage"] as? String,
+                        fallbackKey: "sensor.client.no_diagnostic",
+                        argument: (values["diagnosticStatus"] as? NSNumber)?.intValue
+                    ),
+                    fanReason: Self.localizedMessage(values["fanReason"] as? String, fallbackKey: "sensor.client.no_fan_diagnostic"),
+                    cpuTemperatureReason: Self.localizedMessage(values["cpuTemperatureReason"] as? String, fallbackKey: "sensor.client.no_cpu_temperature_diagnostic"),
+                    gpuTemperatureReason: Self.localizedMessage(values["gpuTemperatureReason"] as? String, fallbackKey: "sensor.client.no_gpu_temperature_diagnostic")
                 )
                 finish(sensorValues)
             }
         }
     }
+
+    private static func localizedMessage(_ key: String?, fallbackKey: String, argument: Int? = nil) -> String {
+        guard let key else { return StatsL10n.text(fallbackKey) }
+        let resolvedKey = legacySensorMessageKeys[key] ?? key
+        if resolvedKey == "sensor.smc.open_failed_iokit", let argument {
+            return StatsL10n.format(resolvedKey, argument)
+        }
+        return resolvedKey.hasPrefix("sensor.") ? StatsL10n.text(resolvedKey) : resolvedKey
+    }
+
+    // Helpers installed by pre-localization versions returned display text rather
+    // than a stable message key. Keep those helpers readable in either app
+    // language until users reinstall them.
+    private static let legacySensorMessageKeys: [String: String] = [
+        "已读取风扇转速。": "sensor.fan.read",
+        "已读取 CPU 温度。": "sensor.cpu_temperature.read",
+        "已读取 GPU 温度。": "sensor.gpu_temperature.read",
+        "未发现可读取的风扇转速。": "sensor.fan.unavailable",
+        "未返回 CPU 温度诊断信息。": "sensor.client.no_cpu_temperature_diagnostic",
+        "未返回 GPU 温度诊断信息。": "sensor.client.no_gpu_temperature_diagnostic",
+        "SMC 传感器当前不可用。": "sensor.smc.unavailable"
+    ]
 
     private func makeConnection() -> NSXPCConnection {
         if let connection { return connection }
@@ -105,9 +131,9 @@ final class SensorClient {
         gpuTemperature: nil,
         helperVersion: nil,
         protocolVersion: nil,
-        diagnosticMessage: "无法连接传感器辅助进程；请确认已授权安装并正在运行。",
-        fanReason: "无法连接传感器辅助进程。",
-        cpuTemperatureReason: "无法连接传感器辅助进程。",
-        gpuTemperatureReason: "无法连接传感器辅助进程。"
+        diagnosticMessage: StatsL10n.text("sensor.client.connection_unavailable"),
+        fanReason: StatsL10n.text("sensor.client.connection_unavailable_short"),
+        cpuTemperatureReason: StatsL10n.text("sensor.client.connection_unavailable_short"),
+        gpuTemperatureReason: StatsL10n.text("sensor.client.connection_unavailable_short")
     )
 }
