@@ -3,6 +3,11 @@ import SwiftUI
 struct ProcessListView: View {
     let processes: [ProcessRow]
     let density: DashboardDensity
+    let displayMode: ProcessSortOption
+    let showPID: Bool
+
+    private var showsCPU: Bool { displayMode != .memory }
+    private var showsMemory: Bool { displayMode != .cpu }
 
     private var displayedProcesses: [ProcessRow] {
         switch density {
@@ -18,9 +23,22 @@ struct ProcessListView: View {
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text(StatsL10n.text(density == .detailed ? "dashboard.process_headers" : "dashboard.process_headers_compact"))
-                    .font(.system(size: 9, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    if density == .detailed && showPID {
+                        Text("PID")
+                            .frame(width: 42, alignment: .trailing)
+                    }
+                    if showsCPU {
+                        Text("CPU")
+                            .frame(width: 62, alignment: .trailing)
+                    }
+                    if showsMemory {
+                        Text(StatsL10n.text("module.memory"))
+                            .frame(width: 76, alignment: .trailing)
+                    }
+                }
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundStyle(.secondary)
             }
 
             if processes.isEmpty {
@@ -32,17 +50,21 @@ struct ProcessListView: View {
                         Text(process.name)
                             .lineLimit(1)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        if density == .detailed {
+                        if density == .detailed && showPID {
                             Text(String(format: "%5d", process.id))
                                 .foregroundStyle(.secondary)
                                 .frame(width: 42, alignment: .trailing)
                         }
-                        Text(String(format: "%5.1f%%", process.cpu))
-                            .foregroundStyle(process.cpu > 20 ? .orange : .secondary)
-                            .frame(width: 62, alignment: .trailing)
-                        Text(formatMemory(process.memory))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 76, alignment: .trailing)
+                        if showsCPU {
+                            Text(String(format: "%5.1f%%", process.cpu))
+                                .foregroundStyle(process.cpu > 20 ? .orange : .secondary)
+                                .frame(width: 62, alignment: .trailing)
+                        }
+                        if showsMemory {
+                            Text(formatMemory(process.memory))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 76, alignment: .trailing)
+                        }
                     }
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
                 }

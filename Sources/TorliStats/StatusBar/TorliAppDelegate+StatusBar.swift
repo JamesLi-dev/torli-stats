@@ -99,16 +99,18 @@ extension TorliAppDelegate {
     func updateStatusTitle(_ line: StatusLine) {
         guard let button = statusItem.button else { return }
 
-        let font = NSFont.monospacedSystemFont(ofSize: 9, weight: .medium)
+        let fontSize = settings.statusBarFontSize.pointSize
+        let lineHeight = fontSize + 1
+        let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .medium)
         let style = NSMutableParagraphStyle()
         style.lineSpacing = 0
-        style.minimumLineHeight = 10
-        style.maximumLineHeight = 10
+        style.minimumLineHeight = lineHeight
+        style.maximumLineHeight = lineHeight
         let commonAttributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: NSColor.labelColor,
             .paragraphStyle: style,
-            .baselineOffset: -4
+            .baselineOffset: -max(0, fontSize - 5)
         ]
 
         if let statusLogoImage,
@@ -117,7 +119,8 @@ extension TorliAppDelegate {
                runnerSize: statusLogoImage.size,
                line: line,
                attributes: commonAttributes,
-               appearance: button.effectiveAppearance
+               appearance: button.effectiveAppearance,
+               lineHeight: lineHeight
            ) {
             button.image = nil
             button.imagePosition = .noImage
@@ -186,7 +189,8 @@ extension TorliAppDelegate {
         runnerSize: NSSize,
         line: StatusLine,
         attributes: [NSAttributedString.Key: Any],
-        appearance: NSAppearance
+        appearance: NSAppearance,
+        lineHeight: CGFloat
     ) -> StatusBarTextLayout? {
         var segments: [(group: StatusBarMetricGroup, content: StatusBarGroupContent?, width: CGFloat)] = []
 
@@ -204,13 +208,16 @@ extension TorliAppDelegate {
         }
 
         guard !segments.isEmpty else { return nil }
-        // Keep status-bar groups compact while leaving a visible separation.
-        let spacing: CGFloat = 8
+        // Use the same two-character gap as the static status-bar layout and
+        // intra-group columns, so Runner, Codex, system, and network groups
+        // remain visually aligned at every configured font size.
+        let font = attributes[.font] as? NSFont
+        let spacing = max(8, (font?.maximumAdvancement.width ?? 4) * 2)
         let totalWidth = segments.reduce(CGFloat.zero) { $0 + $1.width }
             + CGFloat(max(0, segments.count - 1)) * spacing
         guard totalWidth > 0 else { return nil }
 
-        let image = NSImage(size: NSSize(width: ceil(totalWidth), height: 20))
+        let image = NSImage(size: NSSize(width: ceil(totalWidth), height: max(20, ceil(lineHeight * 2))))
         image.lockFocus()
         var x: CGFloat = 0
         var runnerOriginX: CGFloat = 0
@@ -222,7 +229,7 @@ extension TorliAppDelegate {
                     // for animation frames.
                     runnerOriginX = x
                 } else if let content = segment.content {
-                    content.firstLine?.draw(at: NSPoint(x: x, y: 10))
+                    content.firstLine?.draw(at: NSPoint(x: x, y: lineHeight))
                     content.secondLine?.draw(at: NSPoint(x: x, y: 0))
                 }
                 x += segment.width + spacing
@@ -232,6 +239,67 @@ extension TorliAppDelegate {
         image.unlockFocus()
         image.isTemplate = false
         return StatusBarTextLayout(image: image, runnerOriginX: runnerOriginX)
+    }
+
+    private struct FormattedNetworkRate {
+        let number: String
+        let unit: String
+    }
+
+    /// Keep the unit immediately after a fixed-width numeric field: e.g.
+    /// ` 28.1 KB/s` and `123.4 KB/s`. This aligns KB/s and MB/s without
+    /// trailing whitespace or per-sample status-item resizing.
+    private var networkRateNumberWidth: Int {
+        switch settings.networkRateDecimalPlaces {
+        case 0: return 4       // 1234
+        case 1: return 5       // 123.4
+        default: return 6      // 123.45
+        }
+    }
+
+    private func formattedNetworkRate(_ bytesPerSecond: Double) -> FormattedNetworkRate {
+        let value: Double
+        let unit: String
+        switch settings.networkRateUnit {
+        case .automatic:
+            if bytesPerSecond >= 1_000_000 {
+                value = bytesPerSecond / 1_000_000
+                unit = "MB/s"
+            } else {
+                value = bytesPerSecond / 1_000
+                unit = "KB/s"
+            }
+        case .kilobytes:
+            value = bytesPerSecond / 1_000
+            unit = "KB/s"
+        case .megabytes:
+            value = bytesPerSecond / 1_000_000
+            unit = "MB/s"
+        case .megabits:
+            value = bytesPerSecond * 8 / 1_000_000
+            unit = "Mbps"
+        }
+
+        var decimalPlaces = settings.networkRateDecimalPlaces
+        var number = formattedNetworkNumber(value, decimalPlaces: decimalPlaces)
+        // Prefer the requested precision, but reduce it for unusually high
+        // rates before widening the status item.
+        while number.count > networkRateNumberWidth, decimalPlaces > 0 {
+            decimalPlaces -= 1
+            number = formattedNetworkNumber(value, decimalPlaces: decimalPlaces)
+        }
+        return FormattedNetworkRate(
+            number: rightAligned(number, width: networkRateNumberWidth),
+            unit: unit
+        )
+    }
+
+    private func formattedNetworkNumber(_ value: Double, decimalPlaces: Int) -> String {
+        String(
+            format: "%.\(decimalPlaces)f",
+            locale: Locale.autoupdatingCurrent,
+            value
+        )
     }
 
     private func statusBarGroupContent(
@@ -244,28 +312,40 @@ extension TorliAppDelegate {
             switch settings.systemStatusBarStyle {
             case .compact:
                 return StatusBarGroupContent(
-                    firstLine: settings.showCPU ? statusBarText("CPU\(rightAligned(line.cpu, width: 5))", attributes: attributes) : nil,
-                    secondLine: settings.showMemory ? statusBarText("MEM\(rightAligned(line.memory, width: 5))", attributes: attributes) : nil
+                    firstLine: settings.showCPU
+                        ? resourceUsageText(label: "CPU", value: line.cpu, usage: store.cpu, width: 5, attributes: attributes)
+                        : nil,
+                    secondLine: settings.showMemory
+                        ? resourceUsageText(label: "MEM", value: line.memory, usage: store.memory, width: 5, attributes: attributes)
+                        : nil
                 )
             case .stacked:
-                let labels = [
-                    settings.showCPU ? "CPU" : nil,
-                    settings.showMemory ? "MEM" : nil
+                let metrics = [
+                    settings.showCPU ? (label: "CPU", value: line.cpu, usage: store.cpu) : nil,
+                    settings.showMemory ? (label: "MEM", value: line.memory, usage: store.memory) : nil
                 ].compactMap { $0 }
-                let values = [
-                    settings.showCPU ? line.cpu : nil,
-                    settings.showMemory ? line.memory : nil
-                ].compactMap { $0 }
+                let labels = metrics.map { statusBarText($0.label, attributes: attributes) }
+                let values = metrics.map {
+                    statusBarText(
+                        $0.value,
+                        attributes: attributes.merging([.foregroundColor: resourceUsageColor(usage: $0.usage)]) { _, new in new }
+                    )
+                }
+                let widths = zip(labels, values).map { max($0.string.count, $1.string.count) }
                 return StatusBarGroupContent(
-                    firstLine: labels.isEmpty ? nil : statusBarText(leftAlignedStatusBarColumns(labels, columnWidth: 4, separator: " "), attributes: attributes),
-                    secondLine: values.isEmpty ? nil : statusBarText(leftAlignedStatusBarColumns(values, columnWidth: 4, separator: " "), attributes: attributes)
+                    firstLine: labels.isEmpty ? nil : joinStatusBarColumns(labels, widths: widths, attributes: attributes, separator: "  "),
+                    secondLine: values.isEmpty ? nil : joinStatusBarColumns(values, widths: widths, attributes: attributes, separator: "  ")
                 )
             }
 
         case .network:
+            let upload = formattedNetworkRate(line.upload)
+            let download = formattedNetworkRate(line.download)
+            let uploadPrefix = settings.showStatusBarMetricIcons ? "↑ " : ""
+            let downloadPrefix = settings.showStatusBarMetricIcons ? "↓ " : ""
             return StatusBarGroupContent(
-                firstLine: settings.showUpload ? statusBarText("↑ \(rightAligned(line.upload, width: 8))", attributes: attributes) : nil,
-                secondLine: settings.showDownload ? statusBarText("↓ \(rightAligned(line.download, width: 8))", attributes: attributes) : nil
+                firstLine: settings.showUpload ? statusBarText("\(uploadPrefix)\(upload.number) \(upload.unit)", attributes: attributes) : nil,
+                secondLine: settings.showDownload ? statusBarText("\(downloadPrefix)\(download.number) \(download.unit)", attributes: attributes) : nil
             )
 
         case .logo:
@@ -338,6 +418,23 @@ extension TorliAppDelegate {
         case .eachAccount:
             return values
         }
+    }
+
+    private func resourceUsageText(
+        label: String,
+        value: String,
+        usage: Double,
+        width: Int,
+        attributes: [NSAttributedString.Key: Any]
+    ) -> NSAttributedString {
+        let result = NSMutableAttributedString(string: label, attributes: attributes)
+        result.append(
+            NSAttributedString(
+                string: rightAligned(value, width: width),
+                attributes: attributes.merging([.foregroundColor: resourceUsageColor(usage: usage)]) { _, new in new }
+            )
+        )
+        return result
     }
 
     private func statusBarText(_ value: String, attributes: [NSAttributedString.Key: Any]) -> NSAttributedString {
@@ -419,15 +516,20 @@ extension TorliAppDelegate {
         value >= 1_000 ? String(format: "%.1fk", Double(value) / 1_000) : String(value)
     }
 
-    private func codexStatusColor(usedPercent: Double) -> NSColor {
-        let remaining = 100 - usedPercent
-        if remaining < 20 { return .systemRed }
-        if remaining <= 50 { return .systemOrange }
+    private func resourceUsageColor(usage: Double) -> NSColor {
+        let clampedUsage = min(100, max(0, usage))
+        if clampedUsage > 80 { return .systemRed }
+        if clampedUsage >= 50 { return .systemOrange }
         return .systemGreen
+    }
+
+    private func codexStatusColor(usedPercent: Double) -> NSColor {
+        resourceUsageColor(usage: usedPercent)
     }
 
     private func rightAligned(_ value: String, width: Int) -> String {
         let padding = max(0, width - value.count)
         return String(repeating: " ", count: padding) + value
     }
+
 }

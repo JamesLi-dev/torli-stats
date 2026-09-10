@@ -7,9 +7,27 @@ struct ProcessRow: Identifiable {
     let memory: Double
 }
 
+enum SystemThermalState {
+    case nominal
+    case fair
+    case serious
+    case critical
+
+    init(_ state: ProcessInfo.ThermalState) {
+        switch state {
+        case .nominal: self = .nominal
+        case .fair: self = .fair
+        case .serious: self = .serious
+        case .critical: self = .critical
+        @unknown default: self = .critical
+        }
+    }
+}
+
 struct BatterySnapshot {
     let percentage: Double
     let health: Double?
+    let thermalState: SystemThermalState
     let cycleCount: Int?
     let adapterWatts: Int?
     let isCharging: Bool

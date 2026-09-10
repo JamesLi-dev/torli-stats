@@ -17,6 +17,8 @@ extension SettingsView {
                         Toggle(StatsL10n.text("module.memory"), isOn: $settings.showMemory)
                         Toggle(StatsL10n.text("settings.status_bar.download"), isOn: $settings.showDownload)
                         Toggle(StatsL10n.text("settings.status_bar.upload"), isOn: $settings.showUpload)
+                        Toggle(StatsL10n.text("settings.status_bar.show_metric_icons"), isOn: $settings.showStatusBarMetricIcons)
+                            .fixedSize(horizontal: true, vertical: false)
                         Toggle(StatsL10n.text("settings.status_bar.codex_progress"), isOn: $settings.showCodexStatusItem)
                             .fixedSize(horizontal: true, vertical: false)
                         Toggle(StatsL10n.text("settings.status_bar.typing"), isOn: $settings.showTypingStatusItem)
@@ -58,34 +60,66 @@ extension SettingsView {
                         .labelsHidden()
                         .pickerStyle(.segmented)
                         .frame(width: 132)
+                        Text(StatsL10n.text("settings.status_bar.font_size"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Picker("", selection: $settings.statusBarFontSize) {
+                            ForEach(StatusBarFontSize.allCases) { size in
+                                Text(size.title).tag(size)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .frame(width: 180)
                     }
 
                     Divider()
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 14) {
-                            Toggle(StatsL10n.text("settings.status_bar.show_logo"), isOn: $settings.showStatusBarLogo)
-                                .fixedSize(horizontal: true, vertical: false)
-                            Toggle(StatsL10n.text("settings.status_bar.animate_with_cpu"), isOn: $settings.statusBarLogoAnimation)
-                                .toggleStyle(.switch)
-                                .fixedSize(horizontal: true, vertical: false)
-                                .disabled(!settings.showStatusBarLogo)
+                    SettingsSubsectionTitle(StatsL10n.text("settings.status_bar.network"))
+                    HStack(spacing: 12) {
+                        SettingsFieldLabel(StatsL10n.text("settings.status_bar.network_unit"))
+                        Picker("", selection: $settings.networkRateUnit) {
+                            ForEach(NetworkRateUnit.allCases) { unit in
+                                Text(unit.title).tag(unit)
+                            }
                         }
-                        HStack(spacing: 12) {
-                            Text(StatsL10n.text("settings.status_bar.animation_style"))
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .frame(width: 240)
+                        Text(StatsL10n.text("settings.status_bar.decimal_places"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                            .frame(width: 118, alignment: .leading)
-                            Picker("", selection: $settings.statusBarRunner) {
-                                ForEach(StatusBarRunner.allCases) { runner in
-                                    Text(runner.title).tag(runner)
-                                }
+                        Picker("", selection: $settings.networkRateDecimalPlaces) {
+                            ForEach([0, 1, 2], id: \.self) { places in
+                                Text(StatsL10n.format("settings.status_bar.decimal_places_value", places)).tag(places)
                             }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
-                            .frame(width: 130)
-                            .disabled(!settings.showStatusBarLogo)
                         }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(width: 70)
+                    }
+
+                    Divider()
+
+                    HStack(spacing: 14) {
+                        Toggle(StatsL10n.text("settings.status_bar.show_logo"), isOn: $settings.showStatusBarLogo)
+                            .fixedSize(horizontal: true, vertical: false)
+                        Toggle(StatsL10n.text("settings.status_bar.animate_with_cpu"), isOn: $settings.statusBarLogoAnimation)
+                            .toggleStyle(.switch)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .disabled(!settings.showStatusBarLogo)
+                        Text(StatsL10n.text("settings.status_bar.animation_style"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Picker("", selection: $settings.statusBarRunner) {
+                            ForEach(StatusBarRunner.allCases) { runner in
+                                Text(runner.title).tag(runner)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(width: 130)
+                        .disabled(!settings.showStatusBarLogo)
                     }
                 Text(StatsL10n.text("settings.status_bar.animation_hint"))
                     .font(.caption2)

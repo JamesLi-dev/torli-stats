@@ -217,9 +217,11 @@ struct WakaTimeUsageView: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 76, alignment: .leading)
                 tokenValue(title: StatsL10n.text("wakatime.input"), value: snapshot.aiInputTokens)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 tokenValue(title: StatsL10n.text("wakatime.cached_input"), value: snapshot.aiCachedInputTokens)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 tokenValue(title: StatsL10n.text("wakatime.output"), value: snapshot.aiOutputTokens)
-                Spacer(minLength: 0)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if !snapshot.aiModelBreakdown.isEmpty {
@@ -228,11 +230,16 @@ struct WakaTimeUsageView: View {
                         .font(.system(size: 9, weight: .semibold, design: .rounded))
                         .foregroundStyle(.secondary)
                         .frame(width: 76, alignment: .leading)
-                    VStack(alignment: .leading, spacing: 3) {
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 130), alignment: .leading)],
+                        alignment: .leading,
+                        spacing: 5
+                    ) {
                         ForEach(snapshot.aiModelBreakdown) { model in
                             HStack(spacing: 5) {
                                 Text(model.name)
                                     .lineLimit(1)
+                                    .truncationMode(.tail)
                                 Text(StatsL10n.format("statistics.lines", compactNumber(Double(model.lines))))
                                     .foregroundStyle(.secondary)
                                 if model.cost > 0 {
@@ -241,9 +248,10 @@ struct WakaTimeUsageView: View {
                                 }
                             }
                             .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .lineLimit(1)
                         }
                     }
-                    Spacer(minLength: 0)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }

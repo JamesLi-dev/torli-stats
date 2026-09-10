@@ -30,13 +30,22 @@ enum ProcessReader {
             }
             .filter { $0.cpu > 0 }
 
-            return rows
-                .sorted {
-                    switch sort {
-                    case .cpu: return $0.cpu > $1.cpu
-                    case .memory: return $0.memory > $1.memory
-                    }
+            let sorted: [ProcessRow]
+            switch sort {
+            case .cpu:
+                sorted = rows.sorted { $0.cpu > $1.cpu }
+            case .memory:
+                sorted = rows.sorted { $0.memory > $1.memory }
+            case .combined:
+                let maximumCPU = max(rows.map(\.cpu).max() ?? 0, 0.01)
+                let maximumMemory = max(rows.map(\.memory).max() ?? 0, 1)
+                sorted = rows.sorted {
+                    ($0.cpu / maximumCPU + $0.memory / maximumMemory)
+                        > ($1.cpu / maximumCPU + $1.memory / maximumMemory)
                 }
+            }
+
+            return sorted
                 .prefix(limit)
                 .map { $0 }
         } catch {

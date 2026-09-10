@@ -20,6 +20,13 @@ extension SettingsView {
                     .pickerStyle(.segmented)
                 }
 
+                HStack(spacing: 18) {
+                    Toggle(StatsL10n.text("settings.dashboard.show_device_info"), isOn: $settings.showDashboardDeviceInfo)
+                    Toggle(StatsL10n.text("settings.dashboard.show_temperature_tags"), isOn: $settings.showTemperatureTags)
+                    Toggle(StatsL10n.text("settings.dashboard.show_process_pid"), isOn: $settings.showProcessPID)
+                }
+                .font(.caption)
+
                 Divider()
 
                 LazyVGrid(columns: [

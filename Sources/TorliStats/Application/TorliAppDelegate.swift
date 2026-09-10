@@ -125,6 +125,8 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
         observeSetting(settings.$processLimit) { $0.store.setProcessLimit($0.settings.processLimit) }
         observeSetting(settings.$processSort) { $0.store.setProcessSort($0.settings.processSort) }
         observeSetting(settings.$powerSavingMode) { $0.store.setPowerSavingMode($0.settings.powerSavingMode) }
+        observeSetting(settings.$manualMonitoringPaused) { $0.monitoringPauseController.updateManualPause() }
+        observeSetting(settings.$backgroundMonitoringEnabled) { $0.monitoringPauseController.updateBackgroundMonitoring() }
         observeSetting(settings.$nightMonitoringPauseEnabled) { $0.monitoringPauseController.updateSchedule() }
         observeSetting(settings.$adaptiveSamplingEnabled) { $0.monitoringPauseController.updateSchedule() }
         observeSetting(settings.$nightMonitoringPauseStartSeconds) { $0.monitoringPauseController.updateSchedule() }
@@ -172,6 +174,9 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
         }
         observeSetting(settings.$showWakaTimeCard) { $0.updatePopoverSize() }
         observeSetting(settings.$dashboardDensity) { $0.updatePopoverSize() }
+        observeSetting(settings.$showDashboardDeviceInfo) { $0.updatePopoverSize() }
+        observeSetting(settings.$showTemperatureTags) { $0.updatePopoverSize() }
+        observeSetting(settings.$showProcessPID) { $0.updatePopoverSize() }
         observeSetting(settings.$dashboardModuleOrder) { $0.updatePopoverSize() }
 
         observeSetting(settings.$showCPU) { $0.updateStatusTitle($0.store.statusLine) }
@@ -187,6 +192,10 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
         observeSetting(settings.$codexStatusBarMode) { $0.updateStatusTitle($0.store.statusLine) }
         observeSetting(settings.$statusBarMetricOrder) { $0.updateStatusTitle($0.store.statusLine) }
         observeSetting(settings.$systemStatusBarStyle) { $0.updateStatusTitle($0.store.statusLine) }
+        observeSetting(settings.$statusBarFontSize) { $0.updateStatusTitle($0.store.statusLine) }
+        observeSetting(settings.$showStatusBarMetricIcons) { $0.updateStatusTitle($0.store.statusLine) }
+        observeSetting(settings.$networkRateUnit) { $0.updateStatusTitle($0.store.statusLine) }
+        observeSetting(settings.$networkRateDecimalPlaces) { $0.updateStatusTitle($0.store.statusLine) }
         observeSetting(settings.$privacyMode) { $0.updateStatusTitle($0.store.statusLine) }
         observeSetting(settings.$showStatusBarLogo) { app in
             app.updateStatusBarLogo()
@@ -288,6 +297,10 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
     private func monitoringPauseMessage(for mode: MonitoringSamplingMode) -> String? {
         guard case let .paused(reason) = mode else { return nil }
         switch reason {
+        case .manual:
+            return StatsL10n.text("monitoring.pause_resume.manual")
+        case .dashboardClosed:
+            return StatsL10n.text("monitoring.pause_resume.dashboard_closed")
         case .nightSchedule:
             let seconds = settings.nightMonitoringPauseEndSeconds
             return StatsL10n.format("monitoring.pause_until", seconds / 3_600, (seconds % 3_600) / 60)

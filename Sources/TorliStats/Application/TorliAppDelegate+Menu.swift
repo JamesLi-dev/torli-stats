@@ -60,6 +60,14 @@ extension TorliAppDelegate {
         refreshItem.image = menuSymbol("arrow.clockwise")
         menu.addItem(refreshItem)
 
+        let monitoringPauseItem = NSMenuItem(
+            title: StatsL10n.text(settings.manualMonitoringPaused ? "menu.resume_monitoring" : "menu.pause_monitoring"),
+            action: #selector(toggleManualMonitoringPause),
+            keyEquivalent: ""
+        )
+        monitoringPauseItem.image = menuSymbol(settings.manualMonitoringPaused ? "play.circle" : "pause.circle")
+        menu.addItem(monitoringPauseItem)
+
         let privacyItem = NSMenuItem(
             title: StatsL10n.text("menu.privacy_mode"),
             action: #selector(togglePrivacyMode),
@@ -95,6 +103,10 @@ extension TorliAppDelegate {
         monitoringPauseController.recordUserInteraction()
         store.refreshNow()
         codexUsageStore.refresh()
+    }
+
+    @objc private func toggleManualMonitoringPause() {
+        settings.manualMonitoringPaused.toggle()
     }
 
     @objc private func togglePrivacyMode() {

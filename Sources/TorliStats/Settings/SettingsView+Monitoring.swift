@@ -56,6 +56,18 @@ extension SettingsView {
                     }
                 }
                 Divider()
+                Toggle(StatsL10n.text("monitoring.manual_pause"), isOn: $settings.manualMonitoringPaused)
+                if settings.manualMonitoringPaused {
+                    Text(StatsL10n.text("monitoring.manual_pause_hint"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Toggle(StatsL10n.text("monitoring.background_refresh"), isOn: $settings.backgroundMonitoringEnabled)
+                if !settings.backgroundMonitoringEnabled {
+                    Text(StatsL10n.text("monitoring.background_refresh_hint"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
                 Toggle(StatsL10n.text("monitoring.adaptive_sampling"), isOn: $settings.adaptiveSamplingEnabled)
                 if settings.adaptiveSamplingEnabled {
                     Text(StatsL10n.text("monitoring.adaptive_sampling_hint"))
@@ -102,7 +114,7 @@ extension SettingsView {
                     .labelsHidden()
                     .pickerStyle(.menu)
                     .frame(width: 80)
-                    Text(StatsL10n.text("monitoring.sort"))
+                    Text(StatsL10n.text("monitoring.process_display"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Picker("", selection: $settings.processSort) {

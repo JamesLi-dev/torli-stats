@@ -65,6 +65,48 @@ enum SystemStatusBarStyle: String, CaseIterable, Identifiable {
     }
 }
 
+enum StatusBarFontSize: String, CaseIterable, Identifiable {
+    case small
+    case standard
+    case large
+
+    var id: String { rawValue }
+
+    var pointSize: CGFloat {
+        switch self {
+        case .small: return 8
+        case .standard: return 9
+        case .large: return 10
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .small: return StatsL10n.text("status_bar.font.small")
+        case .standard: return StatsL10n.text("status_bar.font.standard")
+        case .large: return StatsL10n.text("status_bar.font.large")
+        }
+    }
+}
+
+enum NetworkRateUnit: String, CaseIterable, Identifiable {
+    case automatic
+    case kilobytes
+    case megabytes
+    case megabits
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .automatic: return StatsL10n.text("settings.status_bar.network_unit_auto")
+        case .kilobytes: return "KB/s"
+        case .megabytes: return "MB/s"
+        case .megabits: return "Mbps"
+        }
+    }
+}
+
 enum ThemePreference: String, CaseIterable, Identifiable {
     case system
     case light
@@ -155,6 +197,7 @@ enum DashboardModule: String, CaseIterable, Codable, Identifiable {
 enum ProcessSortOption: String, CaseIterable, Identifiable {
     case cpu
     case memory
+    case combined
 
     var id: String { rawValue }
 
@@ -162,6 +205,7 @@ enum ProcessSortOption: String, CaseIterable, Identifiable {
         switch self {
         case .cpu: return "CPU"
         case .memory: return StatsL10n.text("module.memory")
+        case .combined: return StatsL10n.text("process.display.combined")
         }
     }
 }

@@ -27,6 +27,8 @@
 "menu.all_notes" = "全部便签";
 "menu.notes_settings" = "便签设置…";
 "menu.refresh_all" = "刷新全部数据";
+"menu.pause_monitoring" = "暂停监控";
+"menu.resume_monitoring" = "恢复监控";
 "menu.privacy_mode" = "隐私展示模式";
 "menu.quit" = "退出 Torli Stats";
 "about.development_version" = "开发版本";
@@ -65,6 +67,10 @@
 "dashboard.health_unavailable" = "健康 —";
 "dashboard.cycles" = "循环 %lld 次";
 "dashboard.cycles_unavailable" = "循环 —";
+"dashboard.thermal.nominal" = "温度：正常";
+"dashboard.thermal.fair" = "温度：偏高";
+"dashboard.thermal.serious" = "温度：高";
+"dashboard.thermal.critical" = "温度：严重";
 "dashboard.bluetooth_device" = "蓝牙设备 %lld";
 "dashboard.high_usage_processes" = "高占用进程";
 "dashboard.process_headers" = "PID     CPU          内存";
@@ -107,6 +113,14 @@
 "monitoring.low_battery_saving" = "低电量自动省电";
 "monitoring.low_battery_threshold" = "低电量阈值";
 "monitoring.low_battery_hint" = "低于阈值时最慢每 30 秒刷新一次";
+"monitoring.manual_pause" = "暂停监控";
+"monitoring.manual_pause_hint" = "自动指标、输入统计及 Codex/WakaTime 刷新已暂停；如需单次更新，请使用“刷新全部数据”。";
+"monitoring.background_refresh" = "后台持续监控";
+"monitoring.background_refresh_hint" = "关闭后仅在 Dashboard 打开时自动监控，打开 Dashboard 后会立即恢复更新。";
+"monitoring.pause_reason.manual" = "监控已手动暂停";
+"monitoring.pause_reason.dashboard_closed" = "Dashboard 已关闭，监控已暂停";
+"monitoring.pause_resume.manual" = "监控已手动暂停，可在设置或菜单中恢复。";
+"monitoring.pause_resume.dashboard_closed" = "打开 Dashboard 后会恢复监控。";
 "monitoring.adaptive_sampling" = "智能节能采样";
 "monitoring.adaptive_sampling_hint" = "Dashboard 打开时保持实时；连续 25 分钟无输入后降低采样频率，恢复输入后立即恢复。";
 "monitoring.night_pause" = "夜间暂停监控";
@@ -116,6 +130,7 @@
 "monitoring.pause_hint" = "暂停 CPU、网络、传感器、进程及自动 Codex/WakaTime 刷新；手动刷新仍可使用。";
 "monitoring.process_count" = "进程数量";
 "monitoring.sort" = "排序";
+"monitoring.process_display" = "显示与排序";
 "monitoring.items" = "%lld 个";
 
 "runner.run_cat" = "跑步猫";
@@ -177,7 +192,11 @@
 "module.typing" = "输入";
 "module.power" = "电源";
 "module.processes" = "进程";
+"process.display.combined" = "综合";
 "dashboard.density" = "显示密度";
+"settings.dashboard.show_device_info" = "设备信息";
+"settings.dashboard.show_temperature_tags" = "温度标签";
+"settings.dashboard.show_process_pid" = "进程 PID";
 "dashboard.order_hint" = "仅显示已启用的模块；拖动调整 Dashboard 顺序。";
 "common.restore_default_order" = "恢复默认顺序";
 "外观" = "外观";
@@ -420,11 +439,21 @@
 "settings.status_bar.displayed_content" = "菜单栏显示内容";
 "settings.status_bar.download" = "下载";
 "settings.status_bar.upload" = "上传";
+"settings.status_bar.show_metric_icons" = "显示网络方向标记";
 "settings.status_bar.codex_progress" = "Codex 进度";
 "settings.status_bar.typing" = "输入统计";
 "settings.status_bar.codex_display" = "Codex 展示";
 "settings.status_bar.system_metrics_style" = "系统指标样式";
 "settings.status_bar.display_style" = "显示方式";
+"settings.status_bar.font_size" = "文字大小";
+"status_bar.font.small" = "小";
+"status_bar.font.standard" = "标准";
+"status_bar.font.large" = "大";
+"settings.status_bar.network" = "网络速率";
+"settings.status_bar.network_unit" = "单位";
+"settings.status_bar.network_unit_auto" = "自动";
+"settings.status_bar.decimal_places" = "小数位";
+"settings.status_bar.decimal_places_value" = "%lld";
 "settings.status_bar.show_logo" = "显示 Logo";
 "settings.status_bar.animate_with_cpu" = "随 CPU 加速";
 "settings.status_bar.animation_style" = "动画样式";
