@@ -71,6 +71,15 @@ final class AppSettings: ObservableObject {
     @Published var dashboardDensity: DashboardDensity {
         didSet { defaults.set(dashboardDensity.rawValue, forKey: "dashboardDensity") }
     }
+    @Published var showDashboardDeviceInfo: Bool {
+        didSet { defaults.set(showDashboardDeviceInfo, forKey: "showDashboardDeviceInfo") }
+    }
+    @Published var showTemperatureTags: Bool {
+        didSet { defaults.set(showTemperatureTags, forKey: "showTemperatureTags") }
+    }
+    @Published var showProcessPID: Bool {
+        didSet { defaults.set(showProcessPID, forKey: "showProcessPID") }
+    }
     @Published var dashboardModuleOrder: [DashboardModule] {
         didSet { defaults.set(dashboardModuleOrder.map(\.rawValue), forKey: "dashboardModuleOrder") }
     }
@@ -91,6 +100,18 @@ final class AppSettings: ObservableObject {
     }
     @Published var systemStatusBarStyle: SystemStatusBarStyle {
         didSet { defaults.set(systemStatusBarStyle.rawValue, forKey: "systemStatusBarStyle") }
+    }
+    @Published var statusBarFontSize: StatusBarFontSize {
+        didSet { defaults.set(statusBarFontSize.rawValue, forKey: "statusBarFontSize") }
+    }
+    @Published var showStatusBarMetricIcons: Bool {
+        didSet { defaults.set(showStatusBarMetricIcons, forKey: "showStatusBarMetricIcons") }
+    }
+    @Published var networkRateUnit: NetworkRateUnit {
+        didSet { defaults.set(networkRateUnit.rawValue, forKey: "networkRateUnit") }
+    }
+    @Published var networkRateDecimalPlaces: Int {
+        didSet { defaults.set(networkRateDecimalPlaces, forKey: "networkRateDecimalPlaces") }
     }
     @Published var showStatusBarLogo: Bool {
         didSet { defaults.set(showStatusBarLogo, forKey: "showStatusBarLogo") }
@@ -150,6 +171,12 @@ final class AppSettings: ObservableObject {
     }
     @Published var powerSavingMode: Bool {
         didSet { defaults.set(powerSavingMode, forKey: "powerSavingMode") }
+    }
+    @Published var manualMonitoringPaused: Bool {
+        didSet { defaults.set(manualMonitoringPaused, forKey: "manualMonitoringPaused") }
+    }
+    @Published var backgroundMonitoringEnabled: Bool {
+        didSet { defaults.set(backgroundMonitoringEnabled, forKey: "backgroundMonitoringEnabled") }
     }
     @Published var nightMonitoringPauseEnabled: Bool {
         didSet { defaults.set(nightMonitoringPauseEnabled, forKey: "nightMonitoringPauseEnabled") }
@@ -219,6 +246,9 @@ final class AppSettings: ObservableObject {
         wakaTimeEnabled = defaults.object(forKey: "wakaTimeEnabled") as? Bool ?? false
         wakaTimeRange = WakaTimeRange(rawValue: defaults.string(forKey: "wakaTimeRange") ?? "") ?? .last7Days
         dashboardDensity = DashboardDensity(rawValue: defaults.string(forKey: "dashboardDensity") ?? "") ?? .standard
+        showDashboardDeviceInfo = defaults.object(forKey: "showDashboardDeviceInfo") as? Bool ?? true
+        showTemperatureTags = defaults.object(forKey: "showTemperatureTags") as? Bool ?? true
+        showProcessPID = defaults.object(forKey: "showProcessPID") as? Bool ?? true
         dashboardModuleOrder = Self.validDashboardModuleOrder(defaults.stringArray(forKey: "dashboardModuleOrder"))
         showCodexStatusItem = defaults.object(forKey: "showCodexStatusItem") as? Bool ?? true
         showTypingStatusItem = defaults.object(forKey: "showTypingStatusItem") as? Bool ?? false
@@ -226,6 +256,11 @@ final class AppSettings: ObservableObject {
         codexStatusBarMode = CodexStatusBarMode(rawValue: defaults.string(forKey: "codexStatusBarMode") ?? "") ?? .defaultAccount
         statusBarMetricOrder = Self.validStatusBarMetricOrder(defaults.stringArray(forKey: "statusBarMetricOrder"))
         systemStatusBarStyle = SystemStatusBarStyle(rawValue: defaults.string(forKey: "systemStatusBarStyle") ?? "") ?? .compact
+        statusBarFontSize = StatusBarFontSize(rawValue: defaults.string(forKey: "statusBarFontSize") ?? "") ?? .standard
+        showStatusBarMetricIcons = defaults.object(forKey: "showStatusBarMetricIcons") as? Bool ?? true
+        networkRateUnit = NetworkRateUnit(rawValue: defaults.string(forKey: "networkRateUnit") ?? "") ?? .automatic
+        let savedNetworkRateDecimalPlaces = defaults.object(forKey: "networkRateDecimalPlaces") as? Int
+        networkRateDecimalPlaces = savedNetworkRateDecimalPlaces.flatMap { [0, 1, 2].contains($0) ? $0 : nil } ?? 1
         showStatusBarLogo = defaults.object(forKey: "showStatusBarLogo") as? Bool ?? true
         statusBarLogoAnimation = defaults.object(forKey: "statusBarLogoAnimation") as? Bool ?? true
         statusBarRunner = StatusBarRunner(rawValue: defaults.string(forKey: "statusBarRunner") ?? "") ?? .runCat
@@ -243,6 +278,8 @@ final class AppSettings: ObservableObject {
         let savedInterval = defaults.integer(forKey: "refreshInterval")
         refreshInterval = Self.supportedRefreshIntervals.contains(savedInterval) ? savedInterval : 3
         powerSavingMode = defaults.object(forKey: "powerSavingMode") as? Bool ?? false
+        manualMonitoringPaused = defaults.object(forKey: "manualMonitoringPaused") as? Bool ?? false
+        backgroundMonitoringEnabled = defaults.object(forKey: "backgroundMonitoringEnabled") as? Bool ?? true
         nightMonitoringPauseEnabled = defaults.object(forKey: "nightMonitoringPauseEnabled") as? Bool ?? true
         // Preserve existing users' explicitly selected refresh cadence until
         // they choose the adaptive policy themselves.
@@ -650,8 +687,8 @@ final class AppSettings: ObservableObject {
             "themePreference", "showCPU", "showMemory", "showDownload", "showUpload",
             "showCPUCard", "showGPUCard", "showMemoryCard", "showDiskCard",
             "showNetworkCard", "showFanCard", "showTypingCard", "showPowerCard", "showProcessesCard",
-            "showCodexCard", "showWakaTimeCard", "wakaTimeEnabled", "wakaTimeRange", "dashboardDensity", "dashboardModuleOrder", "showCodexStatusItem", "showTypingStatusItem", "codexStatusMetric", "codexStatusBarMode", "statusBarMetricOrder",
-            "systemStatusBarStyle", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "automaticUpdateChecks", "typingStatsEnabled", "codexDefaultAccountName", "codexHomePath", "codexAutoRefresh", "codexRefreshInterval", "codexManagedAccounts", "powerSavingMode", "nightMonitoringPauseEnabled", "adaptiveSamplingEnabled", "nightMonitoringPauseStartSeconds", "nightMonitoringPauseEndSeconds", "batteryRefreshInterval", "lowBatterySavingEnabled", "lowBatteryThreshold", "processLimit", "processSort", "refreshInterval"
+            "showCodexCard", "showWakaTimeCard", "wakaTimeEnabled", "wakaTimeRange", "dashboardDensity", "showDashboardDeviceInfo", "showTemperatureTags", "showProcessPID", "dashboardModuleOrder", "showCodexStatusItem", "showTypingStatusItem", "codexStatusMetric", "codexStatusBarMode", "statusBarMetricOrder",
+            "systemStatusBarStyle", "statusBarFontSize", "showStatusBarMetricIcons", "networkRateUnit", "networkRateDecimalPlaces", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "automaticUpdateChecks", "typingStatsEnabled", "codexDefaultAccountName", "codexHomePath", "codexAutoRefresh", "codexRefreshInterval", "codexManagedAccounts", "powerSavingMode", "manualMonitoringPaused", "backgroundMonitoringEnabled", "nightMonitoringPauseEnabled", "adaptiveSamplingEnabled", "nightMonitoringPauseStartSeconds", "nightMonitoringPauseEndSeconds", "batteryRefreshInterval", "lowBatterySavingEnabled", "lowBatteryThreshold", "processLimit", "processSort", "refreshInterval"
         ].forEach { defaults.removeObject(forKey: $0) }
 
         theme = .system
@@ -673,6 +710,9 @@ final class AppSettings: ObservableObject {
         wakaTimeEnabled = false
         wakaTimeRange = .last7Days
         dashboardDensity = .standard
+        showDashboardDeviceInfo = true
+        showTemperatureTags = true
+        showProcessPID = true
         dashboardModuleOrder = DashboardModule.allCases
         showCodexStatusItem = true
         showTypingStatusItem = false
@@ -680,6 +720,10 @@ final class AppSettings: ObservableObject {
         codexStatusBarMode = .defaultAccount
         statusBarMetricOrder = StatusBarMetricGroup.allCases
         systemStatusBarStyle = .compact
+        statusBarFontSize = .standard
+        showStatusBarMetricIcons = true
+        networkRateUnit = .automatic
+        networkRateDecimalPlaces = 1
         showStatusBarLogo = true
         statusBarLogoAnimation = true
         statusBarRunner = .runCat
@@ -693,6 +737,8 @@ final class AppSettings: ObservableObject {
         codexManagedAccounts = []
         refreshInterval = 3
         powerSavingMode = false
+        manualMonitoringPaused = false
+        backgroundMonitoringEnabled = true
         nightMonitoringPauseEnabled = true
         adaptiveSamplingEnabled = false
         nightMonitoringPauseStartSeconds = 23 * 3_600 + 30 * 60

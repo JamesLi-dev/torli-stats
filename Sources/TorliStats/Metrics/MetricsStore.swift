@@ -47,6 +47,7 @@ final class MetricsStore: ObservableObject {
     private(set) var battery = BatterySnapshot(
         percentage: 0,
         health: nil,
+        thermalState: .nominal,
         cycleCount: nil,
         adapterWatts: nil,
         isCharging: false,
@@ -59,7 +60,7 @@ final class MetricsStore: ObservableObject {
     private(set) var gpuTemperature: Double?
     private(set) var processes: [ProcessRow] = []
     private(set) var statusLine = StatusLine(
-        cpu: "0%", memory: "0%", download: "0 KB/s", upload: "0 KB/s"
+        cpu: "0%", memory: "0%", download: 0, upload: 0
     )
 
     private(set) var cpuHistory: [Double] = Array(repeating: 0, count: 24)
@@ -429,8 +430,8 @@ final class MetricsStore: ObservableObject {
             statusLine: StatusLine(
                 cpu: "\(Int(cpuSnapshot.total))%",
                 memory: "\(Int(memory))%",
-                download: formatRate(download),
-                upload: formatRate(upload)
+                download: download,
+                upload: upload
             )
         )
         DispatchQueue.main.async { [weak self] in self?.apply(snapshot) }
@@ -575,10 +576,6 @@ final class MetricsStore: ObservableObject {
         return sorted[sorted.count / 2]
     }
 
-    private func formatRate(_ bytes: Double) -> String {
-        if bytes >= 1024 * 1024 { return String(format: "%.1f MB/s", bytes / 1024 / 1024) }
-        return String(format: "%.0f KB/s", bytes / 1024)
-    }
 
     private func formatBytes(_ bytes: UInt64) -> String {
         let gigabytes = Double(bytes) / 1_000_000_000

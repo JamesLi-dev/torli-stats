@@ -15,6 +15,8 @@ enum MonitoringSamplingMode: Equatable {
 }
 
 enum MonitoringPauseReason: Equatable {
+    case manual
+    case dashboardClosed
     case nightSchedule
     case systemSleep
     case displaySleep
@@ -22,6 +24,8 @@ enum MonitoringPauseReason: Equatable {
 
     var dashboardMessage: String {
         switch self {
+        case .manual: return StatsL10n.text("monitoring.pause_reason.manual")
+        case .dashboardClosed: return StatsL10n.text("monitoring.pause_reason.dashboard_closed")
         case .nightSchedule: return StatsL10n.text("monitoring.pause_reason.night")
         case .systemSleep: return StatsL10n.text("monitoring.pause_reason.system_sleep")
         case .displaySleep: return StatsL10n.text("monitoring.pause_reason.display_sleep")
@@ -52,12 +56,20 @@ final class MonitoringPauseController {
 
     init(settings: AppSettings) {
         self.settings = settings
-        mode = Self.nightScheduleIsActive(
+        if settings.manualMonitoringPaused {
+            mode = .paused(.manual)
+        } else if Self.nightScheduleIsActive(
             at: Date(),
             isEnabled: settings.nightMonitoringPauseEnabled,
             startSeconds: settings.nightMonitoringPauseStartSeconds,
             endSeconds: settings.nightMonitoringPauseEndSeconds
-        ) ? .paused(.nightSchedule) : .realtime
+        ) {
+            mode = .paused(.nightSchedule)
+        } else if !settings.backgroundMonitoringEnabled {
+            mode = .paused(.dashboardClosed)
+        } else {
+            mode = .realtime
+        }
     }
 
     deinit {
@@ -73,6 +85,14 @@ final class MonitoringPauseController {
     }
 
     func updateSchedule() {
+        evaluate(reconfigureTimers: true)
+    }
+
+    func updateManualPause() {
+        evaluate(reconfigureTimers: true)
+    }
+
+    func updateBackgroundMonitoring() {
         evaluate(reconfigureTimers: true)
     }
 
@@ -147,6 +167,7 @@ final class MonitoringPauseController {
     }
 
     private func resolvedMode(at date: Date) -> MonitoringSamplingMode {
+        if settings.manualMonitoringPaused { return .paused(.manual) }
         if systemSleeping { return .paused(.systemSleep) }
         if displaySleeping { return .paused(.displaySleep) }
         if screenLocked { return .paused(.screenLocked) }
@@ -157,6 +178,9 @@ final class MonitoringPauseController {
             endSeconds: settings.nightMonitoringPauseEndSeconds
         ) {
             return .paused(.nightSchedule)
+        }
+        if !settings.backgroundMonitoringEnabled, !dashboardVisible {
+            return .paused(.dashboardClosed)
         }
         guard settings.adaptiveSamplingEnabled, !dashboardVisible else { return .realtime }
         let idle = CGEventSource.secondsSinceLastEventType(

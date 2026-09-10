@@ -27,6 +27,8 @@
 "menu.all_notes" = "All Notes";
 "menu.notes_settings" = "Notes Settings…";
 "menu.refresh_all" = "Refresh All Data";
+"menu.pause_monitoring" = "Pause Monitoring";
+"menu.resume_monitoring" = "Resume Monitoring";
 "menu.privacy_mode" = "Privacy Display Mode";
 "menu.quit" = "Quit Torli Stats";
 "about.development_version" = "Development Build";
@@ -65,6 +67,10 @@
 "dashboard.health_unavailable" = "Health —";
 "dashboard.cycles" = "%lld cycles";
 "dashboard.cycles_unavailable" = "Cycles —";
+"dashboard.thermal.nominal" = "Thermal: Normal";
+"dashboard.thermal.fair" = "Thermal: Warm";
+"dashboard.thermal.serious" = "Thermal: High";
+"dashboard.thermal.critical" = "Thermal: Critical";
 "dashboard.bluetooth_device" = "Bluetooth device %lld";
 "dashboard.high_usage_processes" = "High-usage processes";
 "dashboard.process_headers" = "PID     CPU          Memory";
@@ -107,6 +113,14 @@
 "monitoring.low_battery_saving" = "Save power on low battery";
 "monitoring.low_battery_threshold" = "Low-battery threshold";
 "monitoring.low_battery_hint" = "At most one refresh every 30 seconds below this threshold";
+"monitoring.manual_pause" = "Pause monitoring";
+"monitoring.manual_pause_hint" = "Automatic metrics, input statistics, and Codex/WakaTime refreshes are paused. Use Refresh All Data for a one-time update.";
+"monitoring.background_refresh" = "Keep monitoring in the background";
+"monitoring.background_refresh_hint" = "Automatic monitoring runs only while Dashboard is open; opening it resumes updates immediately.";
+"monitoring.pause_reason.manual" = "Monitoring is paused manually";
+"monitoring.pause_reason.dashboard_closed" = "Dashboard is closed; monitoring is paused";
+"monitoring.pause_resume.manual" = "Monitoring is paused manually. Resume it in Settings or from the menu.";
+"monitoring.pause_resume.dashboard_closed" = "Monitoring resumes when Dashboard opens.";
 "monitoring.adaptive_sampling" = "Adaptive low-impact sampling";
 "monitoring.adaptive_sampling_hint" = "Stay real-time while Dashboard is open; reduce sampling after 25 idle minutes and restore it immediately on input.";
 "monitoring.night_pause" = "Pause monitoring at night";
@@ -116,6 +130,7 @@
 "monitoring.pause_hint" = "Pauses CPU, network, sensors, processes, and automatic Codex/WakaTime refreshes. Manual refresh remains available.";
 "monitoring.process_count" = "Process count";
 "monitoring.sort" = "Sort";
+"monitoring.process_display" = "Display & sort";
 "monitoring.items" = "%lld items";
 
 "runner.run_cat" = "Running Cat";
@@ -177,7 +192,11 @@
 "module.typing" = "Typing";
 "module.power" = "Power";
 "module.processes" = "Processes";
+"process.display.combined" = "Combined";
 "dashboard.density" = "Display density";
+"settings.dashboard.show_device_info" = "Device info";
+"settings.dashboard.show_temperature_tags" = "Temperature tags";
+"settings.dashboard.show_process_pid" = "Process PID";
 "dashboard.order_hint" = "Only enabled modules are shown; drag to reorder Dashboard.";
 "common.restore_default_order" = "Restore default order";
 "外观" = "Appearance";
@@ -420,11 +439,21 @@
 "settings.status_bar.displayed_content" = "Menu Bar Content";
 "settings.status_bar.download" = "Download";
 "settings.status_bar.upload" = "Upload";
+"settings.status_bar.show_metric_icons" = "Show Network Indicators";
 "settings.status_bar.codex_progress" = "Codex Progress";
 "settings.status_bar.typing" = "Typing Statistics";
 "settings.status_bar.codex_display" = "Codex Display";
 "settings.status_bar.system_metrics_style" = "System Metrics Style";
 "settings.status_bar.display_style" = "Display Style";
+"settings.status_bar.font_size" = "Text Size";
+"status_bar.font.small" = "Small";
+"status_bar.font.standard" = "Standard";
+"status_bar.font.large" = "Large";
+"settings.status_bar.network" = "Network Rates";
+"settings.status_bar.network_unit" = "Unit";
+"settings.status_bar.network_unit_auto" = "Auto";
+"settings.status_bar.decimal_places" = "Decimals";
+"settings.status_bar.decimal_places_value" = "%lld";
 "settings.status_bar.show_logo" = "Show Logo";
 "settings.status_bar.animate_with_cpu" = "Animate with CPU";
 "settings.status_bar.animation_style" = "Animation Style";

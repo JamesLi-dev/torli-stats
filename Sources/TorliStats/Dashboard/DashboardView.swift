@@ -33,11 +33,13 @@ struct DashboardView: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(spacing: settings.dashboardDensity == .compact ? 3 : 4) {
-                DeviceInfoView(
-                    info: store.deviceInfo,
-                    isPrivacyMode: settings.privacyMode,
-                    density: settings.dashboardDensity
-                )
+                if settings.showDashboardDeviceInfo {
+                    DeviceInfoView(
+                        info: store.deviceInfo,
+                        isPrivacyMode: settings.privacyMode,
+                        density: settings.dashboardDensity
+                    )
+                }
 
                 if store.isMonitoringPaused || store.isAdaptiveLowFrequency {
                     HStack(spacing: 6) {
@@ -128,7 +130,9 @@ struct DashboardView: View {
             MetricCard(title: "CPU", icon: "cpu", value: "\(Int(store.cpu))%", badge: StatsL10n.format("dashboard.cpu_cores", store.cpuPerCore.count), density: settings.dashboardDensity, valueColor: highUsageColor(store.cpu, warning: 70, critical: 90)) {
                 CPUBarChart(values: store.cpuPerCore)
             } footer: {
-                TemperatureTag(value: settings.sensorHelperEnabled ? store.cpuTemperature : nil)
+                if settings.showTemperatureTags {
+                    TemperatureTag(value: settings.sensorHelperEnabled ? store.cpuTemperature : nil)
+                }
             }
         case .gpu:
             MetricCard(title: "GPU", icon: "display", value: "\(Int(store.gpu))%", badge: store.deviceInfo.gpuCores.map { StatsL10n.format("dashboard.gpu_cores", $0) } ?? "—", density: settings.dashboardDensity) {
@@ -138,7 +142,9 @@ struct DashboardView: View {
                     Text(store.deviceInfo.gpuModel)
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    TemperatureTag(value: settings.sensorHelperEnabled ? store.gpuTemperature : nil)
+                    if settings.showTemperatureTags {
+                        TemperatureTag(value: settings.sensorHelperEnabled ? store.gpuTemperature : nil)
+                    }
                 }
             }
         case .memory:
@@ -232,7 +238,12 @@ struct DashboardView: View {
                 onDetails: onWakaTimeDetails
             )
         case .processes:
-            ProcessListView(processes: store.processes, density: settings.dashboardDensity)
+            ProcessListView(
+                processes: store.processes,
+                density: settings.dashboardDensity,
+                displayMode: settings.processSort,
+                showPID: settings.showProcessPID
+            )
         case .cpu, .gpu, .memory, .disk, .network, .fan, .typing:
             EmptyView()
         }
@@ -257,7 +268,8 @@ struct DashboardView: View {
         case .detailed: metricCardHeight = 114
         }
 
-        var height: CGFloat = (settings.dashboardDensity == .compact ? 6 : 8) + 42 // outer padding + device information
+        var height: CGFloat = settings.dashboardDensity == .compact ? 6 : 8
+        if settings.showDashboardDeviceInfo { height += 42 }
         if metricRows > 0 {
             height += metricRows * metricCardHeight + max(0, metricRows - 1) * 4
         }

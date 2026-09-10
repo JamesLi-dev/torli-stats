@@ -10,6 +10,8 @@ struct StatusBarLogoConfiguration: Equatable {
 struct StatusLine {
     let cpu: String
     let memory: String
-    let download: String
-    let upload: String
+    /// Raw bytes per second. Formatting belongs to the status-bar preferences,
+    /// so changing units or precision updates immediately without resampling.
+    let download: Double
+    let upload: Double
 }

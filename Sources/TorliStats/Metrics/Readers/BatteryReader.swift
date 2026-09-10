@@ -29,6 +29,7 @@ enum BatteryReader {
             return BatterySnapshot(
                 percentage: maximum > 0 ? current / maximum * 100 : 0,
                 health: health,
+                thermalState: SystemThermalState(ProcessInfo.processInfo.thermalState),
                 cycleCount: registry.cycleCount,
                 adapterWatts: charging ? adapterWatts() : nil,
                 isCharging: charging,
@@ -39,6 +40,7 @@ enum BatteryReader {
         return BatterySnapshot(
             percentage: 100,
             health: nil,
+            thermalState: SystemThermalState(ProcessInfo.processInfo.thermalState),
             cycleCount: registry.cycleCount,
             adapterWatts: adapterWatts(),
             isCharging: true,

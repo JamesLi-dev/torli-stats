@@ -11,18 +11,19 @@ struct PowerStatusView: View {
         GridItem(.adaptive(minimum: 155), spacing: 10, alignment: .leading)
     ]
 
-    private var batteryColor: Color {
-        let percentage = battery.percentage
-        if percentage <= 10 { return .red }
-        if percentage <= 20 { return .orange }
-        return .green
-    }
+    private var batteryColor: Color { batteryLevelColor(battery.percentage) }
 
-    private var healthColor: Color {
-        guard let health = battery.health else { return .secondary }
-        if health <= 70 { return .red }
-        if health <= 80 { return .orange }
-        return .green
+    private var healthColor: Color { batteryHealthColor(battery.health) }
+
+    private var thermalColor: Color { thermalStateColor(battery.thermalState) }
+
+    private var thermalText: String {
+        switch battery.thermalState {
+        case .nominal: return StatsL10n.text("dashboard.thermal.nominal")
+        case .fair: return StatsL10n.text("dashboard.thermal.fair")
+        case .serious: return StatsL10n.text("dashboard.thermal.serious")
+        case .critical: return StatsL10n.text("dashboard.thermal.critical")
+        }
     }
 
     var body: some View {
@@ -35,6 +36,7 @@ struct PowerStatusView: View {
                 if density != .compact {
                     HStack(spacing: 5) {
                         PowerTag(text: battery.health.map { StatsL10n.format("dashboard.health", Int($0)) } ?? StatsL10n.text("dashboard.health_unavailable"), color: healthColor)
+                        PowerTag(text: thermalText, color: thermalColor)
                         PowerTag(text: battery.cycleCount.map { StatsL10n.format("dashboard.cycles", $0) } ?? StatsL10n.text("dashboard.cycles_unavailable"))
                     }
                 }
@@ -45,12 +47,14 @@ struct PowerStatusView: View {
                     CompactBluetoothBatteryRing(
                         value: battery.percentage,
                         icon: "laptopcomputer",
+                        color: batteryColor,
                         accessibilityName: "MacBook"
                     )
                     ForEach(Array(bluetoothBatteries.prefix(4).enumerated()), id: \.offset) { index, device in
                         CompactBluetoothBatteryRing(
                             value: device.percentage,
                             icon: device.kind.icon,
+                            color: batteryLevelColor(device.percentage),
                             accessibilityName: isPrivacyMode ? StatsL10n.format("dashboard.bluetooth_device", index + 1) : device.name
                         )
                     }
@@ -73,6 +77,7 @@ struct PowerStatusView: View {
                             CompactBluetoothBatteryRing(
                                 value: device.percentage,
                                 icon: device.kind.icon,
+                                color: batteryLevelColor(device.percentage),
                                 accessibilityName: isPrivacyMode ? StatsL10n.format("dashboard.bluetooth_device", index + 1) : device.name
                             )
                         } else {
@@ -80,7 +85,8 @@ struct PowerStatusView: View {
                                 value: device.percentage,
                                 title: isPrivacyMode ? StatsL10n.format("dashboard.bluetooth_device", index + 1) : device.name,
                                 detail: device.detail,
-                                icon: device.kind.icon
+                                icon: device.kind.icon,
+                                color: batteryLevelColor(device.percentage)
                             )
                         }
                     }
@@ -111,9 +117,39 @@ struct PowerTag: View {
             .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 }
+private func batteryLevelColor(_ percentage: Double?) -> Color {
+    guard let percentage else { return .secondary }
+    switch percentage {
+    case ...10: return .red
+    case ...20: return .orange
+    case ...50: return .yellow
+    default: return .green
+    }
+}
+
+private func batteryHealthColor(_ health: Double?) -> Color {
+    guard let health else { return .secondary }
+    switch health {
+    case ...70: return .red
+    case ...80: return .orange
+    case ...90: return .yellow
+    default: return .green
+    }
+}
+
+private func thermalStateColor(_ state: SystemThermalState) -> Color {
+    switch state {
+    case .nominal: return .green
+    case .fair: return .yellow
+    case .serious: return .orange
+    case .critical: return .red
+    }
+}
+
 private struct CompactBluetoothBatteryRing: View {
     let value: Double?
     let icon: String
+    let color: Color
     let accessibilityName: String
 
     var body: some View {
@@ -123,7 +159,7 @@ private struct CompactBluetoothBatteryRing: View {
             Circle()
                 .trim(from: 0, to: CGFloat(max(0, min(100, value ?? 0)) / 100))
                 .stroke(
-                    value == nil ? Color.primary.opacity(0.18) : Color.green,
+                    value == nil ? Color.primary.opacity(0.18) : color,
                     style: StrokeStyle(lineWidth: 3.5, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
