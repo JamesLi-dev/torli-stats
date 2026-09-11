@@ -86,24 +86,18 @@ struct WakaTimeUsageView: View {
         VStack(alignment: .leading, spacing: density == .compact ? 7 : 9) {
             durationSummary
 
-            if density == .compact {
-                aiCodingSummary(snapshot)
-            } else {
-                statisticsSection(title: StatsL10n.text("wakatime.languages"), values: snapshot.languages, limit: density == .standard ? 3 : 5)
-
+            if density == .detailed {
+                statisticsSection(title: StatsL10n.text("wakatime.languages"), values: snapshot.languages, limit: 3)
                 Divider()
+                aiCodingSummary(snapshot)
 
-                if density == .standard {
-                    aiCodingSummary(snapshot)
-                } else {
-                    statisticsSection(title: "AI Coding", values: snapshot.categories, limit: 5)
-                }
-
-                if density == .detailed,
-                   snapshot.aiInputTokens > 0 || snapshot.aiCachedInputTokens > 0 || snapshot.aiOutputTokens > 0 {
+                if snapshot.aiInputTokens > 0 || snapshot.aiCachedInputTokens > 0 || snapshot.aiOutputTokens > 0 {
                     Divider()
                     tokenSection(snapshot)
                 }
+            } else {
+                Divider()
+                aiCodingSummary(snapshot)
             }
 
             if density != .compact, shouldShowStatusFooter {
@@ -224,36 +218,6 @@ struct WakaTimeUsageView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            if !snapshot.aiModelBreakdown.isEmpty {
-                HStack(alignment: .top, spacing: 8) {
-                    Text(StatsL10n.text("wakatime.models"))
-                        .font(.system(size: 9, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 76, alignment: .leading)
-                    LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: 130), alignment: .leading)],
-                        alignment: .leading,
-                        spacing: 5
-                    ) {
-                        ForEach(snapshot.aiModelBreakdown) { model in
-                            HStack(spacing: 5) {
-                                Text(model.name)
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                                Text(StatsL10n.format("statistics.lines", compactNumber(Double(model.lines))))
-                                    .foregroundStyle(.secondary)
-                                if model.cost > 0 {
-                                    Text(String(format: "$%.2f", model.cost))
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            .font(.system(size: 9, weight: .medium, design: .monospaced))
-                            .lineLimit(1)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(StatsL10n.text("wakatime.ai_tokens_models_accessibility"))
