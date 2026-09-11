@@ -100,21 +100,24 @@ enum Ink {
     /// Faces that suit a note. Filtered to what is actually installed, so the
     /// menu never offers something that would silently fall back.
     static let allFaces: [NoteFace] = [
-        NoteFace(name: "System",       body: "",                     tab: "",                     bump: 0),
-        NoteFace(name: "Noteworthy",   body: "Noteworthy-Light",     tab: "Noteworthy-Bold",      bump: 1.5),
-        NoteFace(name: "Bradley Hand", body: "BradleyHandITCTT-Bold", tab: "BradleyHandITCTT-Bold", bump: 1.5),
-        NoteFace(name: "Marker Felt",  body: "MarkerFelt-Thin",      tab: "MarkerFelt-Wide",      bump: 1),
-        NoteFace(name: "Chalkboard",   body: "ChalkboardSE-Light",   tab: "ChalkboardSE-Bold",    bump: 0),
-        NoteFace(name: "Avenir Next",  body: "AvenirNext-Regular",   tab: "AvenirNext-DemiBold",  bump: 0),
-        NoteFace(name: "New York",     body: "NewYork-Regular",      tab: "NewYork-Semibold",     bump: 0),
-        NoteFace(name: "Georgia",      body: "Georgia",              tab: "Georgia-Bold",         bump: 0),
-        NoteFace(name: "Menlo",        body: "Menlo-Regular",        tab: "Menlo-Bold",           bump: -1),
+        NoteFace(name: "System",         body: "",                    tab: "",                    bump: 0),
+        NoteFace(name: "Helvetica Neue", body: "HelveticaNeue",      tab: "HelveticaNeue-Bold",   bump: 0),
+        NoteFace(name: "PingFang SC",    body: "PingFangSC-Regular", tab: "PingFangSC-Semibold",  bump: 0),
+        NoteFace(name: "Songti SC",      body: "SongtiSC-Regular",   tab: "SongtiSC-Bold",        bump: 0),
+        NoteFace(name: "Palatino",       body: "Palatino-Roman",     tab: "Palatino-Bold",        bump: 0),
+        NoteFace(name: "Menlo",          body: "Menlo-Regular",      tab: "Menlo-Bold",           bump: -1),
+        NoteFace(name: "Maple Mono",     body: "MapleMono-Regular",   tab: "MapleMono-SemiBold",    bump: -1),
+        NoteFace(name: "Fira Code",      body: "FiraCode-Regular",    tab: "FiraCode-SemiBold",     bump: -1),
+        NoteFace(name: "Space Mono",     body: "SpaceMono-Regular",   tab: "SpaceMono-Bold",        bump: -1),
+        NoteFace(name: "PT Mono",        body: "PTMono-Regular",      tab: "PTMono-Bold",           bump: -1),
     ]
 
     /// Installed faces do not change while the app runs, and this is asked for on
-    /// every text render — resolving it each time cost nine font lookups a call.
+    /// every text render — resolving it each time cost font lookups a call.
     static let faces: [NoteFace] =
-        allFaces.filter { $0.body.isEmpty || NSFont(name: $0.body, size: 12) != nil }
+        allFaces.filter {
+            $0.body.isEmpty || (NSFont(name: $0.body, size: 12) != nil && NSFont(name: $0.tab, size: 12) != nil)
+        }
 
     private static var faceCache: (name: String, face: NoteFace)?
 

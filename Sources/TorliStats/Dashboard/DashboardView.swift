@@ -19,6 +19,7 @@ struct DashboardView: View {
     @ObservedObject var store: MetricsStore
     @ObservedObject var settings: AppSettings
     @ObservedObject var codexUsageStore: CodexAccountsUsageStore
+    @ObservedObject var codexActivityService: CodexCLIActivityService
     @ObservedObject var wakaTimeUsageStore: WakaTimeUsageStore
     @ObservedObject var typingStats: TypingStatsService
     let onCodexDisplayCountChange: (Int) -> Void
@@ -226,6 +227,7 @@ struct DashboardView: View {
         case .codex:
             CodexUsageView(
                 store: codexUsageStore,
+                activityService: codexActivityService,
                 isPrivacyMode: settings.privacyMode,
                 density: settings.dashboardDensity,
                 onDisplayCountChange: onCodexDisplayCountChange
@@ -294,6 +296,9 @@ struct DashboardView: View {
         if settings.showPowerCard { height += powerHeight + 4 }
         if codexAccountCount > 0 {
             height += codexBaseHeight + CGFloat(max(0, codexAccountCount - 1)) * 80 + 4
+            if settings.codexActivityTrackingEnabled {
+                height += 72
+            }
         }
         if settings.showWakaTimeCard && settings.wakaTimeEnabled {
             switch settings.dashboardDensity {

@@ -45,6 +45,19 @@ extension SettingsView {
                         .labelsHidden()
                         .pickerStyle(.segmented)
                         .frame(width: 210)
+
+                        Text(StatsL10n.text("settings.status_bar.codex_account_count"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Picker("", selection: $settings.codexStatusBarAccountLimit) {
+                            ForEach([1, 2, 3], id: \.self) { count in
+                                Text("\(count)").tag(count)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .frame(width: 96)
+                        .disabled(settings.codexStatusBarMode != .eachAccount)
                     }
 
                     Divider()

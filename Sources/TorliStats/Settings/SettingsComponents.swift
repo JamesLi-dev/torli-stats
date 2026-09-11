@@ -130,10 +130,10 @@ struct SettingsSidebarItem: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
+            HStack(spacing: 7) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 16, weight: .regular))
-                    .frame(width: 22, height: 20)
+                    .font(.system(size: 14, weight: .regular))
+                    .frame(width: 20, height: 18)
                 Text(title)
                     .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
             }

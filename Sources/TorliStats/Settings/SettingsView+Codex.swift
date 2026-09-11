@@ -66,6 +66,15 @@ extension SettingsView {
                     Spacer(minLength: 0)
                 }
 
+                Toggle(
+                    StatsL10n.text("codex.settings.activity_tracking"),
+                    isOn: $settings.codexActivityTrackingEnabled
+                )
+                Text(StatsL10n.text("codex.settings.activity_tracking_help"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 if !settings.codexManagedAccounts.isEmpty {
                     Divider()
                     Text(StatsL10n.text("codex.settings.managed_accounts"))
@@ -84,7 +93,8 @@ extension SettingsView {
                                 Toggle(StatsL10n.text("codex.settings.status_bar"), isOn: $account.isStatusBarIncluded)
                                     .toggleStyle(.checkbox)
                                 Button(StatsL10n.text("codex.settings.remove"), role: .destructive) {
-                                    settings.removeCodexManagedAccount(id: account.id)
+                                    pendingCodexAccountRemovalID = account.id
+                                    pendingCodexAccountRemovalName = account.resolvedDisplayName
                                 }
                                 .buttonStyle(.borderless)
                             }

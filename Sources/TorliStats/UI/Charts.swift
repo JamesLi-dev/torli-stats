@@ -58,7 +58,7 @@ struct TypingTrendSparkline: View {
             HStack(alignment: .bottom, spacing: spacing) {
                 ForEach(records) { record in
                     RoundedRectangle(cornerRadius: min(2, width / 2))
-                        .fill(record.keyCount == 0 ? Color.secondary.opacity(0.16) : Color.cyan.opacity(0.82))
+                        .fill(record.keyCount == 0 ? Color.secondary.opacity(0.16) : Color.blue.opacity(0.82))
                         .frame(width: width, height: max(2, geometry.size.height * CGFloat(record.keyCount) / CGFloat(maximum)))
                         .accessibilityLabel(record.dateID)
                         .accessibilityValue(StatsL10n.format("statistics.keys_count", record.keyCount))

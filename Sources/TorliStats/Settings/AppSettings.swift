@@ -95,6 +95,10 @@ final class AppSettings: ObservableObject {
     @Published var codexStatusBarMode: CodexStatusBarMode {
         didSet { defaults.set(codexStatusBarMode.rawValue, forKey: "codexStatusBarMode") }
     }
+    /// Caps the per-account status-bar mode so the menu bar remains readable.
+    @Published var codexStatusBarAccountLimit: Int {
+        didSet { defaults.set(codexStatusBarAccountLimit, forKey: "codexStatusBarAccountLimit") }
+    }
     @Published var statusBarMetricOrder: [StatusBarMetricGroup] {
         didSet { defaults.set(statusBarMetricOrder.map(\.rawValue), forKey: "statusBarMetricOrder") }
     }
@@ -139,6 +143,9 @@ final class AppSettings: ObservableObject {
     }
     @Published var codexAutoRefresh: Bool {
         didSet { defaults.set(codexAutoRefresh, forKey: "codexAutoRefresh") }
+    }
+    @Published var codexActivityTrackingEnabled: Bool {
+        didSet { defaults.set(codexActivityTrackingEnabled, forKey: "codexActivityTrackingEnabled") }
     }
     @Published var codexRefreshInterval: Int {
         didSet { defaults.set(codexRefreshInterval, forKey: "codexRefreshInterval") }
@@ -254,6 +261,8 @@ final class AppSettings: ObservableObject {
         showTypingStatusItem = defaults.object(forKey: "showTypingStatusItem") as? Bool ?? false
         codexStatusMetric = CodexStatusMetric(rawValue: defaults.string(forKey: "codexStatusMetric") ?? "") ?? .remaining
         codexStatusBarMode = CodexStatusBarMode(rawValue: defaults.string(forKey: "codexStatusBarMode") ?? "") ?? .defaultAccount
+        let savedCodexStatusBarAccountLimit = defaults.object(forKey: "codexStatusBarAccountLimit") as? Int
+        codexStatusBarAccountLimit = savedCodexStatusBarAccountLimit.flatMap { [1, 2, 3].contains($0) ? $0 : nil } ?? 3
         statusBarMetricOrder = Self.validStatusBarMetricOrder(defaults.stringArray(forKey: "statusBarMetricOrder"))
         systemStatusBarStyle = SystemStatusBarStyle(rawValue: defaults.string(forKey: "systemStatusBarStyle") ?? "") ?? .compact
         statusBarFontSize = StatusBarFontSize(rawValue: defaults.string(forKey: "statusBarFontSize") ?? "") ?? .standard
@@ -270,6 +279,7 @@ final class AppSettings: ObservableObject {
         codexDefaultAccountName = defaults.string(forKey: "codexDefaultAccountName") ?? StatsL10n.text("codex.settings.default_account")
         codexHomePath = defaults.string(forKey: "codexHomePath") ?? ""
         codexAutoRefresh = defaults.object(forKey: "codexAutoRefresh") as? Bool ?? true
+        codexActivityTrackingEnabled = defaults.object(forKey: "codexActivityTrackingEnabled") as? Bool ?? false
         let savedCodexRefreshInterval = defaults.integer(forKey: "codexRefreshInterval")
         codexRefreshInterval = Self.supportedCodexRefreshIntervals.contains(savedCodexRefreshInterval)
             ? savedCodexRefreshInterval
@@ -687,8 +697,8 @@ final class AppSettings: ObservableObject {
             "themePreference", "showCPU", "showMemory", "showDownload", "showUpload",
             "showCPUCard", "showGPUCard", "showMemoryCard", "showDiskCard",
             "showNetworkCard", "showFanCard", "showTypingCard", "showPowerCard", "showProcessesCard",
-            "showCodexCard", "showWakaTimeCard", "wakaTimeEnabled", "wakaTimeRange", "dashboardDensity", "showDashboardDeviceInfo", "showTemperatureTags", "showProcessPID", "dashboardModuleOrder", "showCodexStatusItem", "showTypingStatusItem", "codexStatusMetric", "codexStatusBarMode", "statusBarMetricOrder",
-            "systemStatusBarStyle", "statusBarFontSize", "showStatusBarMetricIcons", "networkRateUnit", "networkRateDecimalPlaces", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "automaticUpdateChecks", "typingStatsEnabled", "codexDefaultAccountName", "codexHomePath", "codexAutoRefresh", "codexRefreshInterval", "codexManagedAccounts", "powerSavingMode", "manualMonitoringPaused", "backgroundMonitoringEnabled", "nightMonitoringPauseEnabled", "adaptiveSamplingEnabled", "nightMonitoringPauseStartSeconds", "nightMonitoringPauseEndSeconds", "batteryRefreshInterval", "lowBatterySavingEnabled", "lowBatteryThreshold", "processLimit", "processSort", "refreshInterval"
+            "showCodexCard", "showWakaTimeCard", "wakaTimeEnabled", "wakaTimeRange", "dashboardDensity", "showDashboardDeviceInfo", "showTemperatureTags", "showProcessPID", "dashboardModuleOrder", "showCodexStatusItem", "showTypingStatusItem", "codexStatusMetric", "codexStatusBarMode", "codexStatusBarAccountLimit", "statusBarMetricOrder",
+            "systemStatusBarStyle", "statusBarFontSize", "showStatusBarMetricIcons", "networkRateUnit", "networkRateDecimalPlaces", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "automaticUpdateChecks", "typingStatsEnabled", "codexDefaultAccountName", "codexHomePath", "codexAutoRefresh", "codexActivityTrackingEnabled", "codexRefreshInterval", "codexManagedAccounts", "powerSavingMode", "manualMonitoringPaused", "backgroundMonitoringEnabled", "nightMonitoringPauseEnabled", "adaptiveSamplingEnabled", "nightMonitoringPauseStartSeconds", "nightMonitoringPauseEndSeconds", "batteryRefreshInterval", "lowBatterySavingEnabled", "lowBatteryThreshold", "processLimit", "processSort", "refreshInterval"
         ].forEach { defaults.removeObject(forKey: $0) }
 
         theme = .system
@@ -718,6 +728,7 @@ final class AppSettings: ObservableObject {
         showTypingStatusItem = false
         codexStatusMetric = .remaining
         codexStatusBarMode = .defaultAccount
+        codexStatusBarAccountLimit = 3
         statusBarMetricOrder = StatusBarMetricGroup.allCases
         systemStatusBarStyle = .compact
         statusBarFontSize = .standard
@@ -733,6 +744,7 @@ final class AppSettings: ObservableObject {
         codexDefaultAccountName = StatsL10n.text("codex.settings.default_account")
         codexHomePath = ""
         codexAutoRefresh = true
+        codexActivityTrackingEnabled = false
         codexRefreshInterval = 5
         codexManagedAccounts = []
         refreshInterval = 3

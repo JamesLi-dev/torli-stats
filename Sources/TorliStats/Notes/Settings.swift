@@ -71,13 +71,15 @@ enum NotesSettings {
     }
 
     /// PostScript name of the face note bodies are set in; empty means the
-    /// system font. Defaults to a hand, the way a sticky note actually looks.
+    /// system font. Retired handwriting and legacy faces fall back to System
+    /// so the selected value always exists in the font picker.
     static var noteFontName: String {
         get {
-            if let v = d.string(forKey: "noteFontName") { return v }
-            // migrate the old boolean
-            let hand = d.object(forKey: "handwrittenBody") as? Bool ?? true
-            return hand ? "Noteworthy-Light" : ""
+            guard let value = d.string(forKey: "noteFontName"),
+                  Ink.allFaces.contains(where: { $0.body == value }) else {
+                return ""
+            }
+            return value
         }
         set { d.set(newValue, forKey: "noteFontName") }
     }

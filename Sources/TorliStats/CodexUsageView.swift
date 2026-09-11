@@ -4,6 +4,7 @@ struct CodexUsageView: View {
     private static let collapsedAccountLimit = 2
 
     @ObservedObject var store: CodexAccountsUsageStore
+    @ObservedObject var activityService: CodexCLIActivityService
     let isPrivacyMode: Bool
     let density: DashboardDensity
     let onDisplayCountChange: (Int) -> Void
@@ -11,11 +12,13 @@ struct CodexUsageView: View {
 
     init(
         store: CodexAccountsUsageStore,
+        activityService: CodexCLIActivityService,
         isPrivacyMode: Bool = false,
         density: DashboardDensity = .standard,
         onDisplayCountChange: @escaping (Int) -> Void = { _ in }
     ) {
         self.store = store
+        self.activityService = activityService
         self.isPrivacyMode = isPrivacyMode
         self.density = density
         self.onDisplayCountChange = onDisplayCountChange
@@ -29,7 +32,7 @@ struct CodexUsageView: View {
         switch density {
         case .compact: return 1
         case .standard: return Self.collapsedAccountLimit
-        case .detailed: return 3
+        case .detailed: return 2
         }
     }
 
@@ -43,9 +46,20 @@ struct CodexUsageView: View {
         max(0, visibleAccounts.count - collapsedLimit)
     }
 
+    private var latestRefresh: Date? {
+        store.accounts
+            .compactMap { store.lastSuccessfulRefresh(for: $0.id) }
+            .max()
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             header
+
+            if activityService.isEnabled {
+                CodexCLIActivitySummaryView(service: activityService, latestRefresh: latestRefresh)
+                Divider()
+            }
 
             if visibleAccounts.isEmpty {
                 Text(StatsL10n.text("codex.usage.not_enabled"))
@@ -123,6 +137,98 @@ struct CodexUsageView: View {
             .foregroundStyle(.secondary)
             .help(StatsL10n.text("codex.usage.refresh_all"))
         }
+    }
+}
+
+private struct CodexCLIActivitySummaryView: View {
+    @ObservedObject var service: CodexCLIActivityService
+    let latestRefresh: Date?
+
+    private var records: [CodexCLIActivityDailyRecord] {
+        service.records(forLastDays: 7)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Label(
+                    StatsL10n.text("codex.activity.title"),
+                    systemImage: service.isCodexRunning ? "terminal.fill" : "terminal"
+                )
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundStyle(.secondary)
+                Spacer(minLength: 4)
+                Text(formatDuration(service.todayActiveSeconds))
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+            }
+
+            HStack(spacing: 8) {
+                Text(StatsL10n.format("codex.activity.today", formatDuration(service.todayActiveSeconds)))
+                Spacer(minLength: 4)
+                Text(service.lastActiveAt.map {
+                    StatsL10n.format("codex.activity.last_active", $0.formatted(date: .omitted, time: .shortened))
+                } ?? StatsL10n.text("codex.activity.no_activity"))
+            }
+            .font(.system(size: 9, weight: .medium, design: .monospaced))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+
+            Text(latestRefresh.map {
+                StatsL10n.format("codex.activity.last_refresh", $0.formatted(date: .omitted, time: .shortened))
+            } ?? StatsL10n.text("codex.activity.no_refresh"))
+            .font(.system(size: 9, weight: .medium, design: .monospaced))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+
+            HStack(spacing: 6) {
+                Text(StatsL10n.text("codex.activity.seven_day_trend"))
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                ActivityTrendSparkline(records: records)
+                    .frame(height: 24)
+            }
+        }
+    }
+
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        let totalMinutes = max(0, Int(seconds / 60))
+        if totalMinutes >= 60 {
+            return StatsL10n.format("codex.activity.hours_minutes", totalMinutes / 60, totalMinutes % 60)
+        }
+        return StatsL10n.format("codex.activity.minutes", totalMinutes)
+    }
+}
+
+private struct ActivityTrendSparkline: View {
+    let records: [CodexCLIActivityDailyRecord]
+
+    var body: some View {
+        GeometryReader { geometry in
+            let maximum = max(records.map(\.activeSeconds).max() ?? 0, 60)
+            let spacing: CGFloat = records.count > 5 ? 2 : 3
+            let width = max(2, (geometry.size.width - spacing * CGFloat(max(records.count - 1, 0))) / CGFloat(max(records.count, 1)))
+
+            HStack(alignment: .bottom, spacing: spacing) {
+                ForEach(records) { record in
+                    RoundedRectangle(cornerRadius: min(2, width / 2))
+                        .fill(record.activeSeconds == 0 ? Color.secondary.opacity(0.16) : Color.blue.opacity(0.82))
+                        .frame(width: width, height: max(2, geometry.size.height * CGFloat(record.activeSeconds) / CGFloat(maximum)))
+                        .help(StatsL10n.format("codex.activity.day_tooltip", record.dateID, formatDuration(record.activeSeconds)))
+                        .accessibilityLabel(record.dateID)
+                        .accessibilityValue(formatDuration(record.activeSeconds))
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        }
+    }
+
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        let totalMinutes = max(0, Int(seconds / 60))
+        if totalMinutes >= 60 {
+            return StatsL10n.format("codex.activity.hours_minutes", totalMinutes / 60, totalMinutes % 60)
+        }
+        return StatsL10n.format("codex.activity.minutes", totalMinutes)
     }
 }
 
@@ -220,6 +326,15 @@ private struct CodexAccountUsageRow: View {
                     .font(.system(size: 9, weight: .semibold, design: .rounded))
                     .foregroundStyle(.orange)
             }
+            if let rateLimitReachedType = snapshot.rateLimitReachedType,
+               !rateLimitReachedType.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Label(
+                    StatsL10n.format("codex.usage.rate_limit_reached", rateLimitReachedType),
+                    systemImage: "exclamationmark.octagon.fill"
+                )
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .foregroundStyle(.orange)
+            }
             if let primary = snapshot.primary {
                 let used = percentage(primary.usedPercent)
                 HStack(alignment: .firstTextBaseline, spacing: 7) {
@@ -251,6 +366,12 @@ private struct CodexAccountUsageRow: View {
                     .scaleEffect(x: 1, y: 0.6, anchor: .center)
                     .frame(height: 4)
 
+                if density != .compact, let creditsText = creditsText(for: snapshot.credits) {
+                    Text(creditsText)
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+
                 if density != .compact, let secondary = snapshot.secondary {
                     HStack(spacing: 8) {
                         Text(StatsL10n.format("codex.usage.weekly_used_percent", percentage(secondary.usedPercent)))
@@ -273,6 +394,17 @@ private struct CodexAccountUsageRow: View {
 
     private func percentage(_ value: Double) -> Int {
         Int(min(100, max(0, value)).rounded())
+    }
+
+    private func creditsText(for credits: CodexCredits?) -> String? {
+        guard let credits,
+              credits.unlimited || credits.hasCredits || credits.balance != nil else {
+            return nil
+        }
+        if credits.unlimited {
+            return StatsL10n.text("codex.usage.unlimited_credits")
+        }
+        return StatsL10n.format("codex.usage.credits", credits.balance ?? "—")
     }
 
     private func quotaColor(forRemaining remaining: Double) -> Color {
