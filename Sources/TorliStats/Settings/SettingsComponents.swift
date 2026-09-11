@@ -175,7 +175,7 @@ struct SettingsSection<Content: View>: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, minHeight: cardMinHeight, alignment: .topLeading)
-            .background(.regularMaterial)
+            .background(AppColors.card)
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
                     .stroke(Color.primary.opacity(0.06), lineWidth: 1)

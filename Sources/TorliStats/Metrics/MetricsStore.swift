@@ -8,6 +8,7 @@ private struct HighFrequencySnapshot {
     let memory: Double
     let memoryUsed: String
     let memoryTotal: String
+    let memoryPressure: MemoryPressureLevel
     let download: Double
     let upload: Double
     let cpuHistory: [Double]
@@ -39,6 +40,7 @@ final class MetricsStore: ObservableObject {
     private(set) var memory = 0.0
     private(set) var memoryUsed = "—"
     private(set) var memoryTotal = "—"
+    private(set) var memoryPressure: MemoryPressureLevel = .unknown
     private(set) var diskUsage = 0.0
     private(set) var diskTotal = "—"
     private(set) var diskFree = "—"
@@ -420,6 +422,7 @@ final class MetricsStore: ObservableObject {
             memory: memory,
             memoryUsed: memorySnapshot.used,
             memoryTotal: memorySnapshot.total,
+            memoryPressure: memorySnapshot.pressure,
             download: download,
             upload: upload,
             cpuHistory: workerCPUHistory,
@@ -539,6 +542,7 @@ final class MetricsStore: ObservableObject {
         memory = snapshot.memory
         memoryUsed = snapshot.memoryUsed
         memoryTotal = snapshot.memoryTotal
+        memoryPressure = snapshot.memoryPressure
         download = snapshot.download
         upload = snapshot.upload
         cpuHistory = snapshot.cpuHistory

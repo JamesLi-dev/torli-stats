@@ -4,57 +4,57 @@ import UniformTypeIdentifiers
 
 extension SettingsView {
     var codexSection: some View {
-        SettingsSection(title: StatsL10n.text("codex.settings.title")) {
-            VStack(alignment: .leading, spacing: 10) {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 10) {
-                        Text(StatsL10n.text("codex.settings.default_account"))
-                            .font(.caption.weight(.semibold))
-                            .frame(width: 64, alignment: .leading)
-                        TextField(StatsL10n.text("codex.settings.display_name"), text: $settings.codexDefaultAccountName)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(maxWidth: 260)
-                        Spacer(minLength: 0)
-                    }
+        VStack(alignment: .leading, spacing: 18) {
+            codexDefaultDirectorySection
+            codexManagedAccountsSection
+        }
+    }
 
-                    HStack(spacing: 10) {
-                        Text("Codex Home")
-                            .font(.caption.weight(.semibold))
-                            .frame(width: 64, alignment: .leading)
-                        Text(displayCodexHomePath(defaultCodexAccount.homePath))
-                            .font(.caption2.monospaced())
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .help(CodexUsageClient.validate(homePath: defaultCodexAccount.homePath).resolvedPath)
-                        Button(StatsL10n.text("codex.settings.choose")) {
-                            chooseCodexHome()
-                        }
-                        .buttonStyle(.bordered)
-                        Button(StatsL10n.text("codex.settings.test_connection")) {
-                            testCodexConnection(for: defaultCodexAccount)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(testingCodexAccountIDs.contains(defaultCodexAccount.id))
-                    }
+    private var codexDefaultDirectorySection: some View {
+        SettingsSection(title: StatsL10n.text("codex.settings.default_directory")) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    codexFieldLabel(StatsL10n.text("codex.settings.default_account"))
+                    TextField(StatsL10n.text("codex.settings.display_name"), text: $settings.codexDefaultAccountName)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 320)
+                    Spacer(minLength: 0)
+                }
 
-                    HStack(spacing: 10) {
-                        Color.clear.frame(width: 64)
-                        CodexHomeStatusView(
-                            account: defaultCodexAccount,
-                            codexUsageStore: codexUsageStore
-                        )
+                HStack(spacing: 10) {
+                    codexFieldLabel("Codex Home")
+                    Text(displayCodexHomePath(defaultCodexAccount.homePath))
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .help(CodexUsageClient.validate(homePath: defaultCodexAccount.homePath).resolvedPath)
+                    Button(StatsL10n.text("codex.settings.choose")) {
+                        chooseCodexHome()
                     }
+                    .buttonStyle(.bordered)
+                    Button(StatsL10n.text("codex.settings.test_connection")) {
+                        testCodexConnection(for: defaultCodexAccount)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(testingCodexAccountIDs.contains(defaultCodexAccount.id))
+                }
+
+                HStack(spacing: 10) {
+                    Color.clear.frame(width: 90)
+                    CodexHomeStatusView(
+                        account: defaultCodexAccount,
+                        codexUsageStore: codexUsageStore
+                    )
                 }
 
                 Divider()
 
                 HStack(spacing: 10) {
-                    Text(StatsL10n.text("codex.settings.auto_refresh"))
-                        .font(.caption.weight(.semibold))
-                        .frame(width: 64, alignment: .leading)
+                    codexFieldLabel(StatsL10n.text("codex.settings.auto_refresh"))
                     Toggle(StatsL10n.text("codex.settings.enable_auto_refresh"), isOn: $settings.codexAutoRefresh)
+                        .toggleStyle(.checkbox)
                     Picker("", selection: $settings.codexRefreshInterval) {
                         ForEach(AppSettings.supportedCodexRefreshIntervals, id: \.self) { interval in
                             Text(StatsL10n.format("codex.settings.refresh_interval", interval)).tag(interval)
@@ -66,68 +66,86 @@ extension SettingsView {
                     Spacer(minLength: 0)
                 }
 
-                Toggle(
-                    StatsL10n.text("codex.settings.activity_tracking"),
-                    isOn: $settings.codexActivityTrackingEnabled
-                )
-                Text(StatsL10n.text("codex.settings.activity_tracking_help"))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if !settings.codexManagedAccounts.isEmpty {
-                    Divider()
-                    Text(StatsL10n.text("codex.settings.managed_accounts"))
-                        .font(.caption.weight(.semibold))
+                VStack(alignment: .leading, spacing: 5) {
+                    Toggle(
+                        StatsL10n.text("codex.settings.token_activity"),
+                        isOn: $settings.codexTokenActivityEnabled
+                    )
+                    .toggleStyle(.checkbox)
+                    Text(StatsL10n.text("codex.settings.token_activity_help"))
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.leading, 100)
+            }
+        }
+    }
 
-                    ForEach($settings.codexManagedAccounts) { $account in
-                        VStack(alignment: .leading, spacing: 5) {
-                            HStack(spacing: 10) {
-                                TextField(StatsL10n.text("codex.settings.display_name"), text: $account.displayName)
-                                    .textFieldStyle(.roundedBorder)
-                                    .frame(maxWidth: 260)
-                                Spacer(minLength: 0)
-                                Toggle(StatsL10n.text("codex.settings.dashboard"), isOn: $account.isDashboardVisible)
-                                    .toggleStyle(.checkbox)
-                                Toggle(StatsL10n.text("codex.settings.status_bar"), isOn: $account.isStatusBarIncluded)
-                                    .toggleStyle(.checkbox)
-                                Button(StatsL10n.text("codex.settings.remove"), role: .destructive) {
-                                    pendingCodexAccountRemovalID = account.id
-                                    pendingCodexAccountRemovalName = account.resolvedDisplayName
-                                }
-                                .buttonStyle(.borderless)
+    private var codexManagedAccountsSection: some View {
+        SettingsSection(title: StatsL10n.text("codex.settings.managed_accounts")) {
+            VStack(alignment: .leading, spacing: 12) {
+                if settings.codexManagedAccounts.isEmpty {
+                    Text(StatsL10n.text("codex.settings.no_managed_accounts"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                ForEach($settings.codexManagedAccounts) { $account in
+                    VStack(alignment: .leading, spacing: 9) {
+                        HStack(spacing: 10) {
+                            TextField(StatsL10n.text("codex.settings.display_name"), text: $account.displayName)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(maxWidth: 320)
+                            Spacer(minLength: 0)
+                            Toggle(StatsL10n.text("codex.settings.dashboard"), isOn: $account.isDashboardVisible)
+                                .toggleStyle(.checkbox)
+                            Toggle(StatsL10n.text("codex.settings.status_bar"), isOn: $account.isStatusBarIncluded)
+                                .toggleStyle(.checkbox)
+                            Button(StatsL10n.text("codex.settings.remove"), role: .destructive) {
+                                pendingCodexAccountRemovalID = account.id
+                                pendingCodexAccountRemovalName = account.resolvedDisplayName
                             }
-                            HStack(spacing: 8) {
-                                Text(displayCodexHomePath(account.homePath))
-                                    .font(.caption2.monospaced())
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .help(account.homePath)
-                                HStack(spacing: 6) {
-                                    Button(StatsL10n.text("codex.settings.test_connection")) {
-                                        testCodexConnection(for: account)
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .disabled(testingCodexAccountIDs.contains(account.id))
-                                    Button(StatsL10n.text("codex.settings.login_or_relogin")) {
-                                        let didStart = settings.startCodexLogin(for: account)
-                                        codexAccountMessage = didStart
-                                            ? StatsL10n.format("codex.settings.login_started", account.displayName)
-                                            : StatsL10n.text("codex.settings.login_failed")
-                                    }
-                                    .buttonStyle(.bordered)
-                                }
-                                .fixedSize()
-                            }
-                            CodexHomeStatusView(
-                                account: account,
-                                codexUsageStore: codexUsageStore
-                            )
+                            .buttonStyle(.borderless)
                         }
+
+                        HStack(spacing: 8) {
+                            Text(displayCodexHomePath(account.homePath))
+                                .font(.caption2.monospaced())
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .help(account.homePath)
+                            HStack(spacing: 6) {
+                                Button(StatsL10n.text("codex.settings.test_connection")) {
+                                    testCodexConnection(for: account)
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(testingCodexAccountIDs.contains(account.id))
+                                Button(StatsL10n.text("codex.settings.login_or_relogin")) {
+                                    let didStart = settings.startCodexLogin(for: account)
+                                    codexAccountMessage = didStart
+                                        ? StatsL10n.format("codex.settings.login_started", account.displayName)
+                                        : StatsL10n.text("codex.settings.login_failed")
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                            .fixedSize()
+                        }
+
+                        CodexHomeStatusView(
+                            account: account,
+                            codexUsageStore: codexUsageStore
+                        )
                     }
+                    .padding(10)
+                    .background(Color.primary.opacity(0.035))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
 
                 HStack(spacing: 8) {
@@ -141,6 +159,7 @@ extension SettingsView {
                         onCodexRefresh()
                     }
                     .buttonStyle(.bordered)
+                    Spacer(minLength: 0)
                 }
 
                 Text(codexAccountMessage ?? StatsL10n.text("codex.settings.managed_accounts_help"))
@@ -149,6 +168,12 @@ extension SettingsView {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    private func codexFieldLabel(_ title: String) -> some View {
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .frame(width: 90, alignment: .leading)
     }
 
     var addCodexAccountSheet: some View {

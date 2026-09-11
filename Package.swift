@@ -12,6 +12,10 @@ let package = Package(
         .executable(name: "TorliStatsHelper", targets: ["TorliStatsHelper"])
     ],
     targets: [
+        .testTarget(
+            name: "TorliStatsTests",
+            dependencies: ["TorliStats"]
+        ),
         .target(
             name: "TorliStatsShared",
             path: "Sources/TorliStatsShared"

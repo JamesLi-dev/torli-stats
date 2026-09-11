@@ -110,6 +110,17 @@ struct CodexCredits {
     let hasCredits: Bool
     let unlimited: Bool
     let balance: String?
+
+    /// Credits are separate from the subscription's usage windows.
+    var shouldDisplay: Bool {
+        if unlimited { return true }
+        guard hasCredits else { return false }
+        if let balance, let value = Double(balance.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            return value.isFinite && value > 0
+        }
+        // Missing/unrecognized balances are unknown, not a known zero balance.
+        return true
+    }
 }
 
 struct CodexUsageSnapshot {
