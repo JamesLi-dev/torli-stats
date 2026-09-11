@@ -61,8 +61,9 @@ struct PowerStatusView: View {
                     Spacer(minLength: 0)
                 }
             } else {
-                // Keep every device in a flexible two-column grid. With more than
-                // two Bluetooth devices, compact rings prevent a long device list.
+                // Standard and detailed layouts keep every device in the same
+                // two-column row style. Mixing full rows with compact rings made
+                // grids with three or more accessories visually misalign.
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
                     BatteryRing(
                         value: battery.percentage,
@@ -73,22 +74,13 @@ struct PowerStatusView: View {
                     )
 
                     ForEach(Array(bluetoothBatteries.enumerated()), id: \.offset) { index, device in
-                        if bluetoothBatteries.count > 2 {
-                            CompactBluetoothBatteryRing(
-                                value: device.percentage,
-                                icon: device.kind.icon,
-                                color: batteryLevelColor(device.percentage),
-                                accessibilityName: isPrivacyMode ? StatsL10n.format("dashboard.bluetooth_device", index + 1) : device.name
-                            )
-                        } else {
-                            BatteryRing(
-                                value: device.percentage,
-                                title: isPrivacyMode ? StatsL10n.format("dashboard.bluetooth_device", index + 1) : device.name,
-                                detail: device.detail,
-                                icon: device.kind.icon,
-                                color: batteryLevelColor(device.percentage)
-                            )
-                        }
+                        BatteryRing(
+                            value: device.percentage,
+                            title: isPrivacyMode ? StatsL10n.format("dashboard.bluetooth_device", index + 1) : device.name,
+                            detail: device.detail,
+                            icon: device.kind.icon,
+                            color: batteryLevelColor(device.percentage)
+                        )
                     }
                 }
             }

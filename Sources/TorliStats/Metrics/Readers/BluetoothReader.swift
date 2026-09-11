@@ -23,11 +23,72 @@ enum BluetoothReader {
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
             guard let output = String(data: data, encoding: .utf8) else { return cached }
-            cached = parse(output)
+            cached = merged(parse(output), with: hidBatterySnapshots())
             return cached
         } catch {
+            let supplementalSnapshots = hidBatterySnapshots()
+            if !supplementalSnapshots.isEmpty {
+                cached = merged(cached, with: supplementalSnapshots)
+            }
             return cached
         }
+    }
+
+    private static func hidBatterySnapshots() -> [BluetoothBatterySnapshot] {
+        let process = Process()
+        let pipe = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/ioreg")
+        process.arguments = ["-a", "-r", "-c", "AppleDeviceManagementHIDEventService"]
+        process.standardOutput = pipe
+
+        do {
+            try process.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0,
+                  let devices = try PropertyListSerialization.propertyList(from: data, format: nil) as? [[String: Any]] else {
+                return []
+            }
+
+            return devices.compactMap { device in
+                guard let name = device["Product"] as? String,
+                      !name.isEmpty,
+                      let percentage = (device["BatteryPercent"] as? NSNumber)?.doubleValue,
+                      (0...100).contains(percentage) else {
+                    return nil
+                }
+                if (device["Built-In"] as? NSNumber)?.boolValue == true { return nil }
+
+                let isBluetooth = (device["Transport"] as? String)?.caseInsensitiveCompare("Bluetooth") == .orderedSame
+                    || (device["BluetoothDevice"] as? NSNumber)?.boolValue == true
+                guard isBluetooth else { return nil }
+
+                return BluetoothBatterySnapshot(
+                    name: name,
+                    percentage: percentage,
+                    detail: StatsL10n.format("bluetooth.battery.level", Int(percentage)),
+                    kind: BluetoothDeviceKind.detect(name: name, majorType: "", minorType: "")
+                )
+            }
+        } catch {
+            return []
+        }
+    }
+
+    private static func merged(
+        _ primary: [BluetoothBatterySnapshot],
+        with supplemental: [BluetoothBatterySnapshot]
+    ) -> [BluetoothBatterySnapshot] {
+        var merged = primary
+        var knownNames = Set(primary.map { normalizedName($0.name) })
+        for device in supplemental where knownNames.insert(normalizedName(device.name)).inserted {
+            merged.append(device)
+        }
+        return merged
+    }
+
+    private static func normalizedName(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     private static func parse(_ output: String) -> [BluetoothBatterySnapshot] {
