@@ -2,6 +2,26 @@
 
 All notable changes to Torli Stats are documented here.
 
+## [1.4.2] — 2026-09-11
+
+### English
+
+- Adds optional local Codex CLI activity tracking with daily active duration, latest active time, and a seven-day trend.
+- Restricts activity tracking to checking whether a `codex` process exists; terminal content, command arguments, project paths, and input are never recorded.
+- Displays Codex Credits, unlimited-credit status, and rate-limit warnings alongside quota information and recent refresh details.
+- Adds a menu-bar Codex account display limit of one, two, or three accounts, while keeping the Dashboard collapsed to at most two accounts before expanding.
+- Adds confirmation before removing a Torli Stats-managed Codex account and clarifies that the local Codex Home and sign-in state are preserved.
+- Refreshes the settings sidebar spacing and icon sizing, and aligns typing chart bars with the development statistics blue.
+
+### 中文
+
+- 新增可选的本地 Codex CLI 活跃统计，显示每日活跃时长、最近活跃时间和近 7 天趋势。
+- 活跃统计仅检测是否存在 `codex` 进程，不记录终端内容、命令参数、项目路径或输入内容。
+- 在额度信息旁显示 Codex Credits、Credits 不限量状态和限额提示，并保留最近刷新信息。
+- 菜单栏 Codex 逐账号模式新增显示 1、2 或 3 个账号的上限；面板仍默认最多展示两个账号，其他账号可展开查看。
+- 移除 Torli Stats 管理的 Codex 账号前增加确认，并明确保留本机 Codex Home 和登录状态。
+- 优化设置侧栏图标与文字间距和图标尺寸，并将输入统计柱图统一为开发统计使用的蓝色。
+
 ## [1.4.1] — 2026-09-10
 
 ### English
