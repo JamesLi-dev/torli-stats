@@ -12,7 +12,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
     let monitoringPauseController: MonitoringPauseController
     let store: MetricsStore
     let codexUsageStore: CodexAccountsUsageStore
-    let codexActivityService: CodexCLIActivityService
+    let codexTokenActivityService: CodexTokenActivityService
     let wakaTimeUsageStore: WakaTimeUsageStore
     var deckManager: DeckManager?
     let typingStats = TypingStatsService()
@@ -40,7 +40,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
             refreshSettingsProvider: { appSettings.codexRefreshSettings },
             automaticRefreshPaused: monitoringPauseController.isPaused
         )
-        codexActivityService = CodexCLIActivityService()
+        codexTokenActivityService = CodexTokenActivityService(homePaths: { [appSettings.codexHomePath] })
         wakaTimeUsageStore = WakaTimeUsageStore(
             apiKeyProvider: WakaTimeKeychain.readAPIKey,
             rangeProvider: { appSettings.wakaTimeRange }
@@ -94,7 +94,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
                 store: store,
                 settings: settings,
                 codexUsageStore: codexUsageStore,
-                codexActivityService: codexActivityService,
+                codexTokenActivityService: codexTokenActivityService,
                 wakaTimeUsageStore: wakaTimeUsageStore,
                 typingStats: typingStats,
                 onCodexDisplayCountChange: { [weak self] count in
@@ -174,9 +174,10 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
         observeSetting(settings.$showCodexCard) { app in
             app.updatePopoverSize()
             app.codexUsageStore.synchronize()
+            app.codexTokenActivityService.setEnabled(app.settings.codexTokenActivityEnabled && app.settings.showCodexCard)
         }
-        observeSetting(settings.$codexActivityTrackingEnabled) { app in
-            app.codexActivityService.setEnabled(app.settings.codexActivityTrackingEnabled)
+        observeSetting(settings.$codexTokenActivityEnabled) { app in
+            app.codexTokenActivityService.setEnabled(app.settings.codexTokenActivityEnabled && app.settings.showCodexCard)
             app.updatePopoverSize()
         }
         observeSetting(settings.$showWakaTimeCard) { $0.updatePopoverSize() }
@@ -218,10 +219,15 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
         observeSetting(settings.$wakaTimeRange) { $0.wakaTimeUsageStore.refresh() }
 
         observeSetting(settings.$codexDefaultAccountName) { $0.scheduleCodexSettingsUpdate() }
-        observeSetting(settings.$codexHomePath) { $0.scheduleCodexSettingsUpdate(refreshDefaultAccount: true) }
+        observeSetting(settings.$codexHomePath) { app in
+            app.scheduleCodexSettingsUpdate(refreshDefaultAccount: true)
+            app.codexTokenActivityService.refresh()
+        }
         observeSetting(settings.$codexAutoRefresh) { $0.codexUsageStore.synchronize() }
         observeSetting(settings.$codexRefreshInterval) { $0.codexUsageStore.synchronize() }
-        observeSetting(settings.$codexManagedAccounts) { $0.codexUsageStore.synchronize() }
+        observeSetting(settings.$codexManagedAccounts) { app in
+            app.codexUsageStore.synchronize()
+        }
 
 
         wakaTimeUsageStore.objectWillChange
@@ -256,8 +262,8 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
 
         updateStatusBarLogo()
         typingStats.setEnabled(settings.typingStatsEnabled)
-        codexActivityService.setMonitoringPaused(monitoringPauseController.isPaused)
-        codexActivityService.setEnabled(settings.codexActivityTrackingEnabled)
+        codexTokenActivityService.setMonitoringPaused(monitoringPauseController.isPaused)
+        codexTokenActivityService.setEnabled(settings.codexTokenActivityEnabled && settings.showCodexCard)
         wakaTimeUsageStore.synchronize(isEnabled: settings.wakaTimeEnabled)
         updateStatusTitle(store.statusLine)
         if !monitoringPauseController.isPaused {
@@ -295,7 +301,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
         // External requests and input monitoring pause only for hard-stop
         // states. Idle low-frequency mode affects local metric sampling only.
         codexUsageStore.setAutomaticRefreshPaused(paused)
-        codexActivityService.setMonitoringPaused(paused)
+        codexTokenActivityService.setMonitoringPaused(paused)
         wakaTimeUsageStore.setAutomaticRefreshPaused(paused)
         typingStats.setMonitoringPaused(paused)
         statusLogoAnimator?.setPaused(mode != .realtime)

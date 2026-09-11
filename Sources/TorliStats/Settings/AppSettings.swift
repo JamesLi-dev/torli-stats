@@ -8,7 +8,8 @@ final class AppSettings: ObservableObject {
     static let supportedRefreshIntervals = [1, 3, 5, 10, 30]
     static let supportedCodexRefreshIntervals = [1, 5, 10, 30]
 
-    private let defaults = UserDefaults.standard
+    // Shared with the reset extension; the reference is immutable.
+    let defaults = UserDefaults.standard
     private var codexTextPersistenceWorkItem: DispatchWorkItem?
 
     @Published var theme: ThemePreference {
@@ -144,8 +145,8 @@ final class AppSettings: ObservableObject {
     @Published var codexAutoRefresh: Bool {
         didSet { defaults.set(codexAutoRefresh, forKey: "codexAutoRefresh") }
     }
-    @Published var codexActivityTrackingEnabled: Bool {
-        didSet { defaults.set(codexActivityTrackingEnabled, forKey: "codexActivityTrackingEnabled") }
+    @Published var codexTokenActivityEnabled: Bool {
+        didSet { defaults.set(codexTokenActivityEnabled, forKey: "codexTokenActivityEnabled") }
     }
     @Published var codexRefreshInterval: Int {
         didSet { defaults.set(codexRefreshInterval, forKey: "codexRefreshInterval") }
@@ -279,7 +280,7 @@ final class AppSettings: ObservableObject {
         codexDefaultAccountName = defaults.string(forKey: "codexDefaultAccountName") ?? StatsL10n.text("codex.settings.default_account")
         codexHomePath = defaults.string(forKey: "codexHomePath") ?? ""
         codexAutoRefresh = defaults.object(forKey: "codexAutoRefresh") as? Bool ?? true
-        codexActivityTrackingEnabled = defaults.object(forKey: "codexActivityTrackingEnabled") as? Bool ?? false
+        codexTokenActivityEnabled = defaults.object(forKey: "codexTokenActivityEnabled") as? Bool ?? true
         let savedCodexRefreshInterval = defaults.integer(forKey: "codexRefreshInterval")
         codexRefreshInterval = Self.supportedCodexRefreshIntervals.contains(savedCodexRefreshInterval)
             ? savedCodexRefreshInterval
@@ -352,109 +353,6 @@ final class AppSettings: ObservableObject {
     private func resolvedCodexDisplayName(_ name: String, fallback: String) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? fallback : trimmed
-    }
-
-    func addCodexManagedAccount(named displayName: String) -> CodexAccountConfiguration? {
-        let rootURL = URL(fileURLWithPath: NSHomeDirectory())
-            .appendingPathComponent(".torli-stats-codex", isDirectory: true)
-        let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedName = trimmedName.isEmpty ? StatsL10n.format("codex.settings.account_number", codexManagedAccounts.count + 1) : trimmedName
-        let baseDirectoryName = codexDirectoryName(for: resolvedName)
-        let directoryName = uniqueCodexDirectoryName(base: baseDirectoryName, rootURL: rootURL)
-        let homeURL = rootURL.appendingPathComponent(directoryName, isDirectory: true)
-
-        do {
-            try FileManager.default.createDirectory(
-                at: homeURL,
-                withIntermediateDirectories: true,
-                attributes: [.posixPermissions: 0o700]
-            )
-            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: rootURL.path)
-            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: homeURL.path)
-        } catch {
-            return nil
-        }
-
-        let account = CodexAccountConfiguration(
-            id: UUID(),
-            displayName: resolvedName,
-            homePath: homeURL.path,
-            isDashboardVisible: true,
-            isStatusBarIncluded: true
-        )
-        codexManagedAccounts.append(account)
-        return account
-    }
-
-    private func codexDirectoryName(for displayName: String) -> String {
-        let latinName = displayName
-            .applyingTransform(.toLatin, reverse: false)?
-            .folding(options: .diacriticInsensitive, locale: .current) ?? displayName
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-"))
-        let slug = latinName.lowercased().unicodeScalars.map { scalar in
-            allowed.contains(scalar) ? Character(String(scalar)) : "-"
-        }
-        let result = String(slug)
-            .replacingOccurrences(of: "--", with: "-")
-            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-        return result.isEmpty ? "account" : result
-    }
-
-    private func uniqueCodexDirectoryName(base: String, rootURL: URL) -> String {
-        var candidate = base
-        var index = 2
-        while FileManager.default.fileExists(atPath: rootURL.appendingPathComponent(candidate).path) {
-            candidate = "\(base)-\(index)"
-            index += 1
-        }
-        return candidate
-    }
-
-    func startCodexLogin(for account: CodexAccountConfiguration) -> Bool {
-        guard account.id != CodexAccountConfiguration.defaultAccountID,
-              let executable = CodexUsageClient.executableURL() else {
-            return false
-        }
-
-        let scriptURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("torli-stats-codex-login-\(account.id.uuidString).command")
-        let script = "#!/bin/bash\nexport CODEX_HOME=\(shellQuoted(account.homePath))\n\(shellQuoted(executable.path)) login\nrm -f -- \"$0\"\n"
-        do {
-            try script.write(to: scriptURL, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: scriptURL.path)
-            let task = Process()
-            task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-            task.arguments = ["-a", "Terminal", scriptURL.path]
-            try task.run()
-            return true
-        } catch {
-            try? FileManager.default.removeItem(at: scriptURL)
-            return false
-        }
-    }
-
-    func removeCodexManagedAccount(id: UUID) {
-        codexManagedAccounts.removeAll { $0.id == id }
-    }
-
-    func updateCodexManagedAccount(_ account: CodexAccountConfiguration) {
-        guard let index = codexManagedAccounts.firstIndex(where: { $0.id == account.id }) else { return }
-        codexManagedAccounts[index] = account
-    }
-
-    private func shellQuoted(_ value: String) -> String {
-        "'\(value.replacingOccurrences(of: "'", with: "'\\\"'\\\"'"))'"
-    }
-
-    private static func loadCodexManagedAccounts(from data: Data?) -> [CodexAccountConfiguration] {
-        guard let data,
-              let accounts = try? JSONDecoder().decode([CodexAccountConfiguration].self, from: data) else {
-            return []
-        }
-        return accounts.filter { account in
-            account.id != CodexAccountConfiguration.defaultAccountID &&
-                account.homePath.hasPrefix((NSHomeDirectory() as NSString).appendingPathComponent(".torli-stats-codex") + "/")
-        }
     }
 
     func moveStatusBarMetricGroup(from sourceIndex: Int, by offset: Int) {
@@ -686,80 +584,6 @@ final class AppSettings: ObservableObject {
         value
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
-    }
-
-    func resetToDefaults() {
-        if launchAtLogin {
-            setLaunchAtLogin(false)
-        }
-
-        [
-            "themePreference", "showCPU", "showMemory", "showDownload", "showUpload",
-            "showCPUCard", "showGPUCard", "showMemoryCard", "showDiskCard",
-            "showNetworkCard", "showFanCard", "showTypingCard", "showPowerCard", "showProcessesCard",
-            "showCodexCard", "showWakaTimeCard", "wakaTimeEnabled", "wakaTimeRange", "dashboardDensity", "showDashboardDeviceInfo", "showTemperatureTags", "showProcessPID", "dashboardModuleOrder", "showCodexStatusItem", "showTypingStatusItem", "codexStatusMetric", "codexStatusBarMode", "codexStatusBarAccountLimit", "statusBarMetricOrder",
-            "systemStatusBarStyle", "statusBarFontSize", "showStatusBarMetricIcons", "networkRateUnit", "networkRateDecimalPlaces", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "automaticUpdateChecks", "typingStatsEnabled", "codexDefaultAccountName", "codexHomePath", "codexAutoRefresh", "codexActivityTrackingEnabled", "codexRefreshInterval", "codexManagedAccounts", "powerSavingMode", "manualMonitoringPaused", "backgroundMonitoringEnabled", "nightMonitoringPauseEnabled", "adaptiveSamplingEnabled", "nightMonitoringPauseStartSeconds", "nightMonitoringPauseEndSeconds", "batteryRefreshInterval", "lowBatterySavingEnabled", "lowBatteryThreshold", "processLimit", "processSort", "refreshInterval"
-        ].forEach { defaults.removeObject(forKey: $0) }
-
-        theme = .system
-        showCPU = true
-        showMemory = true
-        showDownload = true
-        showUpload = true
-        showCPUCard = true
-        showGPUCard = true
-        showMemoryCard = true
-        showDiskCard = true
-        showNetworkCard = true
-        showFanCard = true
-        showTypingCard = true
-        showPowerCard = true
-        showProcessesCard = true
-        showCodexCard = true
-        showWakaTimeCard = true
-        wakaTimeEnabled = false
-        wakaTimeRange = .last7Days
-        dashboardDensity = .standard
-        showDashboardDeviceInfo = true
-        showTemperatureTags = true
-        showProcessPID = true
-        dashboardModuleOrder = DashboardModule.allCases
-        showCodexStatusItem = true
-        showTypingStatusItem = false
-        codexStatusMetric = .remaining
-        codexStatusBarMode = .defaultAccount
-        codexStatusBarAccountLimit = 3
-        statusBarMetricOrder = StatusBarMetricGroup.allCases
-        systemStatusBarStyle = .compact
-        statusBarFontSize = .standard
-        showStatusBarMetricIcons = true
-        networkRateUnit = .automatic
-        networkRateDecimalPlaces = 1
-        showStatusBarLogo = true
-        statusBarLogoAnimation = true
-        statusBarRunner = .runCat
-        privacyMode = false
-        automaticUpdateChecks = true
-        typingStatsEnabled = false
-        codexDefaultAccountName = StatsL10n.text("codex.settings.default_account")
-        codexHomePath = ""
-        codexAutoRefresh = true
-        codexActivityTrackingEnabled = false
-        codexRefreshInterval = 5
-        codexManagedAccounts = []
-        refreshInterval = 3
-        powerSavingMode = false
-        manualMonitoringPaused = false
-        backgroundMonitoringEnabled = true
-        nightMonitoringPauseEnabled = true
-        adaptiveSamplingEnabled = false
-        nightMonitoringPauseStartSeconds = 23 * 3_600 + 30 * 60
-        nightMonitoringPauseEndSeconds = 7 * 3_600
-        batteryRefreshInterval = 10
-        lowBatterySavingEnabled = true
-        lowBatteryThreshold = 20
-        processLimit = 5
-        processSort = .cpu
     }
 
     func setLaunchAtLogin(_ enabled: Bool) {

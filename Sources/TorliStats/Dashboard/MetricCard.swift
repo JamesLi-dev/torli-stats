@@ -7,16 +7,18 @@ struct MetricCard<Content: View, Footer: View>: View {
     let badge: String
     let density: DashboardDensity
     let valueColor: Color
+    let badgeColor: Color
     let content: Content
     let footer: Footer
 
-    init(title: String, icon: String, value: String, badge: String, density: DashboardDensity = .standard, valueColor: Color = .primary, @ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer = { EmptyView() }) {
+    init(title: String, icon: String, value: String, badge: String, density: DashboardDensity = .standard, valueColor: Color = .primary, badgeColor: Color = Color.primary.opacity(0.78), @ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer = { EmptyView() }) {
         self.title = title
         self.icon = icon
         self.value = value
         self.badge = badge
         self.density = density
         self.valueColor = valueColor
+        self.badgeColor = badgeColor
         self.content = content()
         self.footer = footer()
     }
@@ -46,7 +48,7 @@ struct MetricCard<Content: View, Footer: View>: View {
                 Spacer()
                 Text(badge)
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
-                    .foregroundStyle(Color.primary.opacity(0.78))
+                    .foregroundStyle(badgeColor)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 4)
                     .background(AppColors.badge)

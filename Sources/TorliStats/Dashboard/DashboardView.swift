@@ -19,7 +19,7 @@ struct DashboardView: View {
     @ObservedObject var store: MetricsStore
     @ObservedObject var settings: AppSettings
     @ObservedObject var codexUsageStore: CodexAccountsUsageStore
-    @ObservedObject var codexActivityService: CodexCLIActivityService
+    @ObservedObject var codexTokenActivityService: CodexTokenActivityService
     @ObservedObject var wakaTimeUsageStore: WakaTimeUsageStore
     @ObservedObject var typingStats: TypingStatsService
     let onCodexDisplayCountChange: (Int) -> Void
@@ -149,10 +149,19 @@ struct DashboardView: View {
                 }
             }
         case .memory:
-            MetricCard(title: StatsL10n.text("dashboard.memory"), icon: "memorychip", value: "\(Int(store.memory))%", badge: StatsL10n.text("dashboard.used"), density: settings.dashboardDensity, valueColor: highUsageColor(store.memory, warning: 75, critical: 90)) {
+            MetricCard(
+                title: StatsL10n.text("dashboard.memory"),
+                icon: "memorychip",
+                value: "\(Int(store.memory))%",
+                badge: memoryPressureTitle,
+                density: settings.dashboardDensity,
+                valueColor: highUsageColor(store.memory, warning: 75, critical: 90),
+                badgeColor: memoryPressureColor
+            ) {
                 Sparkline(values: store.memoryHistory, color: .yellow)
             } footer: {
                 Text(StatsL10n.format("dashboard.memory_usage", store.memoryUsed, store.memoryTotal))
+                    .help(StatsL10n.text("dashboard.memory_usage_help"))
             }
         case .disk:
             MetricCard(title: StatsL10n.text("dashboard.disk"), icon: "internaldrive", value: "\(Int(store.diskUsage))%", badge: store.diskTotal, density: settings.dashboardDensity, valueColor: highUsageColor(store.diskUsage, warning: 80, critical: 90)) {
@@ -227,7 +236,8 @@ struct DashboardView: View {
         case .codex:
             CodexUsageView(
                 store: codexUsageStore,
-                activityService: codexActivityService,
+                activityService: codexTokenActivityService,
+                showsTokenActivity: settings.codexTokenActivityEnabled,
                 isPrivacyMode: settings.privacyMode,
                 density: settings.dashboardDensity,
                 onDisplayCountChange: onCodexDisplayCountChange
@@ -296,8 +306,8 @@ struct DashboardView: View {
         if settings.showPowerCard { height += powerHeight + 4 }
         if codexAccountCount > 0 {
             height += codexBaseHeight + CGFloat(max(0, codexAccountCount - 1)) * 80 + 4
-            if settings.codexActivityTrackingEnabled {
-                height += 72
+            if settings.codexTokenActivityEnabled {
+                height += 175
             }
         }
         if settings.showWakaTimeCard && settings.wakaTimeEnabled {
@@ -314,6 +324,24 @@ struct DashboardView: View {
         // The popover height follows the enabled modules and process count;
         // only the minimum keeps an empty or partially loaded panel usable.
         return max(height, 160)
+    }
+
+    private var memoryPressureTitle: String {
+        switch store.memoryPressure {
+        case .normal: return StatsL10n.text("dashboard.memory_pressure.normal")
+        case .warning: return StatsL10n.text("dashboard.memory_pressure.warning")
+        case .critical: return StatsL10n.text("dashboard.memory_pressure.critical")
+        case .unknown: return StatsL10n.text("dashboard.memory_pressure.unknown")
+        }
+    }
+
+    private var memoryPressureColor: Color {
+        switch store.memoryPressure {
+        case .normal: return .green
+        case .warning: return .orange
+        case .critical: return .red
+        case .unknown: return .secondary
+        }
     }
 
     private func highUsageColor(_ value: Double, warning: Int, critical: Int) -> Color {
