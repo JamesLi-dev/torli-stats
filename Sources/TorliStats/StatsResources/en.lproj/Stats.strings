@@ -301,6 +301,19 @@
 "codex.usage.weekly_used_percent" = "Weekly usage %lld%%";
 "codex.usage.weekly_reset" = "Weekly reset %@";
 "codex.usage.no_quota" = "The account is signed in, but no quota information is available yet.";
+"codex.usage.credits" = "Credits %@";
+"codex.usage.unlimited_credits" = "Unlimited credits";
+"codex.usage.rate_limit_reached" = "Limit reached (%@)";
+"codex.activity.title" = "CLI Activity";
+"codex.activity.today" = "Today %@";
+"codex.activity.last_refresh" = "Last refresh %@";
+"codex.activity.last_active" = "Last active %@";
+"codex.activity.no_activity" = "No activity yet";
+"codex.activity.no_refresh" = "No refresh yet";
+"codex.activity.seven_day_trend" = "7-day trend";
+"codex.activity.minutes" = "%lldm";
+"codex.activity.hours_minutes" = "%lldh %lldm";
+"codex.activity.day_tooltip" = "%@ · %@";
 
 "codex.settings.title" = "Codex Accounts";
 "codex.settings.default_account" = "Default Account";
@@ -308,12 +321,16 @@
 "codex.settings.choose" = "Choose";
 "codex.settings.test_connection" = "Test Connection";
 "codex.settings.auto_refresh" = "Automatic Refresh";
+"codex.settings.activity_tracking" = "Track local Codex CLI activity";
+"codex.settings.activity_tracking_help" = "Only checks whether a codex process is running and saves daily duration plus the last active time locally. Terminal content, arguments, project paths, and input are never recorded.";
 "codex.settings.enable_auto_refresh" = "Enable automatic Codex refresh";
 "codex.settings.refresh_interval" = "Every %lld minutes";
 "codex.settings.managed_accounts" = "Accounts Managed by Torli Stats";
 "codex.settings.dashboard" = "Dashboard";
 "codex.settings.status_bar" = "Menu Bar";
 "codex.settings.remove" = "Remove";
+"codex.settings.remove_confirmation_title" = "Remove “%@”?";
+"codex.settings.remove_confirmation_message" = "This removes only the account configuration from Torli Stats. Your local Codex Home and sign-in state are not deleted.";
 "codex.settings.login_or_relogin" = "Sign In / Sign In Again";
 "codex.settings.login_started" = "Opened Codex sign-in for %@ in Terminal. Click Refresh All after completing it to verify.";
 "codex.settings.login_failed" = "Unable to start Codex sign-in. Confirm that the Codex CLI is installed.";
@@ -443,6 +460,7 @@
 "settings.status_bar.codex_progress" = "Codex Progress";
 "settings.status_bar.typing" = "Typing Statistics";
 "settings.status_bar.codex_display" = "Codex Display";
+"settings.status_bar.codex_account_count" = "Accounts";
 "settings.status_bar.system_metrics_style" = "System Metrics Style";
 "settings.status_bar.display_style" = "Display Style";
 "settings.status_bar.font_size" = "Text Size";

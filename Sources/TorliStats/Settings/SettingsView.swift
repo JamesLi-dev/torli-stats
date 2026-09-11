@@ -17,6 +17,8 @@ struct SettingsView: View {
     @State var draggedStatusBarGroup: StatusBarMetricGroup?
     @State var draggedDashboardModule: DashboardModule?
     @State var codexAccountMessage: String?
+    @State var pendingCodexAccountRemovalID: UUID?
+    @State var pendingCodexAccountRemovalName = ""
     @State var testingCodexAccountIDs = Set<UUID>()
     @State var isAddingCodexAccount = false
     @State var newCodexAccountName = ""
@@ -110,6 +112,28 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $isAddingCodexAccount) {
             addCodexAccountSheet
+        }
+        .confirmationDialog(
+            StatsL10n.format("codex.settings.remove_confirmation_title", pendingCodexAccountRemovalName),
+            isPresented: Binding(
+                get: { pendingCodexAccountRemovalID != nil },
+                set: { if !$0 { pendingCodexAccountRemovalID = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(StatsL10n.text("codex.settings.remove"), role: .destructive) {
+                if let accountID = pendingCodexAccountRemovalID {
+                    settings.removeCodexManagedAccount(id: accountID)
+                }
+                pendingCodexAccountRemovalID = nil
+                pendingCodexAccountRemovalName = ""
+            }
+            Button(StatsL10n.text("common.cancel"), role: .cancel) {
+                pendingCodexAccountRemovalID = nil
+                pendingCodexAccountRemovalName = ""
+            }
+        } message: {
+            Text(StatsL10n.text("codex.settings.remove_confirmation_message"))
         }
         .frame(minWidth: 900, idealWidth: 940, minHeight: 680, idealHeight: 760)
         .background(.clear)

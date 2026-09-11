@@ -9,7 +9,7 @@
 "settings.appearance.theme" = "主题";
 "settings.category.appearance" = "外观";
 "settings.category.status_bar" = "状态栏";
-"settings.category.dashboard" = "Dashboard";
+"settings.category.dashboard" = "面板";
 "settings.category.monitoring" = "监控";
 "settings.category.development" = "开发统计";
 "settings.category.statistics" = "统计";
@@ -301,6 +301,19 @@
 "codex.usage.weekly_used_percent" = "周使用量 %lld%%";
 "codex.usage.weekly_reset" = "周重置：%@";
 "codex.usage.no_quota" = "账号已登录，但暂时没有额度信息";
+"codex.usage.credits" = "Credits %@";
+"codex.usage.unlimited_credits" = "Credits 不限量";
+"codex.usage.rate_limit_reached" = "已达到限额（%@）";
+"codex.activity.title" = "CLI 活跃";
+"codex.activity.today" = "今日 %@";
+"codex.activity.last_refresh" = "最近刷新 %@";
+"codex.activity.last_active" = "最近活跃 %@";
+"codex.activity.no_activity" = "尚无活跃记录";
+"codex.activity.no_refresh" = "尚未刷新";
+"codex.activity.seven_day_trend" = "近 7 天趋势";
+"codex.activity.minutes" = "%lld 分钟";
+"codex.activity.hours_minutes" = "%lld 小时 %lld 分钟";
+"codex.activity.day_tooltip" = "%@ · %@";
 
 "codex.settings.title" = "Codex 账号";
 "codex.settings.default_account" = "默认账号";
@@ -308,12 +321,16 @@
 "codex.settings.choose" = "选择";
 "codex.settings.test_connection" = "测试连接";
 "codex.settings.auto_refresh" = "自动刷新";
+"codex.settings.activity_tracking" = "记录本地 Codex CLI 活跃时长";
+"codex.settings.activity_tracking_help" = "仅检测 codex 进程是否运行，并在本地保存每日活跃时长和最近活跃时间。不记录终端内容、命令参数、项目路径或输入内容。";
 "codex.settings.enable_auto_refresh" = "启用 Codex 自动刷新";
 "codex.settings.refresh_interval" = "每 %lld 分钟";
 "codex.settings.managed_accounts" = "Torli Stats 管理的账号";
 "codex.settings.dashboard" = "面板";
 "codex.settings.status_bar" = "状态栏";
 "codex.settings.remove" = "移除";
+"codex.settings.remove_confirmation_title" = "移除“%@”？";
+"codex.settings.remove_confirmation_message" = "只会从 Torli Stats 移除此账号配置，不会删除本机的 Codex Home 或登录状态。";
 "codex.settings.login_or_relogin" = "登录 / 重新登录";
 "codex.settings.login_started" = "已在终端打开 %@ 的 Codex 登录。完成后点击“刷新全部”验证。";
 "codex.settings.login_failed" = "无法启动 Codex 登录。请确认 Codex CLI 已安装。";
@@ -443,6 +460,7 @@
 "settings.status_bar.codex_progress" = "Codex 进度";
 "settings.status_bar.typing" = "输入统计";
 "settings.status_bar.codex_display" = "Codex 展示";
+"settings.status_bar.codex_account_count" = "账号数";
 "settings.status_bar.system_metrics_style" = "系统指标样式";
 "settings.status_bar.display_style" = "显示方式";
 "settings.status_bar.font_size" = "文字大小";

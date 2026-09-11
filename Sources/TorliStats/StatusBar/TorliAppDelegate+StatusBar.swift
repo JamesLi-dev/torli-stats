@@ -419,7 +419,7 @@ extension TorliAppDelegate {
             guard let lowestRemaining = values.max(by: { $0.usedPercent < $1.usedPercent }) else { return [] }
             return [CodexStatusBarValue(accountID: lowestRemaining.accountID, prefix: "COD", usedPercent: lowestRemaining.usedPercent, isStale: lowestRemaining.isStale)]
         case .eachAccount:
-            return values
+            return Array(values.prefix(settings.codexStatusBarAccountLimit))
         }
     }
 

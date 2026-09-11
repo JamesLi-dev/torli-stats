@@ -185,7 +185,7 @@ private struct TypingStatisticsDetailContent: View {
                             tooltip: StatsL10n.format("statistics.typing.daily_tooltip", $0.dateID, $0.keyCount, formatDuration($0.activeSeconds))
                         )
                     },
-                    color: .cyan
+                    color: .blue
                 )
                     .frame(height: 202)
             }
