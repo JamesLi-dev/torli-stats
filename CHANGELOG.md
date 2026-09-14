@@ -2,6 +2,16 @@
 
 All notable changes to Torli Stats are documented here.
 
+## [Unreleased]
+
+### English
+
+- Unifies the Notes settings card background with the shared settings card surface used by the other modules.
+
+### 中文
+
+- 统一 Notes 设置模块与其他设置模块使用相同的卡片背景色。
+
 ## [1.5.0] — 2026-09-11
 
 ### English

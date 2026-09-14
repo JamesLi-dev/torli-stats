@@ -286,7 +286,7 @@ struct NotesSettingsView: View {
             settingsPage
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
-                .background(.regularMaterial)
+                .background(AppColors.card)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
                         .stroke(Color.primary.opacity(0.06), lineWidth: 1)
