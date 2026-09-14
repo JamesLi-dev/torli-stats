@@ -47,6 +47,11 @@
 - [ ] 评估 App 退出或卸载时清理 Helper 的策略。
 - [ ] 增加不同 Mac 硬件与无风扇设备的兼容性手工验证记录。
 
+### 发布与分发
+
+- [ ] 支持 Homebrew Cask 安装：创建 `JamesLi-dev/homebrew-torli-stats` Tap，发布可供 Cask 下载的 arm64 或 Universal Binary，自动维护版本与 SHA256，并补充 README 安装说明。
+- [ ] 为 Homebrew 等外部分发渠道准备 Developer ID 签名与 notarization，避免 macOS Gatekeeper 拦截，并验证 `brew audit --cask` 与实际安装流程。
+
 ### 可衍生功能
 
 - [ ] **告警中心**：CPU/内存/温度/电量/Codex 额度跨阈值时在菜单栏聚合提示，并支持静默时段。
