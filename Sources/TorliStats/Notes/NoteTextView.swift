@@ -35,6 +35,7 @@ struct NoteTextView: NSViewRepresentable {
         storage.addLayoutManager(layout)
 
         let tv = TaskTextView(frame: .zero, textContainer: container)
+        container.textView = tv
         tv.autoresizingMask = [.width]
         tv.isVerticallyResizable = true
         tv.isHorizontallyResizable = false
@@ -118,8 +119,7 @@ struct NoteTextView: NSViewRepresentable {
                                 size: size,
                                 markdownEnabled: markdownEnabled,
                                 textDirection: textDirection,
-                                bodyFont: bodyFont,
-                                isCompletedTask: { Tasks.marker(of: $0) == Tasks.done })
+                                bodyFont: bodyFont)
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate, NSTextStorageDelegate {
@@ -128,6 +128,7 @@ struct NoteTextView: NSViewRepresentable {
         private var edits = EditorEditAccumulator()
         private var lastLine = NSRange(location: NSNotFound, length: 0)
         private var isApplyingStyles = false
+        private var isInsertingReturnExpansion = false
         private var needsFullPass = false
         /// The style token last applied. Comparing one string beats rebuilding
         /// an NSColor and an NSFont and hoping they compare equal — they do not
@@ -294,26 +295,113 @@ struct NoteTextView: NSViewRepresentable {
                            length: min(selection.length, length - location))
         }
 
-        /// Return on a task line starts the next task; on an empty one, ends the list.
+        /// Return on a task/list line starts the next item; on an empty one,
+        /// the current list prefix is removed so the paragraph can end.
         func textView(_ tv: NSTextView, shouldChangeTextIn range: NSRange,
                       replacementString replacement: String?) -> Bool {
-            guard replacement == "\n" else { return true }
+            // insertText(_:) below synchronously re-enters this delegate. Allow
+            // that one native insertion through, but do not expand it again.
+            guard replacement == "\n", !isInsertingReturnExpansion else { return true }
             let ns = tv.string as NSString
             guard range.location <= ns.length else { return true }
             let line = ns.lineRange(for: NSRange(location: range.location, length: 0))
             let text = ns.substring(with: line)
-            guard Tasks.isTask(text) else { return true }
+            let markdownBlock = parent.markdownEnabled
+                ? MarkdownBlockParser.block(containing: range.location, in: tv.string)
+                : nil
 
-            if Tasks.stripped(text.trimmingCharacters(in: .newlines)).isEmpty {
-                let clear = NSRange(location: line.location,
-                                    length: min(line.length, ns.length - line.location))
-                if tv.shouldChangeText(in: clear, replacementString: "") {
-                    tv.textStorage?.replaceCharacters(in: clear, with: "")
-                    tv.didChangeText()
-                }
-                return false
+            // A checkbox-looking line inside a fenced block is code, not a Todo.
+            if let block = markdownBlock, block.kind.isCode {
+                return handleMarkdownReturn(block, in: tv, range: range)
             }
-            tv.insertText("\n" + Tasks.openPrefix, replacementRange: range)
+
+            if let task = TaskLine.parse(text) {
+                if task.isEmpty {
+                    let clear = NSRange(location: line.location,
+                                        length: min(line.length, ns.length - line.location))
+                    if tv.shouldChangeText(in: clear, replacementString: "") {
+                        tv.textStorage?.replaceCharacters(in: clear, with: "")
+                        tv.didChangeText()
+                    }
+                    return false
+                }
+                return insertReturnExpansion("\n" + task.indentation(in: text) + Tasks.openPrefix,
+                                             in: tv, range: range)
+            }
+
+            guard let block = markdownBlock else { return true }
+            return handleMarkdownReturn(block, in: tv, range: range)
+        }
+
+        private func handleMarkdownReturn(_ block: MarkdownBlock,
+                                          in tv: NSTextView,
+                                          range: NSRange) -> Bool {
+            let source = tv.string
+
+            func finishEmptyPrefix() -> Bool {
+                guard tv.shouldChangeText(in: block.markerRange, replacementString: "") else {
+                    return false
+                }
+                tv.textStorage?.replaceCharacters(in: block.markerRange, with: "")
+                tv.didChangeText()
+                return true
+            }
+
+            switch block.kind {
+            case .unorderedList:
+                if block.content(in: source).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    let marker = block.marker(in: source)
+                    guard marker.last != " " && marker.last != "\t" else {
+                        return finishEmptyPrefix()
+                    }
+                    return insertReturnExpansion("\n" + block.indentation(in: source) + marker + " ",
+                                                 in: tv, range: range)
+                }
+                let prefix = block.indentation(in: source) + block.marker(in: source)
+                return insertReturnExpansion("\n" + prefix, in: tv, range: range)
+
+            case .orderedList(let number, let delimiter):
+                if block.content(in: source).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    let marker = block.marker(in: source)
+                    guard marker.last != " " && marker.last != "\t" else {
+                        return finishEmptyPrefix()
+                    }
+                    return insertReturnExpansion("\n" + block.indentation(in: source) +
+                                                 "\(number + 1)\(delimiter) ",
+                                                 in: tv, range: range)
+                }
+                let prefix = block.indentation(in: source) + "\(number + 1)\(delimiter) "
+                return insertReturnExpansion("\n" + prefix, in: tv, range: range)
+
+            case .quote:
+                if block.content(in: source).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    return finishEmptyPrefix()
+                }
+                var prefix = block.marker(in: source)
+                if prefix.last != " " && prefix.last != "\t" { prefix += " " }
+                return insertReturnExpansion("\n" + block.indentation(in: source) + prefix,
+                                             in: tv, range: range)
+
+            case .code:
+                return insertReturnExpansion("\n" + block.indentation(in: source),
+                                             in: tv, range: range)
+
+            case .codeFence(_, _, let closing):
+                guard !closing else { return true }
+                return insertReturnExpansion("\n" + block.indentation(in: source),
+                                             in: tv, range: range)
+
+            case .heading, .todo, .frontMatter, .divider, .paragraph:
+                return true
+            }
+        }
+
+        private func insertReturnExpansion(_ insertion: String,
+                                           in tv: NSTextView,
+                                           range: NSRange) -> Bool {
+            isInsertingReturnExpansion = true
+            defer { isInsertingReturnExpansion = false }
+            tv.insertText(insertion, replacementRange: range)
             return false
         }
     }

@@ -303,12 +303,10 @@ struct Note: Identifiable, Hashable {
     /// Completed / total, or nil when the note holds no tasks.
     var taskProgress: (done: Int, total: Int)? {
         var done = 0, total = 0
-        for line in body.split(whereSeparator: \.isNewline) {
-            switch Tasks.marker(of: line) {
-            case Tasks.done: done += 1; total += 1
-            case Tasks.open: total += 1
-            default: break
-            }
+        for block in MarkdownBlockParser.parse(body) {
+            guard case .todo(let completed) = block.kind else { continue }
+            total += 1
+            if completed { done += 1 }
         }
         return total > 0 ? (done, total) : nil
     }
@@ -319,7 +317,10 @@ struct Note: Identifiable, Hashable {
     /// is skipped because it already serves as the title.
     var preview: String {
         let lines = body.split(whereSeparator: \.isNewline).map(String.init)
-        let rest = (hasCustomTitle ? lines : Array(lines.dropFirst()))
+        let contentLines = hasCustomTitle ? lines : Array(lines.dropFirst())
+        let rest = contentLines.map { line in
+            Tasks.parse(line)?.body(in: line) ?? line
+        }
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespaces)
         return rest.count > 120 ? String(rest.prefix(120)) + "…" : rest
@@ -336,33 +337,117 @@ enum Tasks {
     static let openPrefix = "\u{2610} "
     static let donePrefix = "\u{2611} "
 
-    static func marker(of line: some StringProtocol) -> Character? {
-        guard let f = line.first, f == open || f == done else { return nil }
-        return f
+    static func parse(_ line: some StringProtocol) -> TaskLine? {
+        TaskLine.parse(String(line))
     }
 
-    static func isTask(_ line: some StringProtocol) -> Bool { marker(of: line) != nil }
+    static func marker(of line: some StringProtocol) -> Character? {
+        parse(line)?.marker
+    }
+
+    static func isTask(_ line: some StringProtocol) -> Bool { parse(line) != nil }
 
     /// Strip the marker for display in lists and titles.
     static func stripped(_ line: some StringProtocol) -> String {
-        guard isTask(line) else { return String(line) }
-        return String(line.dropFirst()).trimmingCharacters(in: .whitespaces)
+        guard let task = parse(line) else { return String(line) }
+        return task.body(in: String(line)).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Markdown task syntax in, ☐/☑ out.
+    /// Markdown task syntax in, ☐/☑ out. Only task markers at the beginning of
+    /// a line are converted; indentation and line endings are preserved.
     static func fromMarkdown(_ text: String) -> String {
-        text.replacingOccurrences(of: "^(\\s*)[-*]\\s+\\[[ ]\\]\\s+",
-                                  with: "$1" + openPrefix,
-                                  options: [.regularExpression])
-            .replacingOccurrences(of: "^(\\s*)[-*]\\s+\\[[xX]\\]\\s+",
-                                  with: "$1" + donePrefix,
-                                  options: [.regularExpression])
+        transformLines(text, transform: fromMarkdownLine)
     }
 
-    /// ☐/☑ out, Markdown task syntax in.
+    /// ☐/☑ out, Markdown task syntax in. Only the parsed task prefix is changed,
+    /// so ordinary prose containing these characters is left untouched.
     static func toMarkdown(_ text: String) -> String {
-        text.replacingOccurrences(of: openPrefix, with: "- [ ] ")
-            .replacingOccurrences(of: donePrefix, with: "- [x] ")
+        transformLines(text, transform: toMarkdownLine)
+    }
+
+    private static func fromMarkdownLine(_ line: String) -> String {
+        let text = line as NSString
+        let indentation = TaskLine.leadingIndentationRange(in: line)
+        var location = NSMaxRange(indentation)
+
+        guard location < text.length,
+              text.character(at: location) == 0x2D || text.character(at: location) == 0x2A else {
+            return line
+        }
+        location += 1
+
+        // CommonMark requires whitespace between the bullet and checkbox.
+        guard consumeHorizontalWhitespace(in: text, from: &location) else { return line }
+        guard location + 2 < text.length,
+              text.character(at: location) == 0x5B else { return line } // [
+
+        let state = text.character(at: location + 1)
+        guard state == 0x20 || state == 0x78 || state == 0x58,
+              text.character(at: location + 2) == 0x5D else { return line } // ]
+        location += 3
+
+        // Do not turn malformed prose such as "- [ ]text" into a task.
+        if location < text.length {
+            guard consumeHorizontalWhitespace(in: text, from: &location) else { return line }
+        }
+
+        let body = text.substring(from: location)
+        let marker = state == 0x20 ? String(open) : String(done)
+        return text.substring(with: indentation) + marker + " " + body
+    }
+
+    private static func toMarkdownLine(_ line: String) -> String {
+        guard let task = TaskLine.parse(line) else { return line }
+        let indentation = task.indentation(in: line)
+        let body = task.body(in: line)
+        let marker = task.isCompleted ? "x" : " "
+        return indentation + "- [" + marker + "]" + (body.isEmpty ? "" : " " + body)
+    }
+
+    private static func consumeHorizontalWhitespace(in text: NSString, from location: inout Int) -> Bool {
+        let start = location
+        while location < text.length {
+            let value = text.character(at: location)
+            guard value == 0x20 || value == 0x09 else { break }
+            location += 1
+        }
+        return location > start
+    }
+
+    private static func transformLines(_ text: String,
+                                       transform: (String) -> String) -> String {
+        let source = text as NSString
+        guard source.length > 0 else { return text }
+
+        var result = String()
+        var location = 0
+        while location < source.length {
+            let lineRange = source.lineRange(for: NSRange(location: location, length: 0))
+            let contentRange = lineContentRange(lineRange, in: source)
+            result += transform(source.substring(with: contentRange))
+
+            let ending = NSRange(location: NSMaxRange(contentRange),
+                                  length: lineRange.length - contentRange.length)
+            if ending.length > 0 {
+                result += source.substring(with: ending)
+            }
+            location = NSMaxRange(lineRange)
+        }
+        return result
+    }
+
+    private static func lineContentRange(_ lineRange: NSRange, in text: NSString) -> NSRange {
+        var length = lineRange.length
+        let end = lineRange.location + length
+        if length > 0, text.character(at: end - 1) == 0x0A {
+            length -= 1
+            if length > 0, text.character(at: lineRange.location + length - 1) == 0x0D {
+                length -= 1
+            }
+        } else if length > 0, text.character(at: end - 1) == 0x0D {
+            length -= 1
+        }
+        return NSRange(location: lineRange.location, length: length)
     }
 }
 

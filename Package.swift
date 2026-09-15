@@ -11,6 +11,9 @@ let package = Package(
         .executable(name: "TorliStats", targets: ["TorliStats"]),
         .executable(name: "TorliStatsHelper", targets: ["TorliStatsHelper"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/apple/swift-markdown.git", from: "0.8.0")
+    ],
     targets: [
         .testTarget(
             name: "TorliStatsTests",
@@ -22,7 +25,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "TorliStats",
-            dependencies: ["TorliStatsShared"],
+            dependencies: [
+                "TorliStatsShared",
+                .product(name: "Markdown", package: "swift-markdown")
+            ],
             path: "Sources/TorliStats",
             resources: [
                 .process("NotesResources"),

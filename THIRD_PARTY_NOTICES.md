@@ -29,3 +29,15 @@ archive, import/export, keyboard-shortcut, and localization implementation.
 - Copyright: Copyright 2026 Aymen Hamza
 - License: MIT License
 - License text: [`LICENSES/Notes-Engine-MIT.txt`](LICENSES/Notes-Engine-MIT.txt)
+
+## Markdown parser dependencies
+
+Torli Stats uses Apple's `swift-markdown` package for standard Markdown AST
+parsing, with its `swift-cmark` dependency.
+
+- `swift-markdown`: Copyright (c) 2021 Apple Inc. and the Swift project authors
+- License: Apache License, Version 2.0
+- Notice: [`LICENSES/Swift-Markdown-NOTICE.txt`](LICENSES/Swift-Markdown-NOTICE.txt)
+- License text: [`LICENSES/Apache-2.0.txt`](LICENSES/Apache-2.0.txt)
+- `swift-cmark`: Copyright (c) 2014 John MacFarlane and other contributors
+- License and component notices: [`LICENSES/Swift-CMark-COPYING.txt`](LICENSES/Swift-CMark-COPYING.txt)

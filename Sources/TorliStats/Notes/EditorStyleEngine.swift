@@ -4,6 +4,42 @@ extension NSAttributedString.Key {
     /// Marks Markdown punctuation that should occupy no glyph space while the
     /// plain-text source remains untouched.
     static let notesHidden = NSAttributedString.Key("notesHidden")
+
+    /// Stores the visual state for an inline Todo marker while preserving the
+    /// Unicode checkbox in the note's plain-text source.
+    static let taskCheckbox = NSAttributedString.Key("taskCheckbox")
+
+    /// Marks a block quote line for the layout manager's callout decoration.
+    static let quoteDecoration = NSAttributedString.Key("quoteDecoration")
+
+    /// Marks YAML front matter, code blocks, and horizontal divider lines for custom drawing.
+    static let frontMatterDecoration = NSAttributedString.Key("frontMatterDecoration")
+    static let codeBlockDecoration = NSAttributedString.Key("codeBlockDecoration")
+    static let dividerDecoration = NSAttributedString.Key("dividerDecoration")
+}
+
+struct QuoteDecoration {
+    let fill: NSColor
+    let bar: NSColor
+    let barGap: CGFloat
+    let barWidth: CGFloat
+    let barRadius: CGFloat
+}
+
+struct FrontMatterDecoration {
+    let fill: NSColor
+    let text: NSColor
+    let font: NSFont
+    let placeholder: Bool
+}
+
+struct CodeBlockDecoration {
+    let fill: NSColor
+}
+
+struct DividerDecoration {
+    let color: NSColor
+    let thickness: CGFloat
 }
 
 /// Accumulates TextKit character edits until it is safe to style them.
@@ -35,10 +71,7 @@ struct EditorEditAccumulator {
 /// for initial content and explicit configuration changes.
 enum EditorStyleEngine {
     typealias FontProvider = (CGFloat) -> NSFont
-    typealias CompletedTaskPredicate = (String) -> Bool
 
-    private static let heading = try! NSRegularExpression(
-        pattern: "^(#{1,6})[ \\t]+(.+)$", options: [.anchorsMatchLines])
     private static let bold = try! NSRegularExpression(
         pattern: "(\\*\\*|__)(?=\\S)(.+?)(?<=\\S)\\1")
     private static let italic = try! NSRegularExpression(
@@ -46,10 +79,6 @@ enum EditorStyleEngine {
     private static let code = try! NSRegularExpression(pattern: "`([^`\\n]+)`")
     private static let struck = try! NSRegularExpression(
         pattern: "~~(?=\\S)(.+?)(?<=\\S)~~")
-    private static let quote = try! NSRegularExpression(
-        pattern: "^>[ \\t]?(.*)$", options: [.anchorsMatchLines])
-    private static let bullet = try! NSRegularExpression(
-        pattern: "^[ \\t]*([-*+])[ \\t]+", options: [.anchorsMatchLines])
     private static let link = try! NSRegularExpression(
         pattern: "\\[([^\\]\\n]+)\\]\\(([^)\\s]+)\\)")
 
@@ -85,7 +114,9 @@ enum EditorStyleEngine {
             let upper = min(text.length, safe.location + safe.length + 1)
             return text.lineRange(for: NSRange(location: lower, length: upper - lower))
         }
-        return merged(expanded, length: text.length, keepingEmpty: false)
+        let lines = merged(expanded, length: text.length, keepingEmpty: false)
+        let rescanned = MarkdownBlockParser.expandedRanges(for: lines, in: text as String)
+        return merged(rescanned, length: text.length, keepingEmpty: false)
     }
 
     /// Clamp, sort, and merge only overlapping or adjacent ranges. Distant
@@ -104,8 +135,7 @@ enum EditorStyleEngine {
                       size: CGFloat,
                       markdownEnabled: Bool,
                       textDirection: NoteTextDirection = .automatic,
-                      bodyFont: @escaping FontProvider,
-                      isCompletedTask: @escaping CompletedTaskPredicate) -> [NSRange] {
+                      bodyFont: @escaping FontProvider) -> [NSRange] {
         let font = bodyFont(size)
         let paragraphStyle = textDirection.paragraphStyle
         textView.typingAttributes = [.font: font, .foregroundColor: ink,
@@ -123,6 +153,11 @@ enum EditorStyleEngine {
             storage.removeAttribute(.strikethroughStyle, range: range)
             storage.removeAttribute(.obliqueness, range: range)
             storage.removeAttribute(.backgroundColor, range: range)
+            storage.removeAttribute(.taskCheckbox, range: range)
+            storage.removeAttribute(.quoteDecoration, range: range)
+            storage.removeAttribute(.frontMatterDecoration, range: range)
+            storage.removeAttribute(.codeBlockDecoration, range: range)
+            storage.removeAttribute(.dividerDecoration, range: range)
             storage.removeAttribute(.notesHidden, range: range)
             // Both belong to links. Styling is line-scoped, so an attribute left
             // behind when the syntax around it is deleted never gets cleaned up
@@ -134,12 +169,14 @@ enum EditorStyleEngine {
             applyParagraphStyles(to: storage, range: range, direction: textDirection)
 
             let fragment = storage.mutableString.substring(with: range)
+            styleTasks(storage, fragment, offset: range.location, ink: ink, font: font)
             if markdownEnabled {
                 markdown(storage, fragment, offset: range.location, ink: ink,
-                         size: size, revealing: activeLine, bodyFont: bodyFont)
+                         size: size, revealing: activeLine,
+                         frontMatterAllowed: range.location == 0,
+                         bodyFont: bodyFont)
             }
-            styleCompletedTasks(storage, fragment, offset: range.location,
-                                ink: ink, isCompletedTask: isCompletedTask)
+            styleCompletedTasks(storage, fragment, offset: range.location, ink: ink)
             storage.endEditing()
 
             // Hidden markers require glyph regeneration, but only for the lines
@@ -187,22 +224,223 @@ enum EditorStyleEngine {
     private static func markdown(_ storage: NSTextStorage, _ fragment: String,
                                  offset: Int, ink: NSColor, size: CGFloat,
                                  revealing activeLine: NSRange?,
+                                 frontMatterAllowed: Bool,
                                  bodyFont: @escaping FontProvider) {
+        for block in MarkdownBlockParser.parse(fragment,
+                                               frontMatterAllowed: frontMatterAllowed) {
+            styleBlock(storage, fragment, block, offset: offset, ink: ink, size: size,
+                       activeLine: activeLine, bodyFont: bodyFont)
+        }
+    }
+
+    private static func styleBlock(_ storage: NSTextStorage, _ fragment: String,
+                                   _ block: MarkdownBlock, offset: Int, ink: NSColor,
+                                   size: CGFloat, activeLine: NSRange?,
+                                   bodyFont: @escaping FontProvider) {
+        func global(_ range: NSRange) -> NSRange {
+            NSRange(location: offset + range.location, length: range.length)
+        }
+
+        func dim(_ localRange: NSRange) {
+            guard localRange.length > 0 else { return }
+            let range = global(localRange)
+            let faint = ink.withAlphaComponent(0.32)
+            if let activeLine,
+               NSIntersectionRange(range, activeLine).length > 0 || activeLine.location == range.location {
+                storage.addAttribute(.foregroundColor, value: faint, range: range)
+            } else {
+                storage.addAttribute(.notesHidden, value: true, range: range)
+                storage.addAttribute(.foregroundColor, value: faint, range: range)
+            }
+        }
+
+        func hide(_ localRange: NSRange) {
+            guard localRange.length > 0 else { return }
+            storage.addAttribute(.notesHidden, value: true, range: global(localRange))
+        }
+
+        func inline(_ localRange: NSRange) {
+            guard localRange.length > 0 else { return }
+            let local = fragment as NSString
+            let content = local.substring(with: localRange)
+            inlineMarkdown(storage, content, offset: offset + localRange.location,
+                           ink: ink, size: size, activeLine: activeLine,
+                           bodyFont: bodyFont)
+        }
+
+        switch block.kind {
+        case .heading(let level):
+            let bump = max(1.5, 7 - CGFloat(level) * 1.1)
+            storage.addAttribute(.font, value: heavier(size + bump, bodyFont: bodyFont),
+                                 range: global(block.lineRange))
+            dim(block.markerRange)
+            inline(block.contentRange)
+
+        case .unorderedList:
+            styleListParagraph(storage, fragment, block, offset: offset,
+                               font: bodyFont(size))
+            storage.addAttribute(.foregroundColor, value: ink.withAlphaComponent(0.58),
+                                 range: global(block.markerRange))
+            inline(block.contentRange)
+
+        case .orderedList:
+            styleListParagraph(storage, fragment, block, offset: offset,
+                               font: bodyFont(size))
+            storage.addAttribute(.foregroundColor, value: ink.withAlphaComponent(0.58),
+                                 range: global(block.markerRange))
+            inline(block.contentRange)
+
+        case .todo:
+            // TaskTextView's custom glyph is independent of Markdown styling;
+            // only the body receives inline Markdown attributes here.
+            inline(block.contentRange)
+
+        case .frontMatter:
+            let font = NSFont.monospacedSystemFont(ofSize: max(10, size - 0.5),
+                                                    weight: .regular)
+            let isDelimiter = block.markerRange.length > 0
+            let isOpening = isDelimiter && offset + block.lineRange.location == 0
+            storage.addAttribute(.font, value: font, range: global(block.lineRange))
+            storage.addAttribute(.foregroundColor,
+                                 value: ink.withAlphaComponent(0.58),
+                                 range: global(block.lineRange))
+            storage.addAttribute(.frontMatterDecoration,
+                                 value: FrontMatterDecoration(
+                                     fill: ink.withAlphaComponent(0.045),
+                                     text: ink.withAlphaComponent(0.55),
+                                     font: font,
+                                     placeholder: isOpening),
+                                 range: global(block.lineRange))
+            if isDelimiter { hide(block.markerRange) }
+
+        case .quote(let depth):
+            let quoteInk = ink.withAlphaComponent(0.62)
+            storage.addAttribute(.foregroundColor, value: quoteInk,
+                                 range: global(block.lineRange))
+            hide(block.markerRange)
+            storage.addAttribute(.quoteDecoration,
+                                 value: QuoteDecoration(
+                                     fill: ink.withAlphaComponent(0.055),
+                                     bar: ink.withAlphaComponent(0.48),
+                                     barGap: 8,
+                                     barWidth: 4,
+                                     barRadius: 2),
+                                 range: global(block.lineRange))
+            storage.addAttribute(.obliqueness, value: 0.15,
+                                 range: global(block.contentRange))
+            styleQuoteParagraph(storage, block, offset: offset, depth: depth)
+            inline(block.contentRange)
+
+        case .codeFence:
+            storage.addAttribute(.font,
+                                 value: NSFont.monospacedSystemFont(ofSize: size - 0.5,
+                                                                    weight: .regular),
+                                 range: global(block.lineRange))
+            storage.addAttribute(.codeBlockDecoration,
+                                 value: CodeBlockDecoration(fill: ink.withAlphaComponent(0.045)),
+                                 range: global(block.lineRange))
+            styleCodeParagraph(storage, block, offset: offset)
+            dim(block.markerRange)
+
+        case .code:
+            storage.addAttribute(.font,
+                                 value: NSFont.monospacedSystemFont(ofSize: size - 0.5,
+                                                                    weight: .regular),
+                                 range: global(block.lineRange))
+            storage.addAttribute(.codeBlockDecoration,
+                                 value: CodeBlockDecoration(fill: ink.withAlphaComponent(0.045)),
+                                 range: global(block.lineRange))
+            styleCodeParagraph(storage, block, offset: offset)
+
+        case .divider:
+            storage.addAttribute(.foregroundColor, value: ink.withAlphaComponent(0.45),
+                                 range: global(block.lineRange))
+            storage.addAttribute(.dividerDecoration,
+                                 value: DividerDecoration(color: ink.withAlphaComponent(0.3),
+                                                          thickness: 1),
+                                 range: global(block.lineRange))
+            hide(block.markerRange)
+
+        case .paragraph:
+            inline(block.contentRange)
+        }
+    }
+
+    private static func styleCodeParagraph(_ storage: NSTextStorage,
+                                           _ block: MarkdownBlock, offset: Int) {
+        let paragraph = (storage.attribute(.paragraphStyle,
+                                           at: offset + block.lineRange.location,
+                                           effectiveRange: nil) as? NSParagraphStyle)?
+            .mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
+        paragraph.firstLineHeadIndent = 12
+        paragraph.headIndent = 12
+        paragraph.paragraphSpacingBefore = 2
+        paragraph.paragraphSpacing = 2
+        storage.addAttribute(.paragraphStyle,
+                             value: paragraph,
+                             range: NSRange(location: offset + block.lineRange.location,
+                                            length: block.lineRange.length))
+    }
+
+    private static func styleQuoteParagraph(_ storage: NSTextStorage,
+                                            _ block: MarkdownBlock, offset: Int,
+                                            depth: Int) {
+        let paragraph = (storage.attribute(.paragraphStyle,
+                                           at: offset + block.lineRange.location,
+                                           effectiveRange: nil) as? NSParagraphStyle)?
+            .mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
+        // The source marker is hidden, so only a compact content inset remains.
+        // Wrapped lines use the same inset and stay aligned with the callout.
+        let contentInset: CGFloat = 18 + CGFloat(max(0, depth - 1)) * 12
+        paragraph.firstLineHeadIndent = contentInset
+        paragraph.headIndent = contentInset
+        storage.addAttribute(.paragraphStyle,
+                             value: paragraph,
+                             range: NSRange(location: offset + block.lineRange.location,
+                                            length: block.lineRange.length))
+    }
+
+    private static func styleListParagraph(_ storage: NSTextStorage, _ fragment: String,
+                                           _ block: MarkdownBlock, offset: Int,
+                                           font: NSFont) {
+        let globalLine = NSRange(location: offset + block.lineRange.location,
+                                 length: block.lineRange.length)
+        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+        let indentation = displayWhitespace(block.indentation(in: fragment))
+        let marker = displayWhitespace(block.marker(in: fragment))
+        let indentationWidth = (indentation as NSString).size(withAttributes: attributes).width
+        let markerWidth = (marker as NSString).size(withAttributes: attributes).width
+        let paragraph = (storage.attribute(.paragraphStyle,
+                                           at: globalLine.location,
+                                           effectiveRange: nil) as? NSParagraphStyle)?
+            .mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
+        paragraph.firstLineHeadIndent = 0
+        paragraph.headIndent = indentationWidth + markerWidth
+        storage.addAttribute(.paragraphStyle, value: paragraph, range: globalLine)
+    }
+
+    private static func displayWhitespace(_ value: String) -> String {
+        value.map { $0 == "\t" ? "    " : " " }.reduce(into: "") { result, value in
+            result.append(value)
+        }
+    }
+
+    private static func inlineMarkdown(_ storage: NSTextStorage, _ fragment: String,
+                                       offset: Int, ink: NSColor, size: CGFloat,
+                                       activeLine: NSRange?,
+                                       bodyFont: @escaping FontProvider) {
         let local = fragment as NSString
         let full = NSRange(location: 0, length: local.length)
-        // Seven regex passes over the fragment. Most lines carry no Markdown at
-        // all, and one scan for the punctuation that could possibly match is far
-        // cheaper than finding that out seven times.
         guard local.rangeOfCharacter(from: markdownChars).location != NSNotFound else { return }
-        let faint = ink.withAlphaComponent(0.32)
 
         func global(_ range: NSRange) -> NSRange {
             NSRange(location: offset + range.location, length: range.length)
         }
 
-        /// Punctuation is hidden unless it intersects the active caret line.
         func dim(_ localRange: NSRange) {
+            guard localRange.length > 0 else { return }
             let range = global(localRange)
+            let faint = ink.withAlphaComponent(0.32)
             if let activeLine,
                NSIntersectionRange(range, activeLine).length > 0 || activeLine.location == range.location {
                 storage.addAttribute(.foregroundColor, value: faint, range: range)
@@ -219,15 +457,6 @@ enum EditorStyleEngine {
             }
         }
 
-        each(heading) { match in
-            let level = match.range(at: 1).length
-            let bump = max(1.5, 7 - CGFloat(level) * 1.1)
-            storage.addAttribute(.font, value: heavier(size + bump, bodyFont: bodyFont),
-                                 range: global(match.range))
-            dim(match.range(at: 1))
-        }
-        // [label](url) — the label is what stays; the brackets and the URL go the
-        // way of every other marker.
         each(link) { match in
             let label = match.range(at: 1)
             storage.addAttribute(.underlineStyle,
@@ -268,31 +497,52 @@ enum EditorStyleEngine {
             dim(NSRange(location: match.range.location, length: 2))
             dim(NSRange(location: match.range.upperBound - 2, length: 2))
         }
-        each(quote) { match in
-            storage.addAttribute(.foregroundColor, value: ink.withAlphaComponent(0.62),
-                                 range: global(match.range))
-            storage.addAttribute(.obliqueness, value: 0.15,
-                                 range: global(match.range(at: 1)))
-            dim(NSRange(location: match.range.location, length: 1))
-        }
-        each(bullet) { match in
-            storage.addAttribute(.foregroundColor, value: ink.withAlphaComponent(0.5),
-                                 range: global(match.range(at: 1)))
+    }
+
+    private static func styleTasks(_ storage: NSTextStorage, _ fragment: String,
+                                   offset: Int, ink: NSColor, font: NSFont) {
+        let local = fragment as NSString
+        for block in MarkdownBlockParser.parse(fragment) {
+            guard case .todo = block.kind else { continue }
+            let line = local.substring(with: NSRange(location: block.lineRange.location,
+                                                      length: block.lineRange.length))
+            guard let task = TaskLine.parse(line) else { continue }
+
+            let globalLine = NSRange(location: offset + block.lineRange.location,
+                                     length: block.lineRange.length)
+            let checkbox = NSRange(location: offset + block.lineRange.location + task.checkboxRange.location,
+                                   length: task.checkboxRange.length)
+            storage.addAttribute(.taskCheckbox,
+                                 value: TaskCheckboxStyle(isCompleted: task.isCompleted, ink: ink),
+                                 range: checkbox)
+            // Hide only the source marker's glyph. Hiding the glyph retains its
+            // normal advance width so the layout and caret still use the source
+            // character while drawGlyphs paints the custom checkbox.
+            storage.addAttribute(.foregroundColor, value: NSColor.clear, range: checkbox)
+
+            let paragraph = (storage.attribute(.paragraphStyle,
+                                               at: globalLine.location,
+                                               effectiveRange: nil) as? NSParagraphStyle)?
+                .mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
+            paragraph.firstLineHeadIndent = 0
+            paragraph.headIndent = TaskCheckboxRenderer.bodyHeadIndent(for: task,
+                                                                       line: line,
+                                                                       font: font)
+            storage.addAttribute(.paragraphStyle, value: paragraph, range: globalLine)
         }
     }
 
     private static func styleCompletedTasks(_ storage: NSTextStorage, _ fragment: String,
-                                            offset: Int, ink: NSColor,
-                                            isCompletedTask: @escaping CompletedTaskPredicate) {
-        let local = fragment as NSString
-        let full = NSRange(location: 0, length: local.length)
-        local.enumerateSubstrings(in: full, options: .byLines) { line, range, _, _ in
-            guard let line, isCompletedTask(line) else { return }
-            let global = NSRange(location: offset + range.location, length: range.length)
+                                            offset: Int, ink: NSColor) {
+        for block in MarkdownBlockParser.parse(fragment) {
+            guard case .todo(let completed) = block.kind, completed,
+                  block.contentRange.length > 0 else { continue }
+            let body = NSRange(location: offset + block.contentRange.location,
+                               length: block.contentRange.length)
             storage.addAttribute(.strikethroughStyle,
-                                 value: NSUnderlineStyle.single.rawValue, range: global)
+                                 value: NSUnderlineStyle.single.rawValue, range: body)
             storage.addAttribute(.foregroundColor,
-                                 value: ink.withAlphaComponent(0.45), range: global)
+                                 value: ink.withAlphaComponent(0.45), range: body)
         }
     }
 

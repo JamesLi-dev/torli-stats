@@ -3,9 +3,33 @@ import AppKit
 
 // MARK: - NSTextView wrapper
 
-/// Text view that treats a leading ☐ / ☑ as a real checkbox: clicking the box
-/// toggles it, Return carries the list on, and finished lines get struck through.
+/// Text view that treats an indented or unindented ☐ / ☑ as a real checkbox:
+/// clicking the box toggles it, Return carries the list on, and finished lines
+/// get struck through.
 final class TaskTextView: NSTextView {
+    private var checkboxCursorTrackingArea: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        if let area = checkboxCursorTrackingArea {
+            removeTrackingArea(area)
+        }
+        super.updateTrackingAreas()
+        let area = NSTrackingArea(rect: bounds,
+                                  options: [.activeInKeyWindow, .inVisibleRect, .cursorUpdate],
+                                  owner: self,
+                                  userInfo: nil)
+        addTrackingArea(area)
+        checkboxCursorTrackingArea = area
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        if checkboxHit(at: point) != nil {
+            NSCursor.pointingHand.set()
+        } else {
+            super.cursorUpdate(with: event)
+        }
+    }
 
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
@@ -34,6 +58,7 @@ final class TaskTextView: NSTextView {
         guard let lm = layoutManager, let tc = textContainer,
               let storage = textStorage else { return }
         let ns = storage.mutableString
+        let source = storage.string
         guard ns.length > 0, !visibleRect.isEmpty else { return }
 
         let origin = textContainerOrigin
@@ -49,40 +74,59 @@ final class TaskTextView: NSTextView {
 
         ns.enumerateSubstrings(in: lines,
                                options: .byLines) { sub, range, _, _ in
-            guard let sub, Tasks.isTask(sub) else { return }
-            let glyphs = lm.glyphRange(forCharacterRange: NSRange(location: range.location, length: 1),
+            guard let sub, let task = TaskLine.parse(String(sub)),
+                  let block = MarkdownBlockParser.block(containing: range.location,
+                                                        in: source),
+                  !block.kind.isCode else { return }
+            let checkbox = NSRange(location: range.location + task.checkboxRange.location,
+                                   length: task.checkboxRange.length)
+            let glyphs = lm.glyphRange(forCharacterRange: checkbox,
                                        actualCharacterRange: nil)
             var r = lm.boundingRect(forGlyphRange: glyphs, in: tc)
             r.origin.x += origin.x
             r.origin.y += origin.y
-            self.addCursorRect(r.insetBy(dx: -3, dy: -2), cursor: .pointingHand)
+            self.addCursorRect(
+                r.insetBy(dx: -TaskCheckboxRenderer.clickPadding.left,
+                          dy: -TaskCheckboxRenderer.clickPadding.top),
+                cursor: .pointingHand)
         }
+    }
+
+    private func checkboxHit(at point: NSPoint) -> (range: NSRange, frame: NSRect, isCompleted: Bool)? {
+        guard let lm = layoutManager, let tc = textContainer, let storage = textStorage else {
+            return nil
+        }
+        let ns = storage.mutableString
+        guard ns.length > 0 else { return nil }
+        let source = storage.string
+
+        let index = min(characterIndexForInsertion(at: point), max(0, ns.length - 1))
+        let line = ns.lineRange(for: NSRange(location: index, length: 0))
+        guard line.length > 0 else { return nil }
+        let lineText = ns.substring(with: line)
+        guard let task = TaskLine.parse(lineText),
+              let block = MarkdownBlockParser.block(containing: line.location, in: source),
+              !block.kind.isCode else { return nil }
+
+        let target = NSRange(location: line.location + task.checkboxRange.location,
+                             length: task.checkboxRange.length)
+        let glyphs = lm.glyphRange(forCharacterRange: target,
+                                   actualCharacterRange: nil)
+        var frame = lm.boundingRect(forGlyphRange: glyphs, in: tc)
+        frame.origin.x += textContainerOrigin.x
+        frame.origin.y += textContainerOrigin.y
+        let hitFrame = frame.insetBy(dx: -TaskCheckboxRenderer.clickPadding.left,
+                                     dy: -TaskCheckboxRenderer.clickPadding.top)
+        guard hitFrame.contains(point) else { return nil }
+        return (target, frame, task.isCompleted)
     }
 
     /// Returns true when the click landed on a checkbox and was consumed.
     private func toggleBox(at point: NSPoint) -> Bool {
-        guard let lm = layoutManager, let tc = textContainer, let storage = textStorage else { return false }
-        let ns = string as NSString
-        guard ns.length > 0 else { return false }
-
-        let index = min(characterIndexForInsertion(at: point), max(0, ns.length - 1))
-        let line = ns.lineRange(for: NSRange(location: index, length: 0))
-        guard line.length > 0 else { return false }
-        let first = ns.character(at: line.location)
-        guard first == Tasks.open.unicodeScalars.first!.value ||
-              first == Tasks.done.unicodeScalars.first!.value else { return false }
-
-        let glyphs = lm.glyphRange(forCharacterRange: NSRange(location: line.location, length: 1),
-                                   actualCharacterRange: nil)
-        var box = lm.boundingRect(forGlyphRange: glyphs, in: tc)
-        box.origin.x += textContainerOrigin.x
-        box.origin.y += textContainerOrigin.y
-        guard box.insetBy(dx: -4, dy: -3).contains(point) else { return false }
-
-        let target = NSRange(location: line.location, length: 1)
-        let flipped = String(first == Tasks.open.unicodeScalars.first!.value ? Tasks.done : Tasks.open)
-        guard shouldChangeText(in: target, replacementString: flipped) else { return true }
-        storage.replaceCharacters(in: target, with: flipped)
+        guard let storage = textStorage, let hit = checkboxHit(at: point) else { return false }
+        let flipped = hit.isCompleted ? String(Tasks.open) : String(Tasks.done)
+        guard shouldChangeText(in: hit.range, replacementString: flipped) else { return true }
+        storage.replaceCharacters(in: hit.range, with: flipped)
         didChangeText()
         return true
     }
