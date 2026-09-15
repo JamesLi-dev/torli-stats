@@ -106,12 +106,7 @@ struct CodexUsageView: View {
             }
         }
         .padding(density == .compact ? 8 : 10)
-        .background(AppColors.card)
-        .overlay(
-            RoundedRectangle(cornerRadius: 13)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 13))
+        .dashboardCardSurface()
         .onAppear(perform: notifyDisplayCountChange)
         .onChange(of: showsAllAccounts) { _, _ in
             notifyDisplayCountChange()

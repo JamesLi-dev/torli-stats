@@ -14,6 +14,7 @@ private enum DashboardLayoutBlock: Identifiable {
 }
 
 struct DashboardView: View {
+    static let panelWidth: CGFloat = 360
     static let maximumPopoverHeight: CGFloat = 820
 
     @ObservedObject var store: MetricsStore
@@ -26,14 +27,20 @@ struct DashboardView: View {
     let onTypingDetails: () -> Void
     let onWakaTimeDetails: () -> Void
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 8),
-        GridItem(.flexible(), spacing: 8)
-    ]
+    private var metricGridSpacing: CGFloat {
+        DashboardLayout.metricSpacing(for: settings.dashboardDensity)
+    }
+
+    private var columns: [GridItem] {
+        [
+            GridItem(.flexible(), spacing: metricGridSpacing),
+            GridItem(.flexible(), spacing: metricGridSpacing)
+        ]
+    }
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
-            VStack(spacing: settings.dashboardDensity == .compact ? 3 : 4) {
+            LazyVStack(alignment: .leading, spacing: DashboardLayout.sectionSpacing) {
                 if settings.showDashboardDeviceInfo {
                     DeviceInfoView(
                         info: store.deviceInfo,
@@ -58,7 +65,7 @@ struct DashboardView: View {
                 ForEach(layoutBlocks) { block in
                     switch block {
                     case let .metrics(modules):
-                        LazyVGrid(columns: columns, spacing: settings.dashboardDensity == .compact ? 3 : 4) {
+                        LazyVGrid(columns: columns, spacing: metricGridSpacing) {
                             ForEach(modules) { module in
                                 metricCard(for: module)
                             }
@@ -69,11 +76,12 @@ struct DashboardView: View {
                 }
             }
             .padding(settings.dashboardDensity == .compact ? 6 : 8)
-            .frame(width: 360, alignment: .top)
-            .background(ThinScrollViewConfigurator(verticalInset: 12))
+            .frame(width: Self.panelWidth, alignment: .top)
+            .background(ThinScrollViewConfigurator(verticalInset: DashboardLayout.scrollIndicatorInset))
         }
-        .frame(width: 360)
-        .background(AppColors.background)
+        .frame(width: Self.panelWidth)
+        .background(AppColors.background, in: DashboardLayout.popoverShape)
+        .clipShape(DashboardLayout.popoverShape)
         .preferredColorScheme(settings.theme.colorScheme)
     }
 
@@ -215,7 +223,7 @@ struct DashboardView: View {
                 }
                 .foregroundStyle(.secondary)
             }
-            .contentShape(RoundedRectangle(cornerRadius: 13))
+            .contentShape(DashboardLayout.cardShape)
             .onTapGesture(perform: onTypingDetails)
             .help(StatsL10n.text("dashboard.typing_details"))
         case .power, .codex, .wakatime, .processes:
@@ -273,18 +281,8 @@ struct DashboardView: View {
         ].filter { $0 }.count
         let metricRows = CGFloat((metricCount + 1) / 2)
 
-        let metricCardHeight: CGFloat
-        switch settings.dashboardDensity {
-        case .compact: metricCardHeight = 58
-        case .standard: metricCardHeight = 100
-        case .detailed: metricCardHeight = 114
-        }
+        let metricCardHeight = DashboardLayout.metricCardHeight(for: settings.dashboardDensity)
 
-        var height: CGFloat = settings.dashboardDensity == .compact ? 6 : 8
-        if settings.showDashboardDeviceInfo { height += 42 }
-        if metricRows > 0 {
-            height += metricRows * metricCardHeight + max(0, metricRows - 1) * 4
-        }
         let powerHeight: CGFloat
         let codexBaseHeight: CGFloat
         let processRowCount: Int
@@ -303,23 +301,34 @@ struct DashboardView: View {
             processRowCount = settings.processLimit
         }
 
-        if settings.showPowerCard { height += powerHeight + 4 }
+        var blockHeights: [CGFloat] = []
+        if settings.showDashboardDeviceInfo { blockHeights.append(42) }
+        if metricRows > 0 {
+            blockHeights.append(
+                metricRows * metricCardHeight
+                    + max(0, metricRows - 1) * DashboardLayout.metricSpacing(for: settings.dashboardDensity)
+            )
+        }
+        if settings.showPowerCard { blockHeights.append(powerHeight) }
         if codexAccountCount > 0 {
-            height += codexBaseHeight + CGFloat(max(0, codexAccountCount - 1)) * 80 + 4
-            if settings.codexTokenActivityEnabled {
-                height += 175
-            }
+            var codexHeight = codexBaseHeight + CGFloat(max(0, codexAccountCount - 1)) * 80
+            if settings.codexTokenActivityEnabled { codexHeight += 175 }
+            blockHeights.append(codexHeight)
         }
         if settings.showWakaTimeCard && settings.wakaTimeEnabled {
             switch settings.dashboardDensity {
-            case .compact: height += 95
-            case .standard: height += 210
-            case .detailed: height += 280
+            case .compact: blockHeights.append(95)
+            case .standard: blockHeights.append(210)
+            case .detailed: blockHeights.append(280)
             }
         }
         if settings.showProcessesCard {
-            height += 42 + CGFloat(processRowCount) * 18 + 4
+            blockHeights.append(42 + CGFloat(processRowCount) * 18)
         }
+
+        let padding = settings.dashboardDensity == .compact ? 6 : 8
+        let spacing = CGFloat(max(0, blockHeights.count - 1)) * DashboardLayout.sectionSpacing
+        let height = CGFloat(padding * 2) + blockHeights.reduce(0, +) + spacing
 
         // The popover height follows the enabled modules and process count;
         // only the minimum keeps an empty or partially loaded panel usable.
@@ -368,5 +377,47 @@ struct DashboardView: View {
         let minutes = Int(value) / 60
         return minutes >= 60 ? StatsL10n.format("statistics.duration", minutes / 60, minutes % 60) : StatsL10n.format("statistics.minutes", minutes)
     }
+}
 
+enum DashboardLayout {
+    // Keep the SwiftUI background aligned with the native NSPopover mask;
+    // larger radii leave a second, visible curve inside the outer bezel.
+    // The native NSPopover owns the outermost mask, so keep the SwiftUI
+    // container and cards close to its system curve instead of exaggerating a
+    // second, visibly different radius.
+    static let popoverCornerRadius: CGFloat = 12
+    static let cardCornerRadius: CGFloat = 12
+    static let scrollIndicatorInset: CGFloat = 20
+    static let sectionSpacing: CGFloat = 8
+
+    static func metricCardHeight(for density: DashboardDensity) -> CGFloat {
+        switch density {
+        case .compact: return 58
+        case .standard: return 112
+        case .detailed: return 126
+        }
+    }
+
+    static var popoverShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: popoverCornerRadius, style: .continuous)
+    }
+
+    static var cardShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+    }
+
+    static func metricSpacing(for density: DashboardDensity) -> CGFloat {
+        density == .compact ? 6 : 8
+    }
+}
+
+extension View {
+    func dashboardCardSurface() -> some View {
+        background(AppColors.card, in: DashboardLayout.cardShape)
+            .overlay(
+                DashboardLayout.cardShape
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+            )
+            .clipShape(DashboardLayout.cardShape)
+    }
 }

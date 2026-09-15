@@ -60,6 +60,24 @@ extension TorliAppDelegate {
         refreshItem.image = menuSymbol("arrow.clockwise")
         menu.addItem(refreshItem)
 
+        let refreshSensorsItem = NSMenuItem(
+            title: StatsL10n.text("menu.refresh_sensor_status"),
+            action: #selector(refreshSensorStatus),
+            keyEquivalent: ""
+        )
+        refreshSensorsItem.image = menuSymbol("thermometer.medium")
+        refreshSensorsItem.isEnabled = !settings.sensorHelperChecking
+        menu.addItem(refreshSensorsItem)
+
+        let reinstallSensorItem = NSMenuItem(
+            title: StatsL10n.text("menu.reinstall_sensor_helper"),
+            action: #selector(reinstallSensorHelper),
+            keyEquivalent: ""
+        )
+        reinstallSensorItem.image = menuSymbol("wrench.and.screwdriver")
+        reinstallSensorItem.isEnabled = !settings.sensorHelperChecking
+        menu.addItem(reinstallSensorItem)
+
         let monitoringPauseItem = NSMenuItem(
             title: StatsL10n.text(settings.manualMonitoringPaused ? "menu.resume_monitoring" : "menu.pause_monitoring"),
             action: #selector(toggleManualMonitoringPause),
@@ -103,6 +121,14 @@ extension TorliAppDelegate {
         monitoringPauseController.recordUserInteraction()
         store.refreshNow()
         codexUsageStore.refresh()
+    }
+
+    @objc private func refreshSensorStatus() {
+        settings.refreshSensorStatus()
+    }
+
+    @objc private func reinstallSensorHelper() {
+        settings.installSensorHelper()
     }
 
     @objc private func toggleManualMonitoringPause() {
