@@ -26,6 +26,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
     var statusLogoAnimator: StatusBarLogoAnimator?
     var statusLogoImage: NSImage?
     private var codexSettingsUpdateWorkItem: DispatchWorkItem?
+    var popoverSizeUpdateWorkItem: DispatchWorkItem?
     private var pendingCodexDefaultRefresh = false
     var statusBarLayeredContentView: StatusBarLayeredContentView?
     var appliedStatusLogoConfiguration: StatusBarLogoConfiguration?
@@ -80,7 +81,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
         popover.animates = true
         popover.delegate = self
         popover.contentSize = NSSize(
-            width: 360,
+            width: DashboardView.panelWidth,
             height: min(
                 DashboardView.preferredHeight(
                     for: settings,
@@ -89,7 +90,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
                 DashboardView.maximumPopoverHeight
             )
         )
-        popover.contentViewController = NSHostingController(
+        let dashboardController = NSHostingController(
             rootView: DashboardView(
                 store: store,
                 settings: settings,
@@ -108,6 +109,11 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
                 }
             )
         )
+        dashboardController.view.wantsLayer = true
+        dashboardController.view.layer?.cornerRadius = DashboardLayout.popoverCornerRadius
+        dashboardController.view.layer?.cornerCurve = .continuous
+        dashboardController.view.layer?.masksToBounds = true
+        popover.contentViewController = dashboardController
         updatePopoverSize()
 
         store.objectWillChange
@@ -233,7 +239,8 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
         wakaTimeUsageStore.objectWillChange
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                self?.updatePopoverSize()
+                guard let self, self.popover.isShown else { return }
+                self.schedulePopoverSizeUpdate()
             }
             .store(in: &cancellables)
 
@@ -368,5 +375,6 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
 
     deinit {
         stopOutsideClickMonitors()
+        popoverSizeUpdateWorkItem?.cancel()
     }
 }

@@ -47,12 +47,7 @@ struct DeviceInfoView: View {
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppColors.card)
-        .overlay(
-            RoundedRectangle(cornerRadius: 13)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 13))
+        .dashboardCardSurface()
     }
 
     private var displayCPUModel: String {

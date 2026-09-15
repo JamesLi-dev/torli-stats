@@ -178,6 +178,7 @@ struct ActivityHeatmap: View {
                         )
                     }
                 }
+                .drawingGroup(opaque: false, colorMode: .linear)
                 ForEach(0..<((dates.count + 6) / 7), id: \.self) { column in
                     let date = dates[column * 7]
                     if calendar.component(.day, from: date) <= 7 {

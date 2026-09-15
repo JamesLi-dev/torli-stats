@@ -31,12 +31,8 @@ struct MetricCard<Content: View, Footer: View>: View {
         }
     }
 
-    private var minimumHeight: CGFloat {
-        switch density {
-        case .compact: return 58
-        case .standard: return 100
-        case .detailed: return 114
-        }
+    private var cardHeight: CGFloat {
+        DashboardLayout.metricCardHeight(for: density)
     }
 
     var body: some View {
@@ -64,6 +60,8 @@ struct MetricCard<Content: View, Footer: View>: View {
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .frame(height: chartHeight)
 
+                Spacer(minLength: 0)
+
                 footer
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
                     .foregroundStyle(.secondary)
@@ -71,12 +69,7 @@ struct MetricCard<Content: View, Footer: View>: View {
             }
         }
         .padding(density == .compact ? 6 : 6)
-        .frame(minHeight: minimumHeight, alignment: .top)
-        .background(AppColors.card)
-        .overlay(
-            RoundedRectangle(cornerRadius: 13)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 13))
+        .frame(height: cardHeight, alignment: .top)
+        .dashboardCardSurface()
     }
 }

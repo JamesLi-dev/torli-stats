@@ -71,12 +71,7 @@ struct ProcessListView: View {
             }
         }
         .padding(8)
-        .background(AppColors.card)
-        .overlay(
-            RoundedRectangle(cornerRadius: 13)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 13))
+        .dashboardCardSurface()
     }
 
     private func formatMemory(_ bytes: Double) -> String {
