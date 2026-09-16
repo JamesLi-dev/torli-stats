@@ -8,17 +8,24 @@ struct CPUBarChart: View {
             let spacing: CGFloat = values.count > 16 ? 1 : 2
             let barWidth = max(1, (geometry.size.width - spacing * CGFloat(max(values.count - 1, 0))) / CGFloat(max(values.count, 1)))
 
-            HStack(alignment: .bottom, spacing: spacing) {
-                ForEach(Array(values.enumerated()), id: \.offset) { index, value in
-                    RoundedRectangle(cornerRadius: min(2, barWidth / 2))
-                        .fill(DashboardPalette.cpuBars)
-                        .frame(width: barWidth, height: max(2, geometry.size.height * CGFloat(min(100, max(0, value)) / 100)))
-                        .help(StatsL10n.format("charts.cpu_core_help", index + 1, Int(value)))
-                        .accessibilityLabel(StatsL10n.format("charts.cpu_core_accessibility", index + 1))
-                        .accessibilityValue("\(Int(value))%")
+            ZStack(alignment: .bottom) {
+                Capsule()
+                    .fill(Color.primary.opacity(0.08))
+                    .frame(height: 1)
+
+                HStack(alignment: .bottom, spacing: spacing) {
+                    ForEach(Array(values.enumerated()), id: \.offset) { index, value in
+                        RoundedRectangle(cornerRadius: min(2, barWidth / 2))
+                            .fill(DashboardPalette.cpuBars)
+                            .frame(width: barWidth, height: max(2, geometry.size.height * CGFloat(min(100, max(0, value)) / 100)))
+                            .animation(.easeOut(duration: 0.28), value: value)
+                            .help(StatsL10n.format("charts.cpu_core_help", index + 1, Int(value)))
+                            .accessibilityLabel(StatsL10n.format("charts.cpu_core_accessibility", index + 1))
+                            .accessibilityValue("\(Int(value))%")
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
     }
 }
@@ -33,15 +40,21 @@ struct Sparkline: View {
             let minValue = values.min() ?? 0
             let range = max(maxValue - minValue, 1)
 
-            Path { path in
-                for (index, value) in values.enumerated() {
-                    let x = geometry.size.width * CGFloat(index) / CGFloat(max(values.count - 1, 1))
-                    let y = geometry.size.height * (1 - CGFloat((value - minValue) / range))
-                    if index == 0 { path.move(to: CGPoint(x: x, y: y)) }
-                    else { path.addLine(to: CGPoint(x: x, y: y)) }
+            ZStack(alignment: .bottom) {
+                Capsule()
+                    .fill(Color.primary.opacity(0.08))
+                    .frame(height: 1)
+
+                Path { path in
+                    for (index, value) in values.enumerated() {
+                        let x = geometry.size.width * CGFloat(index) / CGFloat(max(values.count - 1, 1))
+                        let y = geometry.size.height * (1 - CGFloat((value - minValue) / range))
+                        if index == 0 { path.move(to: CGPoint(x: x, y: y)) }
+                        else { path.addLine(to: CGPoint(x: x, y: y)) }
+                    }
                 }
+                .stroke(color, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
             }
-            .stroke(color, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
         }
     }
 }
@@ -55,16 +68,23 @@ struct TypingTrendSparkline: View {
             let spacing: CGFloat = records.count > 10 ? 2 : 3
             let width = max(2, (geometry.size.width - spacing * CGFloat(max(records.count - 1, 0))) / CGFloat(max(records.count, 1)))
 
-            HStack(alignment: .bottom, spacing: spacing) {
-                ForEach(records) { record in
-                    RoundedRectangle(cornerRadius: min(2, width / 2))
-                        .fill(record.keyCount == 0 ? AnyShapeStyle(Color.secondary.opacity(0.16)) : AnyShapeStyle(DashboardPalette.inputBars))
-                        .frame(width: width, height: max(2, geometry.size.height * CGFloat(record.keyCount) / CGFloat(maximum)))
-                        .accessibilityLabel(record.dateID)
-                        .accessibilityValue(StatsL10n.format("statistics.keys_count", record.keyCount))
+            ZStack(alignment: .bottom) {
+                Capsule()
+                    .fill(Color.primary.opacity(0.08))
+                    .frame(height: 1)
+
+                HStack(alignment: .bottom, spacing: spacing) {
+                    ForEach(records) { record in
+                        RoundedRectangle(cornerRadius: min(2, width / 2))
+                            .fill(record.keyCount == 0 ? AnyShapeStyle(Color.secondary.opacity(0.16)) : AnyShapeStyle(DashboardPalette.inputBars))
+                            .frame(width: width, height: max(2, geometry.size.height * CGFloat(record.keyCount) / CGFloat(maximum)))
+                            .animation(.easeOut(duration: 0.28), value: record.keyCount)
+                            .accessibilityLabel(record.dateID)
+                            .accessibilityValue(StatsL10n.format("statistics.keys_count", record.keyCount))
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
     }
 }

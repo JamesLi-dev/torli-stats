@@ -12,9 +12,13 @@ struct WakaTimeUsageView: View {
 
             switch store.state {
             case .notConfigured:
-                Text(StatsL10n.text("wakatime.not_configured"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                DashboardEmptyState(
+                    icon: "link",
+                    message: StatsL10n.text("wakatime.not_configured"),
+                    tint: DashboardPalette.diskProgress,
+                    action: onDetails,
+                    actionHelp: StatsL10n.text("wakatime.open_details")
+                )
             case .loading(let snapshot):
                 if let snapshot {
                     snapshotContent(snapshot, status: StatsL10n.text("wakatime.refreshing"))
@@ -45,23 +49,19 @@ struct WakaTimeUsageView: View {
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(.secondary)
             if density != .compact {
-                Text(StatsL10n.text("wakatime.details_30_days"))
-                    .font(.system(size: 8, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(DashboardPalette.diskProgress)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 3)
-                    .background(DashboardPalette.diskProgress.opacity(0.10))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 5, style: .continuous)
-                            .stroke(DashboardPalette.diskProgress.opacity(0.14), lineWidth: 0.5)
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                DashboardChip(
+                    text: StatsL10n.text("wakatime.details_30_days"),
+                    tint: DashboardPalette.diskProgress,
+                    fontSize: 8,
+                    weight: .semibold,
+                    cornerRadius: 5
+                )
             }
             Spacer()
             Button(action: onDetails) {
                 Image(systemName: "arrow.up.right.square")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(DashboardIconButtonStyle())
             .foregroundStyle(.secondary)
             .help(StatsL10n.text("wakatime.open_details"))
             if case .available(_, let refreshedAt) = store.state {
@@ -74,7 +74,7 @@ struct WakaTimeUsageView: View {
             } label: {
                 Image(systemName: "arrow.clockwise")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(DashboardIconButtonStyle())
             .foregroundStyle(.secondary)
             .help(StatsL10n.text("wakatime.refresh"))
         }
@@ -146,6 +146,7 @@ struct WakaTimeUsageView: View {
             Text(seconds.map(compactDuration) ?? "—")
                 .font(.system(size: density == .compact ? 16 : (density == .detailed ? 14 : 19), weight: .bold, design: .rounded))
                 .foregroundStyle(emphasized ? DashboardPalette.diskProgress : .primary)
+                .contentTransition(.numericText())
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }

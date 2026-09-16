@@ -26,13 +26,15 @@ struct DeviceInfoView: View {
                     Text(isPrivacyMode ? StatsL10n.text("dashboard.this_mac") : info.model)
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .lineLimit(1)
-                    Text(info.system)
-                        .font(.system(size: 8, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(AppColors.badge)
-                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                        .minimumScaleFactor(0.7)
+                        .layoutPriority(1)
+                    DashboardChip(
+                        text: info.system,
+                        tint: .secondary,
+                        fontSize: 8,
+                        verticalPadding: 2,
+                        cornerRadius: 5
+                    )
                 }
                 if density != .compact {
                     HStack(spacing: 6) {
@@ -72,18 +74,12 @@ private struct InfoTag: View {
     let text: String
 
     var body: some View {
-        Text(text)
-            .font(.system(size: 9, weight: .medium, design: .monospaced))
-            .foregroundStyle(DashboardPalette.diskProgress)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 3)
-            .background(DashboardPalette.diskProgress.opacity(0.10))
-            .overlay {
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .stroke(DashboardPalette.diskProgress.opacity(0.14), lineWidth: 0.5)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-            .lineLimit(1)
-            .minimumScaleFactor(0.75)
+        DashboardChip(
+            text: text,
+            tint: DashboardPalette.diskProgress,
+            fontSize: 9,
+            verticalPadding: 3,
+            cornerRadius: 5
+        )
     }
 }

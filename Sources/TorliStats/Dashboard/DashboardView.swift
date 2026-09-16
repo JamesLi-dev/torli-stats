@@ -27,6 +27,8 @@ struct DashboardView: View {
     let onCodexDisplayCountChange: (Int) -> Void
     let onTypingDetails: () -> Void
     let onWakaTimeDetails: () -> Void
+    var onTypingPermission: () -> Void = {}
+    var onOpenSettings: (SettingsCategory) -> Void = { _ in }
 
     private var metricGridSpacing: CGFloat {
         DashboardLayout.metricSpacing(for: settings.dashboardDensity)
@@ -275,13 +277,22 @@ struct DashboardView: View {
             }
         case .fan:
             MetricCard(title: StatsL10n.text("dashboard.fan"), icon: "fanblades.fill", value: store.fanRPM.map(String.init) ?? "—", badge: "RPM", density: settings.dashboardDensity) {
-                HStack(spacing: 6) {
-                    Image(systemName: "gauge.with.dots.needle.67percent")
-                    Text(settings.sensorHelperEnabled
-                        ? (store.fanRPM == nil ? StatsL10n.text("dashboard.sensor_unavailable") : StatsL10n.text("dashboard.current_speed"))
-                        : StatsL10n.text("dashboard.authorize_fan"))
+                if !settings.sensorHelperEnabled || store.fanRPM == nil {
+                    DashboardEmptyState(
+                        icon: "fanblades.fill",
+                        message: settings.sensorHelperEnabled
+                            ? StatsL10n.text("dashboard.sensor_unavailable")
+                            : StatsL10n.text("dashboard.authorize_fan"),
+                        action: { onOpenSettings(.monitoring) },
+                        actionHelp: StatsL10n.text("sensor.settings.title")
+                    )
+                } else {
+                    HStack(spacing: 6) {
+                        Image(systemName: "gauge.with.dots.needle.67percent")
+                        Text(StatsL10n.text("dashboard.current_speed"))
+                    }
+                    .foregroundStyle(.secondary)
                 }
-                .foregroundStyle(.secondary)
             } footer: {
                 Text(settings.sensorHelperEnabled
                     ? (store.fanRPM == nil ? StatsL10n.text("dashboard.rpm_unavailable") : StatsL10n.text("dashboard.fan_speed"))
@@ -294,10 +305,23 @@ struct DashboardView: View {
                 value: compactNumber(typingStats.todayKeyCount),
                 badge: typingTrendBadge,
                 density: settings.dashboardDensity,
-                valueColor: typingStats.permissionStatus == .monitoring ? .primary : .secondary
+                valueColor: typingStats.permissionStatus == .monitoring ? .primary : .secondary,
+                isInteractive: true
             ) {
                 if settings.dashboardDensity == .standard || settings.dashboardDensity == .detailed {
-                    TypingTrendSparkline(records: typingStats.records(forLastDays: 14))
+                    if typingStats.permissionStatus == .monitoring {
+                        TypingTrendSparkline(records: typingStats.records(forLastDays: 14))
+                    } else {
+                        DashboardEmptyState(
+                            icon: "keyboard",
+                            message: typingStats.permissionStatus.description,
+                            tint: typingStats.permissionStatus == .needsPermission
+                                ? DashboardPalette.quotaWarning
+                                : .secondary,
+                            action: typingStats.permissionStatus == .needsPermission ? onTypingPermission : nil,
+                            actionHelp: StatsL10n.text("settings.system.open_input_monitoring")
+                        )
+                    }
                 }
             } footer: {
                 HStack(spacing: 4) {
@@ -334,7 +358,8 @@ struct DashboardView: View {
                 showsTokenActivity: settings.codexTokenActivityEnabled,
                 isPrivacyMode: settings.privacyMode,
                 density: settings.dashboardDensity,
-                onDisplayCountChange: onCodexDisplayCountChange
+                onDisplayCountChange: onCodexDisplayCountChange,
+                onOpenSettings: onOpenSettings
             )
         case .wakatime:
             WakaTimeUsageView(
@@ -465,6 +490,43 @@ struct DashboardView: View {
     }
 }
 
+struct DashboardEmptyState: View {
+    let icon: String
+    let message: String
+    var tint: Color = .secondary
+    var action: (() -> Void)?
+    var actionHelp: String?
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(tint)
+            Text(message)
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Spacer(minLength: 0)
+            if let action, let actionHelp {
+                Button(action: action) {
+                    Image(systemName: "arrow.up.right")
+                }
+                .buttonStyle(DashboardIconButtonStyle())
+                .help(actionHelp)
+                .accessibilityLabel(actionHelp)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .background(tint.opacity(0.07), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(tint.opacity(0.12), lineWidth: 0.6)
+        }
+    }
+}
+
 enum DashboardLayout {
     // Keep the SwiftUI background aligned with the native NSPopover mask;
     // larger radii leave a second, visible curve inside the outer bezel.
@@ -501,7 +563,12 @@ enum DashboardLayout {
 
 private struct DashboardCardSurfaceModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
+    private let isInteractive: Bool
     @State private var isHovered = false
+
+    init(isInteractive: Bool) {
+        self.isInteractive = isInteractive
+    }
 
     private var cardTint: Color {
         colorScheme == .dark
@@ -538,11 +605,12 @@ private struct DashboardCardSurfaceModifier: ViewModifier {
             .clipShape(DashboardLayout.cardShape)
             .shadow(
                 color: Color.black.opacity(colorScheme == .dark ? 0.14 : 0.05),
-                radius: isHovered ? 8 : 5,
-                y: isHovered ? 2 : 1
+                radius: isInteractive && isHovered ? 8 : 5,
+                y: isInteractive && isHovered ? 2 : 1
             )
-            .brightness(isHovered ? 0.012 : 0)
+            .brightness(isInteractive && isHovered ? 0.012 : 0)
             .onHover { hovering in
+                guard isInteractive else { return }
                 withAnimation(.easeOut(duration: 0.16)) {
                     isHovered = hovering
                 }
@@ -551,7 +619,7 @@ private struct DashboardCardSurfaceModifier: ViewModifier {
 }
 
 extension View {
-    func dashboardCardSurface() -> some View {
-        modifier(DashboardCardSurfaceModifier())
+    func dashboardCardSurface(interactive: Bool = false) -> some View {
+        modifier(DashboardCardSurfaceModifier(isInteractive: interactive))
     }
 }

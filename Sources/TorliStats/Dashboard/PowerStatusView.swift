@@ -95,17 +95,11 @@ struct PowerTag: View {
     var color: Color = Color.primary.opacity(0.78)
 
     var body: some View {
-        Text(text)
-            .font(.system(size: 9, weight: .medium, design: .monospaced))
-            .foregroundStyle(color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 4)
-            .background(color.opacity(0.11))
-            .overlay {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(color.opacity(0.15), lineWidth: 0.6)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        DashboardChip(
+            text: text,
+            tint: color,
+            verticalPadding: 4
+        )
     }
 }
 private func batteryLevelColor(_ percentage: Double?) -> Color {
@@ -161,6 +155,7 @@ private struct CompactBluetoothBatteryRing: View {
                     style: StrokeStyle(lineWidth: 3.5, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
+                .animation(.easeOut(duration: 0.35), value: value)
             VStack(spacing: 1) {
                 Image(systemName: icon)
                     .font(.system(size: 10, weight: .semibold))
@@ -204,6 +199,7 @@ struct BatteryRing: View {
                         style: StrokeStyle(lineWidth: 3, lineCap: .round)
                     )
                     .rotationEffect(.degrees(-90))
+                    .animation(.easeOut(duration: 0.35), value: value)
                 Text(value.map { "\(Int($0))%" } ?? "—")
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .foregroundStyle(value == nil ? .secondary : .primary)
