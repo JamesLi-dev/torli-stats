@@ -18,23 +18,23 @@ extension TorliAppDelegate {
             codexAccountCount: visibleAccountCount
         )
         let targetHeight = min(estimatedHeight, DashboardView.maximumPopoverHeight)
-        if abs(popover.contentSize.height - targetHeight) > 0.5 {
-            popover.contentSize = NSSize(width: DashboardView.panelWidth, height: targetHeight)
+        if abs(dashboardPanel.dashboardContentSize.height - targetHeight) > 0.5 {
+            dashboardPanel.dashboardContentSize = NSSize(width: DashboardView.panelWidth, height: targetHeight)
         }
 
-        // 内容较长时将 popover 限制在可用的阅读高度，Dashboard 内部负责滚动。
-        // Do not force a full fitting pass while the popover is hidden; this is
+        // 内容较长时将面板限制在可用的阅读高度，Dashboard 内部负责滚动。
+        // Do not force a full fitting pass while the panel is hidden; this is
         // also important when a background WakaTime update arrives.
         DispatchQueue.main.async { [weak self] in
             guard let self,
-                  self.popover.isShown,
-                  let view = self.popover.contentViewController?.view else { return }
+                  self.dashboardPanel.isShown,
+                  let view = self.dashboardPanel.contentViewController?.view else { return }
             view.layoutSubtreeIfNeeded()
             let fittedHeight = view.fittingSize.height
             guard fittedHeight > 0 else { return }
             let fittedTargetHeight = min(fittedHeight, DashboardView.maximumPopoverHeight)
-            guard abs(self.popover.contentSize.height - fittedTargetHeight) > 0.5 else { return }
-            self.popover.contentSize = NSSize(width: DashboardView.panelWidth, height: fittedTargetHeight)
+            guard abs(self.dashboardPanel.dashboardContentSize.height - fittedTargetHeight) > 0.5 else { return }
+            self.dashboardPanel.dashboardContentSize = NSSize(width: DashboardView.panelWidth, height: fittedTargetHeight)
         }
     }
 
@@ -51,10 +51,10 @@ extension TorliAppDelegate {
     private func togglePopover() {
         guard let button = statusItem.button else { return }
 
-        if popover.isShown {
+        if dashboardPanel.isShown {
             closePopover()
         } else {
-            popover.show(
+            dashboardPanel.present(
                 relativeTo: button.bounds,
                 of: button,
                 preferredEdge: .minY
@@ -67,7 +67,8 @@ extension TorliAppDelegate {
 
     func closePopover() {
         stopOutsideClickMonitors()
-        popover.performClose(nil)
+        dashboardPanel.dismiss()
+        monitoringPauseController.setDashboardVisible(false)
     }
 
     private func startOutsideClickMonitors() {
@@ -76,21 +77,38 @@ extension TorliAppDelegate {
         localOutsideClickMonitor = NSEvent.addLocalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         ) { [weak self] event in
-            guard let self, self.popover.isShown else { return event }
-            let popoverWindow = self.popover.contentViewController?.view.window
-            let statusWindow = self.statusItem?.button?.window
-            if event.window !== popoverWindow && event.window !== statusWindow {
-                self.closePopover()
+            guard let self, self.dashboardPanel.isShown else { return event }
+            // Status-item events are not consistently reported with the same
+            // window identity as the status button. Use the screen-space
+            // button rect as the fallback, otherwise this mouseDown closes
+            // the panel before the button's mouseUp toggles it back open.
+            if self.isStatusItemEvent(event) || event.window === self.dashboardPanel {
+                return event
             }
+            self.closePopover()
             return event
         }
 
         globalOutsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
-        ) { [weak self] _ in
-            guard let self, self.popover.isShown else { return }
+        ) { [weak self] event in
+            guard let self, self.dashboardPanel.isShown else { return }
+            // A status-item click can also arrive through the global monitor
+            // while this accessory app is inactive. Let the button action
+            // handle it so a mouseDown does not close and a mouseUp reopen
+            // the panel.
+            if self.isStatusItemEvent(event) { return }
             self.closePopover()
         }
+    }
+
+    private func isStatusItemEvent(_ event: NSEvent) -> Bool {
+        guard let button = statusItem?.button,
+              let window = button.window else { return false }
+        if event.window === window { return true }
+
+        let buttonRect = window.convertToScreen(button.convert(button.bounds, to: nil))
+        return buttonRect.contains(NSEvent.mouseLocation)
     }
 
     func stopOutsideClickMonitors() {
@@ -102,11 +120,6 @@ extension TorliAppDelegate {
             NSEvent.removeMonitor(globalOutsideClickMonitor)
             self.globalOutsideClickMonitor = nil
         }
-    }
-
-    func popoverDidClose(_ notification: Notification) {
-        stopOutsideClickMonitors()
-        monitoringPauseController.setDashboardVisible(false)
     }
 
 }

@@ -2,10 +2,10 @@ import AppKit
 import Combine
 import SwiftUI
 
-final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
+final class TorliAppDelegate: NSObject, NSApplicationDelegate {
     // Shared state for the feature extensions; launch wiring stays in this file.
     var statusItem: NSStatusItem!
-    let popover = NSPopover()
+    let dashboardPanel = DashboardPanel()
     var localOutsideClickMonitor: Any?
     var globalOutsideClickMonitor: Any?
     let settings: AppSettings
@@ -77,10 +77,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         button.toolTip = "Torli Stats"
 
-        popover.behavior = .transient
-        popover.animates = true
-        popover.delegate = self
-        popover.contentSize = NSSize(
+        dashboardPanel.dashboardContentSize = NSSize(
             width: DashboardView.panelWidth,
             height: min(
                 DashboardView.preferredHeight(
@@ -113,7 +110,11 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
         dashboardController.view.layer?.cornerRadius = DashboardLayout.popoverCornerRadius
         dashboardController.view.layer?.cornerCurve = .continuous
         dashboardController.view.layer?.masksToBounds = true
-        popover.contentViewController = dashboardController
+        dashboardPanel.contentViewController = dashboardController
+        dashboardPanel.contentView?.wantsLayer = true
+        dashboardPanel.contentView?.layer?.cornerRadius = DashboardLayout.popoverCornerRadius
+        dashboardPanel.contentView?.layer?.cornerCurve = .continuous
+        dashboardPanel.contentView?.layer?.masksToBounds = true
         updatePopoverSize()
 
         store.objectWillChange
@@ -239,7 +240,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate
         wakaTimeUsageStore.objectWillChange
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                guard let self, self.popover.isShown else { return }
+                guard let self, self.dashboardPanel.isShown else { return }
                 self.schedulePopoverSizeUpdate()
             }
             .store(in: &cancellables)

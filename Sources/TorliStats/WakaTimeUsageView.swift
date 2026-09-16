@@ -154,13 +154,7 @@ struct WakaTimeUsageView: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .frame(width: 76, alignment: .leading)
-                    GeometryReader { proxy in
-                        Capsule()
-                            .fill(Color.accentColor.opacity(0.82))
-                            .frame(width: max(2, proxy.size.width * min(1, value.percent / 100)))
-                            .frame(maxHeight: .infinity, alignment: .leading)
-                    }
-                    .frame(height: 3)
+                    DashboardProgressBar(value: value.percent / 100, tint: Color.accentColor.opacity(0.82))
                     Text(compactDuration(value.totalSeconds))
                         .font(.system(size: 9, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
@@ -181,13 +175,7 @@ struct WakaTimeUsageView: View {
             Text("AI Coding")
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .frame(width: 76, alignment: .leading)
-            GeometryReader { proxy in
-                Capsule()
-                    .fill(Color.accentColor.opacity(0.82))
-                    .frame(width: max(2, proxy.size.width * min(1, (value?.percent ?? 0) / 100)))
-                    .frame(maxHeight: .infinity, alignment: .leading)
-            }
-            .frame(height: 3)
+            DashboardProgressBar(value: (value?.percent ?? 0) / 100, tint: Color.accentColor.opacity(0.82))
             Text(value.map { "\(compactDuration($0.totalSeconds)) · \(String(format: "%.0f", $0.percent))%" } ?? "—")
                 .font(.system(size: 9, weight: .medium, design: .monospaced))
                 .foregroundStyle(.secondary)
