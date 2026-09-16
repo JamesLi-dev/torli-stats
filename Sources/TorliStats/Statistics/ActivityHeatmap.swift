@@ -15,7 +15,7 @@ struct ActivityHeatmap: View {
 
     let title: String
     let records: [ActivityDay]
-    var color: Color = .purple
+    var color: Color = DashboardPalette.activity
     var compact = false
     var range: Range = .year
     var formatValue: (Double) -> String
@@ -211,6 +211,7 @@ struct ActivityHeatmap: View {
             }
         }
         .font(.system(size: compact ? 9 : 11, design: .rounded))
+        .animation(.easeInOut(duration: 0.22), value: mode)
         .onAppear { prepare() }
         .onChange(of: records) { _, _ in prepare() }
         .onChange(of: Self.dateID(Date()) + calendar.timeZone.identifier + String(describing: range)) { _, _ in prepare() }

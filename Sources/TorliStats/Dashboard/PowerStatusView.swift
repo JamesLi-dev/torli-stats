@@ -95,41 +95,39 @@ struct PowerTag: View {
     var color: Color = Color.primary.opacity(0.78)
 
     var body: some View {
-        Text(text)
-            .font(.system(size: 9, weight: .medium, design: .monospaced))
-            .foregroundStyle(color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 4)
-            .background(AppColors.badge)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+        DashboardChip(
+            text: text,
+            tint: color,
+            verticalPadding: 4
+        )
     }
 }
 private func batteryLevelColor(_ percentage: Double?) -> Color {
     guard let percentage else { return .secondary }
     switch percentage {
-    case ...10: return .red
-    case ...20: return .orange
-    case ...50: return .yellow
-    default: return .green
+    case ...10: return DashboardPalette.quotaCritical
+    case ...20: return DashboardPalette.quotaWarning
+    case ...50: return Color(red: 0.86, green: 0.65, blue: 0.16)
+    default: return DashboardPalette.quotaSuccess
     }
 }
 
 private func batteryHealthColor(_ health: Double?) -> Color {
     guard let health else { return .secondary }
     switch health {
-    case ...70: return .red
-    case ...80: return .orange
-    case ...90: return .yellow
-    default: return .green
+    case ...70: return DashboardPalette.quotaCritical
+    case ...80: return DashboardPalette.quotaWarning
+    case ...90: return Color(red: 0.86, green: 0.65, blue: 0.16)
+    default: return DashboardPalette.quotaSuccess
     }
 }
 
 private func thermalStateColor(_ state: SystemThermalState) -> Color {
     switch state {
-    case .nominal: return .green
-    case .fair: return .yellow
-    case .serious: return .orange
-    case .critical: return .red
+    case .nominal: return DashboardPalette.quotaSuccess
+    case .fair: return Color(red: 0.86, green: 0.65, blue: 0.16)
+    case .serious: return DashboardPalette.quotaWarning
+    case .critical: return DashboardPalette.quotaCritical
     }
 }
 
@@ -146,10 +144,18 @@ private struct CompactBluetoothBatteryRing: View {
             Circle()
                 .trim(from: 0, to: CGFloat(max(0, min(100, value ?? 0)) / 100))
                 .stroke(
-                    value == nil ? Color.primary.opacity(0.18) : color,
+                    value == nil
+                        ? AnyShapeStyle(Color.primary.opacity(0.18))
+                        : AnyShapeStyle(AngularGradient(
+                            colors: [color.opacity(0.58), color, color.opacity(0.82)],
+                            center: .center,
+                            startAngle: .degrees(-90),
+                            endAngle: .degrees(270)
+                        )),
                     style: StrokeStyle(lineWidth: 3.5, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
+                .animation(.easeOut(duration: 0.35), value: value)
             VStack(spacing: 1) {
                 Image(systemName: icon)
                     .font(.system(size: 10, weight: .semibold))
@@ -181,8 +187,19 @@ struct BatteryRing: View {
                     .stroke(Color.primary.opacity(0.12), lineWidth: 3)
                 Circle()
                     .trim(from: 0, to: CGFloat(max(0, min(100, value ?? 0)) / 100))
-                    .stroke(value == nil ? Color.primary.opacity(0.18) : color, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .stroke(
+                        value == nil
+                            ? AnyShapeStyle(Color.primary.opacity(0.18))
+                            : AnyShapeStyle(AngularGradient(
+                                colors: [color.opacity(0.58), color, color.opacity(0.82)],
+                                center: .center,
+                                startAngle: .degrees(-90),
+                                endAngle: .degrees(270)
+                            )),
+                        style: StrokeStyle(lineWidth: 3, lineCap: .round)
+                    )
                     .rotationEffect(.degrees(-90))
+                    .animation(.easeOut(duration: 0.35), value: value)
                 Text(value.map { "\(Int($0))%" } ?? "—")
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .foregroundStyle(value == nil ? .secondary : .primary)

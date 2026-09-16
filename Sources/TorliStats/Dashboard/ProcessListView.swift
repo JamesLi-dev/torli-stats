@@ -20,8 +20,8 @@ struct ProcessListView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Label(StatsL10n.text("dashboard.high_usage_processes"), systemImage: "chart.bar.xaxis")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(DashboardPalette.diskProgress)
                 Spacer()
                 HStack(spacing: 8) {
                     if density == .detailed && showPID {
@@ -45,7 +45,7 @@ struct ProcessListView: View {
                 Text(StatsL10n.text("dashboard.loading_processes"))
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(displayedProcesses) { process in
+                ForEach(Array(displayedProcesses.enumerated()), id: \.element.id) { index, process in
                     HStack(spacing: 8) {
                         Text(process.name)
                             .lineLimit(1)
@@ -57,7 +57,7 @@ struct ProcessListView: View {
                         }
                         if showsCPU {
                             Text(String(format: "%5.1f%%", process.cpu))
-                                .foregroundStyle(process.cpu > 20 ? .orange : .secondary)
+                                .foregroundStyle(process.cpu > 20 ? DashboardPalette.quotaWarning : .secondary)
                                 .frame(width: 62, alignment: .trailing)
                         }
                         if showsMemory {
@@ -67,6 +67,14 @@ struct ProcessListView: View {
                         }
                     }
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 4)
+                    .background(
+                        index.isMultiple(of: 2)
+                            ? Color.primary.opacity(0.035)
+                            : .clear,
+                        in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    )
                 }
             }
         }

@@ -103,6 +103,13 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
                 },
                 onWakaTimeDetails: { [weak self] in
                     self?.showStatisticsDetails(initialTab: .development)
+                },
+                onTypingPermission: { [weak self] in
+                    self?.typingStats.openInputMonitoringSettings()
+                },
+                onOpenSettings: { [weak self] category in
+                    SettingsNavigation.shared.selectedCategory = category
+                    self?.openSettings()
                 }
             )
         )

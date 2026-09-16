@@ -9,6 +9,7 @@ struct CodexUsageView: View {
     let isPrivacyMode: Bool
     let density: DashboardDensity
     let onDisplayCountChange: (Int) -> Void
+    let onOpenSettings: (SettingsCategory) -> Void
     @State private var showsAllAccounts = false
 
     init(
@@ -17,7 +18,8 @@ struct CodexUsageView: View {
         showsTokenActivity: Bool,
         isPrivacyMode: Bool = false,
         density: DashboardDensity = .standard,
-        onDisplayCountChange: @escaping (Int) -> Void = { _ in }
+        onDisplayCountChange: @escaping (Int) -> Void = { _ in },
+        onOpenSettings: @escaping (SettingsCategory) -> Void = { _ in }
     ) {
         self.store = store
         self.activityService = activityService
@@ -25,6 +27,7 @@ struct CodexUsageView: View {
         self.isPrivacyMode = isPrivacyMode
         self.density = density
         self.onDisplayCountChange = onDisplayCountChange
+        self.onOpenSettings = onOpenSettings
     }
 
     private var visibleAccounts: [CodexAccountConfiguration] {
@@ -75,9 +78,13 @@ struct CodexUsageView: View {
             }
 
             if visibleAccounts.isEmpty {
-                Text(StatsL10n.text("codex.usage.not_enabled"))
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
+                DashboardEmptyState(
+                    icon: "command.circle",
+                    message: StatsL10n.text("codex.usage.not_enabled"),
+                    tint: DashboardPalette.quotaWarning,
+                    action: { onOpenSettings(.development) },
+                    actionHelp: StatsL10n.text("codex.settings.title")
+                )
             } else {
                 ForEach(displayedAccounts) { account in
                     CodexAccountUsageRow(
@@ -142,7 +149,7 @@ struct CodexUsageView: View {
             } label: {
                 Image(systemName: "arrow.clockwise")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(DashboardIconButtonStyle())
             .foregroundStyle(.secondary)
             .help(StatsL10n.text("codex.usage.refresh_all"))
         }
@@ -156,6 +163,12 @@ private struct CodexAccountUsageRow: View {
     let density: DashboardDensity
     let onRefresh: () -> Void
 
+    private var accountAccent: Color {
+        account.id == CodexAccountConfiguration.defaultAccountID
+            ? DashboardPalette.quotaSuccess
+            : DashboardPalette.diskProgress
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 7) {
@@ -163,32 +176,38 @@ private struct CodexAccountUsageRow: View {
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .lineLimit(1)
                     .minimumScaleFactor(0.55)
-                Text(account.id == CodexAccountConfiguration.defaultAccountID ? StatsL10n.text("codex.usage.default") : StatsL10n.text("codex.usage.configured"))
-                    .font(.system(size: 8, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 3)
-                    .background(AppColors.badge)
-                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                DashboardChip(
+                    text: account.id == CodexAccountConfiguration.defaultAccountID
+                        ? StatsL10n.text("codex.usage.default")
+                        : StatsL10n.text("codex.usage.configured"),
+                    tint: accountAccent,
+                    fontSize: 8,
+                    weight: .semibold,
+                    cornerRadius: 5
+                )
                 if let planType = state.snapshot?.account.planType, !planType.isEmpty {
-                    Text(planType.capitalized)
-                        .font(.system(size: 8, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 3)
-                        .background(AppColors.badge)
-                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                    DashboardChip(
+                        text: planType.capitalized,
+                        tint: .secondary,
+                        fontSize: 8,
+                        weight: .semibold,
+                        cornerRadius: 5
+                    )
                 }
                 Spacer(minLength: 0)
                 if density == .detailed, let snapshot = state.snapshot {
                     Text(StatsL10n.format("codex.usage.updated", snapshot.fetchedAt.formatted(date: .omitted, time: .shortened)))
                         .font(.system(size: 8, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.65)
+                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .trailing)
                 }
                 Button(action: onRefresh) {
                     Image(systemName: "arrow.clockwise")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(DashboardIconButtonStyle())
                 .foregroundStyle(.secondary)
                 .help(StatsL10n.format("codex.usage.refresh_account", displayName))
             }
@@ -223,6 +242,13 @@ private struct CodexAccountUsageRow: View {
                         .foregroundStyle(.secondary)
                 }
             }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, density == .compact ? 5 : 7)
+        .background(accountAccent.opacity(0.055), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(accountAccent.opacity(0.12), lineWidth: 0.6)
         }
     }
 
@@ -325,9 +351,9 @@ private struct CodexAccountUsageRow: View {
 
     private func quotaColor(forRemaining remaining: Double) -> Color {
         switch remaining {
-        case ..<20: return .red
-        case ...50: return .orange
-        default: return .green
+        case ..<20: return DashboardPalette.quotaCritical
+        case ...50: return DashboardPalette.quotaWarning
+        default: return DashboardPalette.quotaSuccess
         }
     }
 
