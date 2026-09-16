@@ -225,7 +225,7 @@ struct DashboardView: View {
             }
         case .disk:
             MetricCard(title: StatsL10n.text("dashboard.disk"), icon: "internaldrive", value: "\(Int(store.diskUsage))%", badge: store.diskTotal, density: settings.dashboardDensity, valueColor: highUsageColor(store.diskUsage, warning: 80, critical: 90)) {
-                DashboardProgressBar(value: store.diskUsage / 100, tint: .blue)
+                DashboardProgressBar(value: store.diskUsage / 100, tint: DashboardPalette.diskProgress)
             } footer: {
                 Text(StatsL10n.format("dashboard.available_space", store.diskFree))
             }
@@ -262,7 +262,7 @@ struct DashboardView: View {
                 valueColor: typingStats.permissionStatus == .monitoring ? .primary : .secondary
             ) {
                 if settings.dashboardDensity == .standard || settings.dashboardDensity == .detailed {
-                    TypingTrendSparkline(records: typingStats.records(forLastDays: 7))
+                    TypingTrendSparkline(records: typingStats.records(forLastDays: 14))
                 }
             } footer: {
                 HStack(spacing: 4) {
@@ -444,8 +444,10 @@ enum DashboardLayout {
     static func metricCardHeight(for density: DashboardDensity) -> CGFloat {
         switch density {
         case .compact: return 58
-        case .standard: return 112
-        case .detailed: return 126
+        // Leave enough room for the footer chip (for example the CPU
+        // temperature tag) without letting it draw past the card boundary.
+        case .standard: return 120
+        case .detailed: return 134
         }
     }
 

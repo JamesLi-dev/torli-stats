@@ -11,7 +11,7 @@ struct CPUBarChart: View {
             HStack(alignment: .bottom, spacing: spacing) {
                 ForEach(Array(values.enumerated()), id: \.offset) { index, value in
                     RoundedRectangle(cornerRadius: min(2, barWidth / 2))
-                        .fill(Color.green.opacity(0.9))
+                        .fill(DashboardPalette.cpuBars)
                         .frame(width: barWidth, height: max(2, geometry.size.height * CGFloat(min(100, max(0, value)) / 100)))
                         .help(StatsL10n.format("charts.cpu_core_help", index + 1, Int(value)))
                         .accessibilityLabel(StatsL10n.format("charts.cpu_core_accessibility", index + 1))
@@ -58,7 +58,7 @@ struct TypingTrendSparkline: View {
             HStack(alignment: .bottom, spacing: spacing) {
                 ForEach(records) { record in
                     RoundedRectangle(cornerRadius: min(2, width / 2))
-                        .fill(record.keyCount == 0 ? Color.secondary.opacity(0.16) : Color.blue.opacity(0.82))
+                        .fill(record.keyCount == 0 ? AnyShapeStyle(Color.secondary.opacity(0.16)) : AnyShapeStyle(DashboardPalette.inputBars))
                         .frame(width: width, height: max(2, geometry.size.height * CGFloat(record.keyCount) / CGFloat(maximum)))
                         .accessibilityLabel(record.dateID)
                         .accessibilityValue(StatsL10n.format("statistics.keys_count", record.keyCount))

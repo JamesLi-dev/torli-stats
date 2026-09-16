@@ -325,9 +325,9 @@ private struct CodexAccountUsageRow: View {
 
     private func quotaColor(forRemaining remaining: Double) -> Color {
         switch remaining {
-        case ..<20: return .red
-        case ...50: return .orange
-        default: return .green
+        case ..<20: return DashboardPalette.quotaCritical
+        case ...50: return DashboardPalette.quotaWarning
+        default: return DashboardPalette.quotaSuccess
         }
     }
 
