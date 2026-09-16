@@ -40,7 +40,7 @@ struct DashboardView: View {
     }
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: true) {
+        ScrollView(.vertical, showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: DashboardLayout.sectionSpacing) {
                 if settings.showDashboardDeviceInfo {
                     DeviceInfoView(
@@ -78,29 +78,63 @@ struct DashboardView: View {
             }
             .padding(settings.dashboardDensity == .compact ? 6 : 8)
             .frame(width: Self.panelWidth, alignment: .top)
-            .background(ThinScrollViewConfigurator(verticalInset: DashboardLayout.scrollIndicatorInset))
         }
         .frame(width: Self.panelWidth)
-        .background {
-            if usesDarkGlass {
-                DashboardLayout.popoverShape
-                    .fill(.regularMaterial)
-                    .overlay {
-                        DashboardLayout.popoverShape
-                            .fill(AppColors.background.opacity(0.16))
-                            .allowsHitTesting(false)
-                    }
-            } else {
-                DashboardLayout.popoverShape
-                    .fill(AppColors.background)
-            }
-        }
+        .background(panelSurface)
         .clipShape(DashboardLayout.popoverShape)
         .preferredColorScheme(settings.theme.colorScheme)
     }
 
     private var usesDarkGlass: Bool {
         settings.theme == .dark || (settings.theme == .system && colorScheme == .dark)
+    }
+
+    @ViewBuilder
+    private var panelSurface: some View {
+        if usesDarkGlass {
+            DashboardLayout.popoverShape
+                .fill(.regularMaterial)
+                .overlay {
+                    DashboardLayout.popoverShape
+                        .fill(AppColors.background.opacity(0.16))
+                        .allowsHitTesting(false)
+                }
+        } else {
+            // Keep the light surface translucent, then add only a quiet cool
+            // gradient so the cards have depth without competing with their
+            // metric colors.
+            DashboardLayout.popoverShape
+                .fill(.thinMaterial)
+                .overlay {
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.52),
+                            Color.white.opacity(0.28),
+                            Color(red: 0.88, green: 0.93, blue: 1.0).opacity(0.14)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .clipShape(DashboardLayout.popoverShape)
+                    .allowsHitTesting(false)
+                }
+                .overlay {
+                    DashboardLayout.popoverShape
+                        .stroke(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.82),
+                                    Color.white.opacity(0.38),
+                                    Color.black.opacity(0.08)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 1
+                        )
+                        .allowsHitTesting(false)
+                }
+        }
     }
 
     private var monitoringStatusMessage: String {
@@ -403,7 +437,6 @@ enum DashboardLayout {
     // the custom borderless panel defines the final bezel.
     static let popoverCornerRadius: CGFloat = 16
     static let cardCornerRadius: CGFloat = 12
-    static let scrollIndicatorInset: CGFloat = popoverCornerRadius
     static let progressBarHeight: CGFloat = 4
     static let codexProgressBarHeight: CGFloat = 5
     static let sectionSpacing: CGFloat = 8
@@ -429,13 +462,52 @@ enum DashboardLayout {
     }
 }
 
+private struct DashboardCardSurfaceModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var cardTint: Color {
+        colorScheme == .dark
+            ? Color.white.opacity(0.05)
+            : Color.white.opacity(0.20)
+    }
+
+    private var border: LinearGradient {
+        LinearGradient(
+            colors: colorScheme == .dark
+                ? [Color.white.opacity(0.14), Color.white.opacity(0.035)]
+                : [Color.white.opacity(0.68), Color.black.opacity(0.05)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                DashboardLayout.cardShape
+                    .fill(.thinMaterial)
+                    .overlay {
+                        DashboardLayout.cardShape
+                            .fill(cardTint)
+                            .allowsHitTesting(false)
+                    }
+            }
+            .overlay {
+                DashboardLayout.cardShape
+                    .stroke(border, lineWidth: 1)
+                    .allowsHitTesting(false)
+            }
+            .clipShape(DashboardLayout.cardShape)
+            .shadow(
+                color: Color.black.opacity(colorScheme == .dark ? 0.14 : 0.05),
+                radius: 5,
+                y: 1
+            )
+    }
+}
+
 extension View {
     func dashboardCardSurface() -> some View {
-        background(AppColors.card, in: DashboardLayout.cardShape)
-            .overlay(
-                DashboardLayout.cardShape
-                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-            )
-            .clipShape(DashboardLayout.cardShape)
+        modifier(DashboardCardSurfaceModifier())
     }
 }
