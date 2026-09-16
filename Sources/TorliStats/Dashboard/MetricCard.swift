@@ -47,8 +47,12 @@ struct MetricCard<Content: View, Footer: View>: View {
                     .foregroundStyle(badgeColor)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 4)
-                    .background(AppColors.badge)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .background(badgeColor.opacity(0.12))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(badgeColor.opacity(0.16), lineWidth: 0.6)
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
 
             Text(value)

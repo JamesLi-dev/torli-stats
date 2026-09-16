@@ -56,11 +56,15 @@ struct DashboardView: View {
                         Text(monitoringStatusMessage)
                     }
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(monitoringStatusColor)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
-                    .background(Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .background(monitoringStatusColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .stroke(monitoringStatusColor.opacity(0.16), lineWidth: 0.6)
+                    }
                 }
 
                 ForEach(layoutBlocks) { block in
@@ -80,6 +84,9 @@ struct DashboardView: View {
             .frame(width: Self.panelWidth, alignment: .top)
         }
         .frame(width: Self.panelWidth)
+        .overlay(alignment: .bottom) {
+            scrollHint
+        }
         .background(panelSurface)
         .clipShape(DashboardLayout.popoverShape)
         .preferredColorScheme(settings.theme.colorScheme)
@@ -87,6 +94,34 @@ struct DashboardView: View {
 
     private var usesDarkGlass: Bool {
         settings.theme == .dark || (settings.theme == .system && colorScheme == .dark)
+    }
+
+    private var monitoringStatusColor: Color {
+        store.isMonitoringPaused ? DashboardPalette.quotaWarning : DashboardPalette.quotaSuccess
+    }
+
+    private var needsScrollHint: Bool {
+        Self.preferredHeight(
+            for: settings,
+            codexAccountCount: codexUsageStore.accounts.filter(\.isDashboardVisible).count
+        ) > Self.maximumPopoverHeight
+    }
+
+    @ViewBuilder
+    private var scrollHint: some View {
+        if needsScrollHint {
+            LinearGradient(
+                colors: [
+                    Color.clear,
+                    (usesDarkGlass ? Color.black : Color.white).opacity(0.42)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 20)
+            .clipShape(DashboardLayout.popoverShape)
+            .allowsHitTesting(false)
+        }
     }
 
     @ViewBuilder
@@ -353,7 +388,7 @@ struct DashboardView: View {
         }
 
         var blockHeights: [CGFloat] = []
-        if settings.showDashboardDeviceInfo { blockHeights.append(42) }
+        if settings.showDashboardDeviceInfo { blockHeights.append(48) }
         if metricRows > 0 {
             blockHeights.append(
                 metricRows * metricCardHeight
@@ -362,7 +397,7 @@ struct DashboardView: View {
         }
         if settings.showPowerCard { blockHeights.append(powerHeight) }
         if codexAccountCount > 0 {
-            var codexHeight = codexBaseHeight + CGFloat(max(0, codexAccountCount - 1)) * 80
+            var codexHeight = codexBaseHeight + CGFloat(max(0, codexAccountCount - 1)) * 88
             if settings.codexTokenActivityEnabled { codexHeight += 175 }
             blockHeights.append(codexHeight)
         }
@@ -466,6 +501,7 @@ enum DashboardLayout {
 
 private struct DashboardCardSurfaceModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
+    @State private var isHovered = false
 
     private var cardTint: Color {
         colorScheme == .dark
@@ -502,9 +538,15 @@ private struct DashboardCardSurfaceModifier: ViewModifier {
             .clipShape(DashboardLayout.cardShape)
             .shadow(
                 color: Color.black.opacity(colorScheme == .dark ? 0.14 : 0.05),
-                radius: 5,
-                y: 1
+                radius: isHovered ? 8 : 5,
+                y: isHovered ? 2 : 1
             )
+            .brightness(isHovered ? 0.012 : 0)
+            .onHover { hovering in
+                withAnimation(.easeOut(duration: 0.16)) {
+                    isHovered = hovering
+                }
+            }
     }
 }
 

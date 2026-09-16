@@ -156,6 +156,12 @@ private struct CodexAccountUsageRow: View {
     let density: DashboardDensity
     let onRefresh: () -> Void
 
+    private var accountAccent: Color {
+        account.id == CodexAccountConfiguration.defaultAccountID
+            ? DashboardPalette.quotaSuccess
+            : DashboardPalette.diskProgress
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 7) {
@@ -165,11 +171,15 @@ private struct CodexAccountUsageRow: View {
                     .minimumScaleFactor(0.55)
                 Text(account.id == CodexAccountConfiguration.defaultAccountID ? StatsL10n.text("codex.usage.default") : StatsL10n.text("codex.usage.configured"))
                     .font(.system(size: 8, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(accountAccent)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 3)
-                    .background(AppColors.badge)
-                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                    .background(accountAccent.opacity(0.11))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .stroke(accountAccent.opacity(0.14), lineWidth: 0.5)
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                 if let planType = state.snapshot?.account.planType, !planType.isEmpty {
                     Text(planType.capitalized)
                         .font(.system(size: 8, weight: .semibold, design: .monospaced))
@@ -223,6 +233,13 @@ private struct CodexAccountUsageRow: View {
                         .foregroundStyle(.secondary)
                 }
             }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, density == .compact ? 5 : 7)
+        .background(accountAccent.opacity(0.055), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(accountAccent.opacity(0.12), lineWidth: 0.6)
         }
     }
 

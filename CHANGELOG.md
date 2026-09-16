@@ -21,6 +21,8 @@ All notable changes to Torli Stats are documented here.
   - Applies dark glass material for dark themes and a translucent cool-gradient glass surface for light themes.
   - Gives dashboard cards a coordinated layered glass surface with subtle highlights, borders, and shadows.
   - Hides the dashboard’s native scroll indicator while preserving mouse-wheel and trackpad scrolling, avoiding overlap with rounded corners.
+  - Adds a hero-style device card, semantic status chips, gradient battery rings, and clearer Codex account surfaces.
+  - Refines WakaTime summaries and process rows, and adds subtle hover elevation to dashboard cards.
   - Adds reusable `DashboardProgressBar` styling with clamped values, capsule rendering, configurable tint, and height.
 - Uses `DashboardProgressBar` for disk usage, Codex quota, WakaTime language breakdowns, and AI Coding progress indicators.
 - Makes `ThinScrollViewConfigurator` reapply scroll-view configuration during hierarchy, layout, and delayed main-thread passes, keeping overlay scroll indicators inset from rounded corners and preserving mini, auto-hiding vertical scroller settings.
@@ -41,6 +43,8 @@ All notable changes to Torli Stats are documented here.
   - 深色主题使用 dark glass material，浅色主题使用带冷色渐变的半透明玻璃背景。
   - Dashboard 卡片使用协调的分层玻璃表面，并增加细微高光、边框和阴影。
   - 隐藏 Dashboard 原生滚动指示器，同时保留鼠标滚轮和触控板滚动，避免滚动条覆盖圆角。
+  - 新增 Hero 风格设备信息卡、语义化状态标签、渐变电池环和更清晰的 Codex 账户分区。
+  - 优化 WakaTime 摘要和进程列表，并为 Dashboard 卡片增加细微悬停抬升效果。
   - 新增可复用的 `DashboardProgressBar`，支持数值限制、胶囊形渲染、可配置颜色和高度。
 - 使用 `DashboardProgressBar` 渲染磁盘使用率、Codex 配额、WakaTime 语言 breakdown 和 AI Coding 进度条。
 - 让 `ThinScrollViewConfigurator` 在层级变化、布局以及延迟的主线程刷新中重复应用 scroll-view 配置，使 overlay scroll indicators 避开圆角区域，并保留 mini、自动隐藏的垂直滚动条设置。

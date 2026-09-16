@@ -7,15 +7,25 @@ struct DeviceInfoView: View {
     let density: DashboardDensity
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "laptopcomputer")
-                .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(.secondary)
+        HStack(spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(DashboardPalette.diskProgress.opacity(0.14))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(DashboardPalette.diskProgress.opacity(0.22), lineWidth: 0.8)
+                    }
+                Image(systemName: "laptopcomputer")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(DashboardPalette.diskProgress)
+            }
+            .frame(width: 32, height: 32)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(isPrivacyMode ? StatsL10n.text("dashboard.this_mac") : info.model)
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .lineLimit(1)
                     Text(info.system)
                         .font(.system(size: 8, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
@@ -23,7 +33,6 @@ struct DeviceInfoView: View {
                         .padding(.vertical, 2)
                         .background(AppColors.badge)
                         .clipShape(RoundedRectangle(cornerRadius: 5))
-                    Spacer(minLength: 0)
                 }
                 if density != .compact {
                     HStack(spacing: 6) {
@@ -33,19 +42,23 @@ struct DeviceInfoView: View {
                 }
             }
 
-            Spacer()
+            Spacer(minLength: 6)
 
             if density != .compact {
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(StatsL10n.text("dashboard.uptime"))
-                        .font(.system(size: 9, weight: .medium, design: .rounded))
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .trailing, spacing: 3) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                        Text(StatsL10n.text("dashboard.uptime"))
+                    }
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
                     Text(info.uptime)
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
                 }
             }
         }
-        .padding(8)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .dashboardCardSurface()
     }
@@ -61,11 +74,15 @@ private struct InfoTag: View {
     var body: some View {
         Text(text)
             .font(.system(size: 9, weight: .medium, design: .monospaced))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(DashboardPalette.diskProgress)
             .padding(.horizontal, 5)
             .padding(.vertical, 3)
-            .background(AppColors.badge)
-            .clipShape(RoundedRectangle(cornerRadius: 5))
+            .background(DashboardPalette.diskProgress.opacity(0.10))
+            .overlay {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .stroke(DashboardPalette.diskProgress.opacity(0.14), lineWidth: 0.5)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
             .lineLimit(1)
             .minimumScaleFactor(0.75)
     }

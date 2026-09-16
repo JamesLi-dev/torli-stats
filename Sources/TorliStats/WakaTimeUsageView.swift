@@ -47,11 +47,15 @@ struct WakaTimeUsageView: View {
             if density != .compact {
                 Text(StatsL10n.text("wakatime.details_30_days"))
                     .font(.system(size: 8, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DashboardPalette.diskProgress)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 3)
-                    .background(AppColors.badge)
-                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                    .background(DashboardPalette.diskProgress.opacity(0.10))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .stroke(DashboardPalette.diskProgress.opacity(0.14), lineWidth: 0.5)
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
             }
             Spacer()
             Button(action: onDetails) {
@@ -104,20 +108,28 @@ struct WakaTimeUsageView: View {
         }
     }
 
-    @ViewBuilder
     private var durationSummary: some View {
-        if density == .detailed {
-            HStack(alignment: .lastTextBaseline, spacing: 0) {
-                durationValue(title: StatsL10n.text("wakatime.today"), seconds: store.todayPeriod?.totalSeconds)
-                durationValue(title: StatsL10n.text("wakatime.daily_average"), seconds: store.lastSevenDaysPeriod?.averageActiveDaySeconds)
-                durationValue(title: StatsL10n.text("wakatime.last_7_days"), seconds: store.lastSevenDaysPeriod?.totalSeconds)
-                durationValue(title: StatsL10n.text("wakatime.last_30_days"), seconds: store.lastThirtyDaysPeriod?.totalSeconds)
+        Group {
+            if density == .detailed {
+                HStack(alignment: .lastTextBaseline, spacing: 0) {
+                    durationValue(title: StatsL10n.text("wakatime.today"), seconds: store.todayPeriod?.totalSeconds, emphasized: true)
+                    durationValue(title: StatsL10n.text("wakatime.daily_average"), seconds: store.lastSevenDaysPeriod?.averageActiveDaySeconds)
+                    durationValue(title: StatsL10n.text("wakatime.last_7_days"), seconds: store.lastSevenDaysPeriod?.totalSeconds)
+                    durationValue(title: StatsL10n.text("wakatime.last_30_days"), seconds: store.lastThirtyDaysPeriod?.totalSeconds)
+                }
+            } else {
+                HStack(alignment: .lastTextBaseline, spacing: 0) {
+                    durationValue(title: StatsL10n.text("wakatime.today"), seconds: store.todayPeriod?.totalSeconds, emphasized: true)
+                    durationValue(title: StatsL10n.text("wakatime.last_7_days"), seconds: store.lastSevenDaysPeriod?.totalSeconds)
+                }
             }
-        } else {
-            HStack(alignment: .lastTextBaseline, spacing: 0) {
-                durationValue(title: StatsL10n.text("wakatime.today"), seconds: store.todayPeriod?.totalSeconds)
-                durationValue(title: StatsL10n.text("wakatime.last_7_days"), seconds: store.lastSevenDaysPeriod?.totalSeconds)
-            }
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 6)
+        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 0.6)
         }
     }
 
@@ -126,13 +138,14 @@ struct WakaTimeUsageView: View {
         return true
     }
 
-    private func durationValue(title: String, seconds: Double?) -> some View {
+    private func durationValue(title: String, seconds: Double?, emphasized: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(.system(size: 8, weight: .semibold, design: .rounded))
                 .foregroundStyle(.secondary)
             Text(seconds.map(compactDuration) ?? "—")
                 .font(.system(size: density == .compact ? 16 : (density == .detailed ? 14 : 19), weight: .bold, design: .rounded))
+                .foregroundStyle(emphasized ? DashboardPalette.diskProgress : .primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
