@@ -17,6 +17,7 @@ struct DashboardView: View {
     static let panelWidth: CGFloat = 360
     static let maximumPopoverHeight: CGFloat = 820
 
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var store: MetricsStore
     @ObservedObject var settings: AppSettings
     @ObservedObject var codexUsageStore: CodexAccountsUsageStore
@@ -80,9 +81,26 @@ struct DashboardView: View {
             .background(ThinScrollViewConfigurator(verticalInset: DashboardLayout.scrollIndicatorInset))
         }
         .frame(width: Self.panelWidth)
-        .background(AppColors.background, in: DashboardLayout.popoverShape)
+        .background {
+            if usesDarkGlass {
+                DashboardLayout.popoverShape
+                    .fill(.regularMaterial)
+                    .overlay {
+                        DashboardLayout.popoverShape
+                            .fill(AppColors.background.opacity(0.16))
+                            .allowsHitTesting(false)
+                    }
+            } else {
+                DashboardLayout.popoverShape
+                    .fill(AppColors.background)
+            }
+        }
         .clipShape(DashboardLayout.popoverShape)
         .preferredColorScheme(settings.theme.colorScheme)
+    }
+
+    private var usesDarkGlass: Bool {
+        settings.theme == .dark || (settings.theme == .system && colorScheme == .dark)
     }
 
     private var monitoringStatusMessage: String {
@@ -173,8 +191,7 @@ struct DashboardView: View {
             }
         case .disk:
             MetricCard(title: StatsL10n.text("dashboard.disk"), icon: "internaldrive", value: "\(Int(store.diskUsage))%", badge: store.diskTotal, density: settings.dashboardDensity, valueColor: highUsageColor(store.diskUsage, warning: 80, critical: 90)) {
-                ProgressView(value: store.diskUsage / 100)
-                    .tint(.blue)
+                DashboardProgressBar(value: store.diskUsage / 100, tint: .blue)
             } footer: {
                 Text(StatsL10n.format("dashboard.available_space", store.diskFree))
             }
@@ -382,12 +399,13 @@ struct DashboardView: View {
 enum DashboardLayout {
     // Keep the SwiftUI background aligned with the native NSPopover mask;
     // larger radii leave a second, visible curve inside the outer bezel.
-    // The native NSPopover owns the outermost mask, so keep the SwiftUI
-    // container and cards close to its system curve instead of exaggerating a
-    // second, visibly different radius.
-    static let popoverCornerRadius: CGFloat = 12
+    // Keep the panel's outer curve visibly softer than its inner cards while
+    // the custom borderless panel defines the final bezel.
+    static let popoverCornerRadius: CGFloat = 16
     static let cardCornerRadius: CGFloat = 12
-    static let scrollIndicatorInset: CGFloat = 20
+    static let scrollIndicatorInset: CGFloat = popoverCornerRadius
+    static let progressBarHeight: CGFloat = 4
+    static let codexProgressBarHeight: CGFloat = 5
     static let sectionSpacing: CGFloat = 8
 
     static func metricCardHeight(for density: DashboardDensity) -> CGFloat {

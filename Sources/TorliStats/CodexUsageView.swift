@@ -277,11 +277,11 @@ private struct CodexAccountUsageRow: View {
                     }
                 }
 
-                ProgressView(value: min(100, max(0, 100 - primary.usedPercent)) / 100)
-                    .controlSize(.mini)
-                    .tint(quotaColor(forRemaining: 100 - primary.usedPercent))
-                    .scaleEffect(x: 1, y: 0.6, anchor: .center)
-                    .frame(height: 4)
+                DashboardProgressBar(
+                    value: min(100, max(0, 100 - primary.usedPercent)) / 100,
+                    tint: quotaColor(forRemaining: 100 - primary.usedPercent),
+                    height: DashboardLayout.codexProgressBarHeight
+                )
 
                 if density != .compact, let creditsText = creditsText(for: snapshot.credits) {
                     Text(creditsText)

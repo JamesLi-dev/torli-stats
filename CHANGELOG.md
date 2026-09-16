@@ -4,71 +4,43 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
-<!-- ai-changelog:12bd24ae57fa -->
-### 2026-09-15
+<!-- ai-changelog:b690a0b890a5 -->
+### 2026-09-16
 
 ### English
-
-- Torli Stats 1.5.1 refines the macOS menu-bar dashboard layout, popover sizing, sensor controls, and localized menu labels.
-
-- Menu-bar sensor controls:
-  - Adds `Refresh Sensors` and `Reinstall Sensor` actions to the context menu.
-  - Both actions are disabled while `settings.sensorHelperChecking` is active.
-  - The actions call `settings.refreshSensorStatus()` and `settings.installSensorHelper()`.
-  - Shortens several existing English and Chinese menu labels, including refresh, monitoring, privacy, notes, settings, and quit actions.
-
-- Dashboard and popover layout:
-  - Introduces shared `DashboardLayout` constants for `panelWidth`, corner radii, section spacing, scroll-indicator inset, metric spacing, and density-specific metric-card heights.
-  - Replaces the dashboard’s outer stack with `LazyVStack`, applies a rounded `AppColors.background` surface, and clips the dashboard to the shared popover shape.
-  - Applies the shared `dashboardCardSurface()` styling to device information, metric cards, power status, process lists, Codex usage, and WakaTime usage.
-  - Uses fixed metric-card heights of 58, 112, and 126 points for `.compact`, `.standard`, and `.detailed` densities.
-  - Adds a `Spacer(minLength: 0)` inside non-compact metric cards to keep footer content aligned.
-  - Updates `DashboardView.preferredHeight(for:codexAccountCount:)` to calculate height from visible dashboard blocks, density-specific spacing, Codex activity, WakaTime, and process rows.
-
-- Popover sizing and update handling:
-  - Centralizes the popover width through `DashboardView.panelWidth`.
-  - Avoids assigning a new popover size when the height change is within 0.5 points.
-  - Performs the fitting pass only while the popover is shown.
-  - Adds `schedulePopoverSizeUpdate()` with a 0.12-second delayed, cancellable update for WakaTime changes.
-  - Refreshes the calculated size when the popover opens and cancels pending size work during deinitialization.
-  - Applies a continuous 12-point corner radius and masking to the `NSHostingController` view.
-
-- Activity heatmap rendering:
-  - Adds `.drawingGroup(opaque: false, colorMode: .linear)` to the heatmap grid rendering.
-
-- Release metadata and platform declaration:
-  - Updates `CFBundleShortVersionString` in `Info.plist` and `VERSION` from `1.5.0` to `1.5.1`.
-  - `Info.plist` continues to declare `LSMinimumSystemVersion` as `15.0` and `LSUIElement` as enabled.
+- Replaces the dashboard `NSPopover` with a borderless `DashboardPanel` for custom rounded-corner rendering and positioning.
+- Dashboard panel:
+  - Positions itself relative to the status item within the screen’s `visibleFrame`, with edge fallbacks and an 8-point screen inset.
+  - Preserves its top edge when `dashboardContentSize` changes.
+  - Uses a nonactivating floating panel at `.popUpMenu` level with a shadow and transient collection behavior.
+  - Explicitly updates monitoring visibility state when shown and dismissed.
+- Improves outside-click handling by recognizing status-item events through both window identity and the button’s screen-space rectangle, preventing a status-item click from closing and immediately reopening the dashboard.
+- Updates dashboard sizing and WakaTime refresh handling to use `dashboardPanel`, while retaining the existing height estimation and maximum height of 820 points.
+- Refines dashboard presentation:
+  - Increases `DashboardLayout.popoverCornerRadius` to 16.
+  - Applies dark glass material for dark themes and the existing solid background for light themes.
+  - Aligns the scroll-indicator inset with the panel corner radius.
+  - Adds reusable `DashboardProgressBar` styling with clamped values, capsule rendering, configurable tint, and height.
+- Uses `DashboardProgressBar` for disk usage, Codex quota, WakaTime language breakdowns, and AI Coding progress indicators.
+- Makes `ThinScrollViewConfigurator` reapply scroll-view configuration during hierarchy, layout, and delayed main-thread passes, keeping overlay scroll indicators inset from rounded corners and preserving mini, auto-hiding vertical scroller settings.
+- Bumps the application version from `1.5.1` to `1.5.2` in `Info.plist` and `VERSION`.
+- No new permission declarations, persistence migrations, or migration code are introduced. `LSMinimumSystemVersion` remains `15.0`.
 
 ### 中文
-
-- Torli Stats 1.5.1 优化 macOS 菜单栏面板的布局、弹窗尺寸调整、传感器操作以及菜单本地化文本。
-
-- 菜单栏传感器操作：
-  - 在右键菜单中新增“刷新传感器”和“重装传感器”操作。
-  - 当 `settings.sensorHelperChecking` 为活动状态时，两个操作都会被禁用。
-  - 对应操作分别调用 `settings.refreshSensorStatus()` 和 `settings.installSensorHelper()`。
-  - 缩短英文和中文中的多个既有菜单文本，包括刷新、监控、隐私、便签、设置和退出等操作。
-
-- 面板与弹窗布局：
-  - 新增统一的 `DashboardLayout`，集中管理 `panelWidth`、圆角、区块间距、滚动指示器内边距、指标间距以及不同密度下的指标卡片高度。
-  - 使用 `LazyVStack` 替代原有外层布局，为面板应用带圆角的 `AppColors.background` 背景，并裁剪为统一的弹窗形状。
-  - 为设备信息、指标卡片、电源状态、进程列表、Codex usage 和 WakaTime usage 统一使用 `dashboardCardSurface()` 样式。
-  - `.compact`、`.standard` 和 `.detailed` 密度下的指标卡片固定高度分别为 58、112 和 126。
-  - 在非 compact 指标卡片中加入 `Spacer(minLength: 0)`，用于保持底部内容对齐。
-  - 更新 `DashboardView.preferredHeight(for:codexAccountCount:)`，根据可见面板区块、密度间距、Codex activity、WakaTime 和进程行数计算面板高度。
-
-- 弹窗尺寸与更新处理：
-  - 通过 `DashboardView.panelWidth` 统一管理弹窗宽度。
-  - 当高度变化不超过 0.5 点时，不再重复设置弹窗尺寸。
-  - 仅在弹窗显示时执行 fitting pass。
-  - 新增 `schedulePopoverSizeUpdate()`，对 WakaTime 更新使用 0.12 秒延迟且可取消的尺寸更新。
-  - 弹窗打开时重新计算尺寸，并在析构时取消待处理的尺寸更新。
-  - 为 `NSHostingController` 视图应用连续的 12 点圆角和裁剪。
-
-- Activity heatmap 渲染：
-  - 为热力图网格新增 `.drawingGroup(opaque: false, colorMode: .linear)`。
-
-- 版本信息与平台声明：
-  - 将 `Info.plist` 中的 `CFBundleShortVersionString` 和 `VERSION` 从 `1.5.0` 更新为 `1.5.1`。
-  - `Info.plist` 仍声明 `LSMinimumSystemVersion` 为 `15.0`，并继续启用 `LSUIElement`。
+- 使用无边框 `DashboardPanel` 替换 dashboard 的 `NSPopover`，以便自定义圆角表面和面板定位。
+- Dashboard 面板：
+  - 根据状态栏项目定位，并限制在屏幕 `visibleFrame` 内，同时保留 8 点屏幕边距和边缘回退逻辑。
+  - 修改 `dashboardContentSize` 时保持顶部边缘位置不变。
+  - 使用非激活浮动面板，级别为 `.popUpMenu`，启用阴影和 transient collection behavior。
+  - 在显示和关闭时显式更新 monitoring visibility 状态。
+- 改进外部点击处理：同时通过窗口身份和状态栏按钮的屏幕坐标矩形识别状态栏事件，避免状态栏点击先关闭 dashboard、再因 mouseUp 立即重新打开。
+- 将 dashboard 尺寸调整和 WakaTime 刷新处理切换到 `dashboardPanel`，并保留现有高度估算逻辑及 820 点最大高度限制。
+- 优化 dashboard 展示：
+  - 将 `DashboardLayout.popoverCornerRadius` 提升为 16。
+  - 深色主题使用 dark glass material，浅色主题继续使用现有纯色背景。
+  - 让滚动指示器 inset 与面板圆角半径保持一致。
+  - 新增可复用的 `DashboardProgressBar`，支持数值限制、胶囊形渲染、可配置颜色和高度。
+- 使用 `DashboardProgressBar` 渲染磁盘使用率、Codex 配额、WakaTime 语言 breakdown 和 AI Coding 进度条。
+- 让 `ThinScrollViewConfigurator` 在层级变化、布局以及延迟的主线程刷新中重复应用 scroll-view 配置，使 overlay scroll indicators 避开圆角区域，并保留 mini、自动隐藏的垂直滚动条设置。
+- 在 `Info.plist` 和 `VERSION` 中将应用版本从 `1.5.1` 更新为 `1.5.2`。
+- 本次 diff 未新增权限声明、持久化迁移或迁移代码。`LSMinimumSystemVersion` 仍为 `15.0`。
