@@ -18,8 +18,9 @@ All notable changes to Torli Stats are documented here.
 - Updates dashboard sizing and WakaTime refresh handling to use `dashboardPanel`, while retaining the existing height estimation and maximum height of 820 points.
 - Refines dashboard presentation:
   - Increases `DashboardLayout.popoverCornerRadius` to 16.
-  - Applies dark glass material for dark themes and the existing solid background for light themes.
-  - Aligns the scroll-indicator inset with the panel corner radius.
+  - Applies dark glass material for dark themes and a translucent cool-gradient glass surface for light themes.
+  - Gives dashboard cards a coordinated layered glass surface with subtle highlights, borders, and shadows.
+  - Hides the dashboard’s native scroll indicator while preserving mouse-wheel and trackpad scrolling, avoiding overlap with rounded corners.
   - Adds reusable `DashboardProgressBar` styling with clamped values, capsule rendering, configurable tint, and height.
 - Uses `DashboardProgressBar` for disk usage, Codex quota, WakaTime language breakdowns, and AI Coding progress indicators.
 - Makes `ThinScrollViewConfigurator` reapply scroll-view configuration during hierarchy, layout, and delayed main-thread passes, keeping overlay scroll indicators inset from rounded corners and preserving mini, auto-hiding vertical scroller settings.
@@ -37,8 +38,9 @@ All notable changes to Torli Stats are documented here.
 - 将 dashboard 尺寸调整和 WakaTime 刷新处理切换到 `dashboardPanel`，并保留现有高度估算逻辑及 820 点最大高度限制。
 - 优化 dashboard 展示：
   - 将 `DashboardLayout.popoverCornerRadius` 提升为 16。
-  - 深色主题使用 dark glass material，浅色主题继续使用现有纯色背景。
-  - 让滚动指示器 inset 与面板圆角半径保持一致。
+  - 深色主题使用 dark glass material，浅色主题使用带冷色渐变的半透明玻璃背景。
+  - Dashboard 卡片使用协调的分层玻璃表面，并增加细微高光、边框和阴影。
+  - 隐藏 Dashboard 原生滚动指示器，同时保留鼠标滚轮和触控板滚动，避免滚动条覆盖圆角。
   - 新增可复用的 `DashboardProgressBar`，支持数值限制、胶囊形渲染、可配置颜色和高度。
 - 使用 `DashboardProgressBar` 渲染磁盘使用率、Codex 配额、WakaTime 语言 breakdown 和 AI Coding 进度条。
 - 让 `ThinScrollViewConfigurator` 在层级变化、布局以及延迟的主线程刷新中重复应用 scroll-view 配置，使 overlay scroll indicators 避开圆角区域，并保留 mini、自动隐藏的垂直滚动条设置。
