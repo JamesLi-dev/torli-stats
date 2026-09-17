@@ -83,6 +83,23 @@ struct PowerStatusView: View {
                         )
                     }
                 }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 5)
+                .background(Color.primary.opacity(0.026), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .stroke(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.34),
+                                    Color.black.opacity(0.07)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 0.7
+                        )
+                }
             }
         }
         .padding(8)

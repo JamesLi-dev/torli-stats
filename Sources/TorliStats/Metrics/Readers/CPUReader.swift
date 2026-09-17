@@ -8,7 +8,9 @@ struct CPUSnapshot {
 }
 
 struct CPUSampler {
+    private static let minimumSampleInterval: TimeInterval = 0.5
     private var previous: [UInt64]?
+    private var lastSampleTime: TimeInterval?
 
     mutating func sample() -> CPUSnapshot {
         var processorCount: natural_t = 0
@@ -42,13 +44,30 @@ struct CPUSampler {
             }
         }
 
+        let now = ProcessInfo.processInfo.systemUptime
+
         // The first sample only establishes a baseline. A processor can also
         // be added/removed while the app is running, so reset in that case.
         guard let previous, previous.count == current.count else {
             self.previous = current
+            self.lastSampleTime = now
             return CPUSnapshot(total: 0, perCore: Array(repeating: 0, count: coreCount), isReady: false)
         }
+
+        // Several settings are applied during launch and can request samples
+        // back-to-back. A near-zero interval makes startup work look like
+        // 100% CPU because almost no idle ticks have elapsed yet.
+        guard let lastSampleTime else {
+            self.lastSampleTime = now
+            self.previous = current
+            return CPUSnapshot(total: 0, perCore: Array(repeating: 0, count: coreCount), isReady: false)
+        }
+        guard now - lastSampleTime >= Self.minimumSampleInterval else {
+            return CPUSnapshot(total: 0, perCore: Array(repeating: 0, count: coreCount), isReady: false)
+        }
+
         self.previous = current
+        self.lastSampleTime = now
 
         var perCore: [Double] = []
         perCore.reserveCapacity(coreCount)

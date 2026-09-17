@@ -237,28 +237,49 @@ private struct CodexAccountUsageRow: View {
                         .font(.system(size: 9, weight: .medium, design: .rounded))
                         .foregroundStyle(.orange)
                 } else {
-                    Text(error.localizedDescription)
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundStyle(.secondary)
+                    DashboardStatusSurface {
+                        Text(error.localizedDescription)
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
                 }
             }
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, density == .compact ? 5 : 7)
-        .background(accountAccent.opacity(0.055), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .padding(.horizontal, 7)
+        .padding(.vertical, density == .compact ? 5 : 8)
+        .background {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color.primary.opacity(0.026))
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(accountAccent.opacity(0.024))
+        }
         .overlay {
             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .stroke(accountAccent.opacity(0.12), lineWidth: 0.6)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.42),
+                            accountAccent.opacity(0.10),
+                            Color.black.opacity(0.08)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 0.75
+                )
         }
     }
 
     private var loadingContent: some View {
-        HStack(spacing: 8) {
-            ProgressView()
-                .controlSize(.small)
-            Text(StatsL10n.text("codex.usage.loading"))
-                .font(.system(size: 10, weight: .medium, design: .rounded))
-                .foregroundStyle(.secondary)
+        DashboardStatusSurface {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(StatsL10n.text("codex.usage.loading"))
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 

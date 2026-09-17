@@ -47,6 +47,7 @@ struct DashboardChip: View {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .stroke(tint.opacity(0.15), lineWidth: 0.6)
             }
+            .shadow(color: Color.black.opacity(0.035), radius: 1, y: 0.5)
     }
 }
 

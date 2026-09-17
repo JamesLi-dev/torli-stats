@@ -491,6 +491,43 @@ struct DashboardView: View {
     }
 }
 
+struct DashboardStatusSurface<Content: View>: View {
+    let tint: Color
+    let content: Content
+
+    init(tint: Color = .secondary, @ViewBuilder content: () -> Content) {
+        self.tint = tint
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(.horizontal, 8)
+            .padding(.vertical, 7)
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.primary.opacity(0.026))
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(tint.opacity(0.035))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.34),
+                                tint.opacity(0.10),
+                                Color.black.opacity(0.07)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 0.7
+                    )
+            }
+    }
+}
+
 struct DashboardEmptyState: View {
     let icon: String
     let message: String
@@ -499,31 +536,26 @@ struct DashboardEmptyState: View {
     var actionHelp: String?
 
     var body: some View {
-        HStack(spacing: 7) {
-            Image(systemName: icon)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(tint)
-            Text(message)
-                .font(.system(size: 10, weight: .medium, design: .rounded))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-            Spacer(minLength: 0)
-            if let action, let actionHelp {
-                Button(action: action) {
-                    Image(systemName: "arrow.up.right")
+        DashboardStatusSurface(tint: tint) {
+            HStack(spacing: 7) {
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(tint)
+                Text(message)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                Spacer(minLength: 0)
+                if let action, let actionHelp {
+                    Button(action: action) {
+                        Image(systemName: "arrow.up.right")
+                    }
+                    .buttonStyle(DashboardIconButtonStyle())
+                    .help(actionHelp)
+                    .accessibilityLabel(actionHelp)
                 }
-                .buttonStyle(DashboardIconButtonStyle())
-                .help(actionHelp)
-                .accessibilityLabel(actionHelp)
             }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 7)
-        .background(tint.opacity(0.07), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(tint.opacity(0.12), lineWidth: 0.6)
         }
     }
 }
@@ -537,7 +569,7 @@ enum DashboardLayout {
     static let cardCornerRadius: CGFloat = 12
     static let progressBarHeight: CGFloat = 4
     static let codexProgressBarHeight: CGFloat = 5
-    static let sectionSpacing: CGFloat = 8
+    static let sectionSpacing: CGFloat = 10
 
     static func metricCardHeight(for density: DashboardDensity) -> CGFloat {
         switch density {

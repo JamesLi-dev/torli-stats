@@ -132,7 +132,13 @@ struct ActivityHeatmap: View {
                                         .fill(mode == 0
                                             ? fill(data[id], maximum: maximum)
                                             : barFill(column: column, row: row, heights: heights))
-                                        .overlay(RoundedRectangle(cornerRadius: min(size / 2, compact ? 3 : 4)).strokeBorder(Color.secondary.opacity(data[id] == nil ? 0.18 : 0), lineWidth: 0.5))
+                                        .overlay {
+                                            RoundedRectangle(cornerRadius: min(size / 2, compact ? 3 : 4))
+                                                .strokeBorder(
+                                                    Color.primary.opacity(data[id] == nil ? 0.16 : 0.055),
+                                                    lineWidth: 0.5
+                                                )
+                                        }
                                         .overlay {
                                             RoundedRectangle(cornerRadius: min(size / 2, compact ? 3 : 4))
                                                 .fill(isHovered ? color.opacity(0.12) : .clear)
