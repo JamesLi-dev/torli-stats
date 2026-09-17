@@ -27,7 +27,8 @@ MacStats.app/
 Torli Stats.app/
 
 # Local planning notes; keep the committed roadmap in TODO.md instead
-/docs/
+/docs/*
+!/docs/user-guide.md
 
 # Local changelog history (the active CHANGELOG.md keeps only the latest entry)
 .changelog-backups/
