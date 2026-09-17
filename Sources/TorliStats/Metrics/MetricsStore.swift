@@ -86,6 +86,10 @@ final class MetricsStore: ObservableObject {
     private(set) var monitoringPauseMessage: String?
     private(set) var isAdaptiveLowFrequency = false
     private var cpuSampler = CPUSampler()
+    // The first valid interval after launch can include app startup work. Keep
+    // that warm-up interval out of the UI so a fresh build does not briefly
+    // report a misleading 100% CPU value.
+    private var cpuWarmupSamples = 1
     private var previousNetwork: NetworkTotals?
     private var previousNetworkTime: TimeInterval?
     private var workerGPU = 0.0
@@ -162,6 +166,7 @@ final class MetricsStore: ObservableObject {
             self.previousNetwork = nil
             self.previousNetworkTime = nil
             self.cpuSampler = CPUSampler()
+            self.cpuWarmupSamples = 1
             guard !paused else { return }
             self.installHighTimer(interval: self.effectiveHighRefreshInterval())
             self.collectHighFrequency()
@@ -371,6 +376,16 @@ final class MetricsStore: ObservableObject {
     private func collectHighFrequency(force: Bool = false) {
         guard force || !isAutomaticallyPaused else { return }
         let cpuSnapshot = cpuSampler.sample()
+        let shouldPublishCPU = cpuSnapshot.isReady && cpuWarmupSamples == 0
+        if !cpuSnapshot.isReady {
+            cpuWarmupSamples = 1
+        } else if cpuWarmupSamples > 0 {
+            cpuWarmupSamples -= 1
+        }
+        let sampledCPU = shouldPublishCPU ? cpuSnapshot.total : 0
+        let sampledPerCore = shouldPublishCPU
+            ? cpuSnapshot.perCore
+            : Array(repeating: 0, count: cpuSnapshot.perCore.count)
         let now = ProcessInfo.processInfo.systemUptime
         let stableGPU: Double
         if gpuMonitoringEnabled {
@@ -409,15 +424,15 @@ final class MetricsStore: ObservableObject {
         previousNetwork = totals
         previousNetworkTime = now
 
-        append(&workerCPUHistory, cpuSnapshot.total)
+        append(&workerCPUHistory, sampledCPU)
         append(&workerGPUHistory, workerGPU)
         append(&workerMemoryHistory, memory)
         append(&workerDownloadHistory, download)
         append(&workerUploadHistory, upload)
 
         let snapshot = HighFrequencySnapshot(
-            cpu: cpuSnapshot.total,
-            cpuPerCore: cpuSnapshot.perCore,
+            cpu: sampledCPU,
+            cpuPerCore: sampledPerCore,
             gpu: workerGPU,
             memory: memory,
             memoryUsed: memorySnapshot.used,
@@ -431,7 +446,7 @@ final class MetricsStore: ObservableObject {
             networkDownloadHistory: workerDownloadHistory,
             networkUploadHistory: workerUploadHistory,
             statusLine: StatusLine(
-                cpu: "\(Int(cpuSnapshot.total))%",
+                cpu: "\(Int(sampledCPU))%",
                 memory: "\(Int(memory))%",
                 download: download,
                 upload: upload

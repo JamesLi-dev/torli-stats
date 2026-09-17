@@ -17,11 +17,11 @@ struct ProcessListView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Label(StatsL10n.text("dashboard.high_usage_processes"), systemImage: "chart.bar.xaxis")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(DashboardPalette.diskProgress)
+                    .foregroundStyle(.secondary)
                 Spacer()
                 HStack(spacing: 8) {
                     if density == .detailed && showPID {
@@ -57,7 +57,7 @@ struct ProcessListView: View {
                         }
                         if showsCPU {
                             Text(String(format: "%5.1f%%", process.cpu))
-                                .foregroundStyle(process.cpu > 20 ? DashboardPalette.quotaWarning : .secondary)
+                                .foregroundStyle(process.cpu > 20 ? DashboardPalette.quotaWarning : DashboardPalette.diskProgress)
                                 .frame(width: 62, alignment: .trailing)
                         }
                         if showsMemory {
@@ -68,7 +68,7 @@ struct ProcessListView: View {
                     }
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
                     .padding(.horizontal, 5)
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 5)
                     .background(
                         index.isMultiple(of: 2)
                             ? Color.primary.opacity(0.035)

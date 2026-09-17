@@ -4,6 +4,7 @@ import Darwin
 struct CPUSnapshot {
     let total: Double
     let perCore: [Double]
+    let isReady: Bool
 }
 
 struct CPUSampler {
@@ -22,7 +23,7 @@ struct CPUSampler {
         )
 
         guard result == KERN_SUCCESS, let processorInfo else {
-            return CPUSnapshot(total: 0, perCore: [])
+            return CPUSnapshot(total: 0, perCore: [], isReady: false)
         }
         defer {
             vm_deallocate(
@@ -45,7 +46,7 @@ struct CPUSampler {
         // be added/removed while the app is running, so reset in that case.
         guard let previous, previous.count == current.count else {
             self.previous = current
-            return CPUSnapshot(total: 0, perCore: Array(repeating: 0, count: coreCount))
+            return CPUSnapshot(total: 0, perCore: Array(repeating: 0, count: coreCount), isReady: false)
         }
         self.previous = current
 
@@ -68,6 +69,10 @@ struct CPUSampler {
         }
 
         let overall = totalTicks > 0 ? Double(busyTicks) / Double(totalTicks) * 100 : 0
-        return CPUSnapshot(total: min(100, max(0, overall)), perCore: perCore)
+        return CPUSnapshot(
+            total: min(100, max(0, overall)),
+            perCore: perCore,
+            isReady: true
+        )
     }
 }

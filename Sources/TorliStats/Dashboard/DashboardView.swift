@@ -434,7 +434,8 @@ struct DashboardView: View {
             }
         }
         if settings.showProcessesCard {
-            blockHeights.append(42 + CGFloat(processRowCount) * 18)
+            let processSpacing = processRowCount > 0 ? CGFloat(processRowCount) * 4 : 0
+            blockHeights.append(42 + CGFloat(processRowCount) * 20 + processSpacing)
         }
 
         let padding = settings.dashboardDensity == .compact ? 6 : 8
@@ -580,7 +581,7 @@ private struct DashboardCardSurfaceModifier: ViewModifier {
         LinearGradient(
             colors: colorScheme == .dark
                 ? [Color.white.opacity(0.14), Color.white.opacity(0.035)]
-                : [Color.white.opacity(0.68), Color.black.opacity(0.05)],
+                : [Color.white.opacity(0.78), Color.black.opacity(0.12)],
             startPoint: .top,
             endPoint: .bottom
         )
@@ -604,9 +605,9 @@ private struct DashboardCardSurfaceModifier: ViewModifier {
             }
             .clipShape(DashboardLayout.cardShape)
             .shadow(
-                color: Color.black.opacity(colorScheme == .dark ? 0.14 : 0.05),
-                radius: isInteractive && isHovered ? 8 : 5,
-                y: isInteractive && isHovered ? 2 : 1
+                color: Color.black.opacity(colorScheme == .dark ? 0.14 : 0.105),
+                radius: isInteractive && isHovered ? 8 : 6,
+                y: isInteractive && isHovered ? 2 : 1.5
             )
             .brightness(isInteractive && isHovered ? 0.012 : 0)
             .onHover { hovering in
