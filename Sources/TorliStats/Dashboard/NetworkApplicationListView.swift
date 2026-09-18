@@ -1,9 +1,16 @@
 import SwiftUI
 
+private enum NetworkApplicationSort {
+    case total
+    case download
+    case upload
+}
+
 struct NetworkApplicationListView: View {
     let applications: [NetworkApplicationRow]
     let hasSample: Bool
     let density: DashboardDensity
+    @State private var sort: NetworkApplicationSort = .total
 
     private var rowCount: Int {
         switch density {
@@ -13,7 +20,29 @@ struct NetworkApplicationListView: View {
     }
 
     private var displayedApplications: [NetworkApplicationRow] {
-        Array(applications.prefix(rowCount))
+        Array(sortedApplications.prefix(rowCount))
+    }
+
+    private var sortedApplications: [NetworkApplicationRow] {
+        applications.sorted { lhs, rhs in
+            let lhsValue: Double
+            let rhsValue: Double
+            switch sort {
+            case .total:
+                lhsValue = lhs.totalRate
+                rhsValue = rhs.totalRate
+            case .download:
+                lhsValue = lhs.download
+                rhsValue = rhs.download
+            case .upload:
+                lhsValue = lhs.upload
+                rhsValue = rhs.upload
+            }
+            if lhsValue == rhsValue {
+                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+            return lhsValue > rhsValue
+        }
     }
 
     // A network burst can involve only one process and disappear on the next
@@ -31,13 +60,25 @@ struct NetworkApplicationListView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 HStack(spacing: 8) {
-                    Text("↓")
-                        .frame(width: 66, alignment: .trailing)
-                    Text("↑")
-                        .frame(width: 66, alignment: .trailing)
+                    Button { sort = sort == .download ? .total : .download } label: {
+                        Image(systemName: "arrow.down")
+                            .frame(width: 66, alignment: .trailing)
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10, weight: sort == .download ? .bold : .medium, design: .monospaced))
+                    .foregroundStyle(sort == .download ? DashboardPalette.sortSelection : .secondary)
+                    .help(StatsL10n.text("dashboard.network_sort_download"))
+
+                    Button { sort = sort == .upload ? .total : .upload } label: {
+                        Image(systemName: "arrow.up")
+                            .frame(width: 66, alignment: .trailing)
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10, weight: sort == .upload ? .bold : .medium, design: .monospaced))
+                    .foregroundStyle(sort == .upload ? DashboardPalette.sortSelection : .secondary)
+                    .help(StatsL10n.text("dashboard.network_sort_upload"))
                 }
                 .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                .foregroundStyle(.secondary)
             }
 
             VStack(alignment: .leading, spacing: 4) {

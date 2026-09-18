@@ -374,7 +374,8 @@ struct DashboardView: View {
                 processes: store.processes,
                 density: settings.dashboardDensity,
                 displayMode: settings.processSort,
-                showPID: settings.showProcessPID
+                showPID: settings.showProcessPID,
+                onDisplayModeChange: { settings.processSort = $0 }
             )
         case .networkApplications:
             NetworkApplicationListView(

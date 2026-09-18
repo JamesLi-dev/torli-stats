@@ -86,6 +86,8 @@
 "dashboard.network_applications" = "网络占用 App";
 "dashboard.loading_network_applications" = "正在采样网络占用 App…";
 "dashboard.no_network_applications" = "暂无活跃网络应用";
+"dashboard.network_sort_download" = "按下载速率排序";
+"dashboard.network_sort_upload" = "按上传速率排序";
 
 "面板模块" = "面板模块";
 "传感器" = "传感器";
@@ -140,7 +142,7 @@
 "monitoring.pause_hint" = "暂停 CPU、网络、传感器、进程及自动 Codex/WakaTime 刷新；手动刷新仍可使用。";
 "monitoring.process_count" = "进程数量";
 "monitoring.sort" = "排序";
-"monitoring.process_display" = "显示与排序";
+"monitoring.process_display" = "排序依据";
 "monitoring.items" = "%lld 个";
 
 "runner.run_cat" = "跑步猫";

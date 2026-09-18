@@ -335,7 +335,14 @@ final class MetricsStore: ObservableObject {
     }
 
     func setProcessSort(_ sort: ProcessSortOption) {
-        lowMetricsQueue.async { [weak self] in self?.processSort = sort }
+        lowMetricsQueue.async { [weak self] in
+            guard let self, self.processSort != sort else { return }
+            self.processSort = sort
+            // Header sorting is a direct Dashboard interaction; refresh the
+            // process block now instead of waiting for the next low-frequency
+            // collection interval.
+            self.collectLowFrequency()
+        }
     }
 
     func setPowerSavingMode(_ enabled: Bool) {
@@ -500,7 +507,9 @@ final class MetricsStore: ObservableObject {
 
     private func collectNetworkApplications(force: Bool = false) {
         guard networkApplicationMonitoringEnabled, (force || !isAutomaticallyPaused) else { return }
-        let applications = NetworkProcessReader.topApplications(limit: 5)
+        // Keep a deeper source list than the Dashboard displays so changing
+        // download/upload sort can reveal another active application at once.
+        let applications = NetworkProcessReader.topApplications(limit: 20)
         guard networkApplicationMonitoringEnabled, (force || !isAutomaticallyPaused) else { return }
         publishNetworkApplications(applications, hasSample: true)
     }

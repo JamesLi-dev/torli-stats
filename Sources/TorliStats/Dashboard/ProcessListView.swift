@@ -5,9 +5,10 @@ struct ProcessListView: View {
     let density: DashboardDensity
     let displayMode: ProcessSortOption
     let showPID: Bool
+    let onDisplayModeChange: (ProcessSortOption) -> Void
 
-    private var showsCPU: Bool { displayMode != .memory }
-    private var showsMemory: Bool { displayMode != .cpu }
+    private var showsCPU: Bool { true }
+    private var showsMemory: Bool { true }
 
     private var displayedProcesses: [ProcessRow] {
         switch density {
@@ -29,11 +30,21 @@ struct ProcessListView: View {
                             .frame(width: 42, alignment: .trailing)
                     }
                     if showsCPU {
-                        Text("CPU")
+                        Button("CPU") {
+                            onDisplayModeChange(displayMode == .cpu ? .combined : .cpu)
+                        }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 9, weight: displayMode == .cpu ? .bold : .medium, design: .monospaced))
+                            .foregroundStyle(displayMode == .cpu ? DashboardPalette.sortSelection : .secondary)
                             .frame(width: 62, alignment: .trailing)
                     }
                     if showsMemory {
-                        Text(StatsL10n.text("module.memory"))
+                        Button(StatsL10n.text("module.memory")) {
+                            onDisplayModeChange(displayMode == .memory ? .combined : .memory)
+                        }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 9, weight: displayMode == .memory ? .bold : .medium, design: .monospaced))
+                            .foregroundStyle(displayMode == .memory ? DashboardPalette.sortSelection : .secondary)
                             .frame(width: 76, alignment: .trailing)
                     }
                 }
@@ -62,7 +73,7 @@ struct ProcessListView: View {
                         }
                         if showsMemory {
                             Text(formatMemory(process.memory))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(memoryColor(process.memory))
                                 .frame(width: 76, alignment: .trailing)
                         }
                     }
@@ -85,5 +96,11 @@ struct ProcessListView: View {
     private func formatMemory(_ bytes: Double) -> String {
         if bytes >= 1_000_000_000 { return String(format: "%.1f GB", bytes / 1_000_000_000) }
         return String(format: "%.0f MB", bytes / 1_000_000)
+    }
+
+    private func memoryColor(_ bytes: Double) -> Color {
+        if bytes >= 2_000_000_000 { return DashboardPalette.quotaCritical }
+        if bytes >= 1_000_000_000 { return DashboardPalette.quotaWarning }
+        return .secondary
     }
 }

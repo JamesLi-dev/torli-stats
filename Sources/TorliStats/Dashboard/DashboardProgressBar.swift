@@ -23,6 +23,9 @@ enum DashboardPalette {
     static let activity = Color(red: 0.72, green: 0.38, blue: 0.88)
     static let quotaSuccess = Color(red: 0.17, green: 0.72, blue: 0.40)
     static let quotaWarning = Color(red: 0.92, green: 0.57, blue: 0.16)
+    // A vivid green selection color for sortable column headers. It remains
+    // distinct from blue metric accents and warning/error states.
+    static let sortSelection = Color(red: 0.18, green: 0.76, blue: 0.40)
     static let quotaCritical = Color(red: 0.88, green: 0.25, blue: 0.28)
 }
 

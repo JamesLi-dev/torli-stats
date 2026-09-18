@@ -86,6 +86,8 @@
 "dashboard.network_applications" = "Network apps";
 "dashboard.loading_network_applications" = "Sampling network apps…";
 "dashboard.no_network_applications" = "No active network apps";
+"dashboard.network_sort_download" = "Sort by download rate";
+"dashboard.network_sort_upload" = "Sort by upload rate";
 
 "面板模块" = "Dashboard Modules";
 "传感器" = "Sensors";
@@ -140,7 +142,7 @@
 "monitoring.pause_hint" = "Pauses CPU, network, sensors, processes, and automatic Codex/WakaTime refreshes. Manual refresh remains available.";
 "monitoring.process_count" = "Process count";
 "monitoring.sort" = "Sort";
-"monitoring.process_display" = "Display & sort";
+"monitoring.process_display" = "Sort by";
 "monitoring.items" = "%lld items";
 
 "runner.run_cat" = "Running Cat";
