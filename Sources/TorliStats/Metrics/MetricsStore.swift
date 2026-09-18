@@ -61,6 +61,8 @@ final class MetricsStore: ObservableObject {
     private(set) var cpuTemperature: Double?
     private(set) var gpuTemperature: Double?
     private(set) var processes: [ProcessRow] = []
+    private(set) var networkApplications: [NetworkApplicationRow] = []
+    private(set) var hasNetworkApplicationSample = false
     private(set) var statusLine = StatusLine(
         cpu: "0%", memory: "0%", download: 0, upload: 0
     )
@@ -77,8 +79,10 @@ final class MetricsStore: ObservableObject {
     // read from delaying CPU, GPU, or network updates.
     private let highMetricsQueue = DispatchQueue(label: "local.torli.stats.metrics.high", qos: .userInitiated)
     private let lowMetricsQueue = DispatchQueue(label: "local.torli.stats.metrics.low", qos: .utility)
+    private let networkApplicationsQueue = DispatchQueue(label: "local.torli.stats.metrics.network-applications", qos: .utility)
     private var highTimer: DispatchSourceTimer?
     private var lowTimer: DispatchSourceTimer?
+    private var networkApplicationsTimer: DispatchSourceTimer?
     private let monitoringPauseLock = NSLock()
     private var monitoringPaused = false
     private var adaptiveLowFrequency = false
@@ -119,6 +123,7 @@ final class MetricsStore: ObservableObject {
     private var diskMonitoringEnabled = true
     private var bluetoothMonitoringEnabled = true
     private var processMonitoringEnabled = true
+    private var networkApplicationMonitoringEnabled = false
     private var sensorReadingsNeeded = true
     private var sensorPollingStopped = false
     private var deviceInfoLoaded = false
@@ -136,6 +141,7 @@ final class MetricsStore: ObservableObject {
     func refreshNow() {
         highMetricsQueue.async { [weak self] in self?.collectHighFrequency(force: true) }
         lowMetricsQueue.async { [weak self] in self?.collectLowFrequency(force: true) }
+        networkApplicationsQueue.async { [weak self] in self?.collectNetworkApplications(force: true) }
     }
 
     /// Publishes pause state and its user-facing reason together, so Dashboard
@@ -178,6 +184,17 @@ final class MetricsStore: ObservableObject {
             guard !paused else { return }
             self.installLowTimer(interval: self.effectiveLowRefreshInterval())
             self.collectLowFrequency()
+        }
+        networkApplicationsQueue.async { [weak self] in
+            guard let self else { return }
+            self.networkApplicationsTimer?.cancel()
+            self.networkApplicationsTimer = nil
+            guard !paused, self.networkApplicationMonitoringEnabled else {
+                self.publishNetworkApplications([], hasSample: false)
+                return
+            }
+            self.installNetworkApplicationsTimer()
+            self.collectNetworkApplications()
         }
     }
 
@@ -297,6 +314,21 @@ final class MetricsStore: ObservableObject {
         }
     }
 
+    func setNetworkApplicationMonitoring(_ enabled: Bool) {
+        networkApplicationsQueue.async { [weak self] in
+            guard let self, self.networkApplicationMonitoringEnabled != enabled else { return }
+            self.networkApplicationMonitoringEnabled = enabled
+            self.networkApplicationsTimer?.cancel()
+            self.networkApplicationsTimer = nil
+            guard enabled, !self.isAutomaticallyPaused else {
+                self.publishNetworkApplications([], hasSample: false)
+                return
+            }
+            self.installNetworkApplicationsTimer()
+            self.collectNetworkApplications()
+        }
+    }
+
     func setProcessLimit(_ limit: Int) {
         guard [3, 5, 8, 10, 15].contains(limit) else { return }
         lowMetricsQueue.async { [weak self] in self?.processLimit = limit }
@@ -368,9 +400,20 @@ final class MetricsStore: ObservableObject {
         lowTimer = timer
     }
 
+    private func installNetworkApplicationsTimer() {
+        guard !isAutomaticallyPaused, networkApplicationMonitoringEnabled else { return }
+        networkApplicationsTimer?.cancel()
+        let timer = DispatchSource.makeTimerSource(queue: networkApplicationsQueue)
+        timer.schedule(deadline: .now() + 5, repeating: 5, leeway: .seconds(1))
+        timer.setEventHandler { [weak self] in self?.collectNetworkApplications() }
+        timer.resume()
+        networkApplicationsTimer = timer
+    }
+
     deinit {
         highTimer?.cancel()
         lowTimer?.cancel()
+        networkApplicationsTimer?.cancel()
     }
 
     private func collectHighFrequency(force: Bool = false) {
@@ -453,6 +496,25 @@ final class MetricsStore: ObservableObject {
             )
         )
         DispatchQueue.main.async { [weak self] in self?.apply(snapshot) }
+    }
+
+    private func collectNetworkApplications(force: Bool = false) {
+        guard networkApplicationMonitoringEnabled, (force || !isAutomaticallyPaused) else { return }
+        let applications = NetworkProcessReader.topApplications(limit: 5)
+        guard networkApplicationMonitoringEnabled, (force || !isAutomaticallyPaused) else { return }
+        publishNetworkApplications(applications, hasSample: true)
+    }
+
+    private func publishNetworkApplications(_ applications: [NetworkApplicationRow], hasSample: Bool) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self,
+                  self.networkApplications != applications || self.hasNetworkApplicationSample != hasSample else {
+                return
+            }
+            self.objectWillChange.send()
+            self.networkApplications = applications
+            self.hasNetworkApplicationSample = hasSample
+        }
     }
 
     private func collectLowFrequency(force: Bool = false) {

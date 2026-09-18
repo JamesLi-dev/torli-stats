@@ -78,6 +78,7 @@ struct SettingsView: View {
             case .memory: return settings.showMemoryCard
             case .disk: return settings.showDiskCard
             case .network: return settings.showNetworkCard
+            case .networkApplications: return settings.showNetworkApplicationsCard
             case .fan: return settings.showFanCard
             case .typing: return settings.showTypingCard && settings.typingStatsEnabled
             case .power: return settings.showPowerCard

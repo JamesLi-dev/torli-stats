@@ -210,6 +210,7 @@ struct DashboardView: View {
         case .memory: return settings.showMemoryCard
         case .disk: return settings.showDiskCard
         case .network: return settings.showNetworkCard
+        case .networkApplications: return settings.showNetworkApplicationsCard
         case .fan: return settings.showFanCard
         case .typing: return settings.showTypingCard && settings.typingStatsEnabled
         case .power: return settings.showPowerCard
@@ -336,7 +337,7 @@ struct DashboardView: View {
             .contentShape(DashboardLayout.cardShape)
             .onTapGesture(perform: onTypingDetails)
             .help(StatsL10n.text("dashboard.typing_details"))
-        case .power, .codex, .wakatime, .processes:
+        case .power, .codex, .wakatime, .processes, .networkApplications:
             EmptyView()
         }
     }
@@ -374,6 +375,12 @@ struct DashboardView: View {
                 density: settings.dashboardDensity,
                 displayMode: settings.processSort,
                 showPID: settings.showProcessPID
+            )
+        case .networkApplications:
+            NetworkApplicationListView(
+                applications: store.networkApplications,
+                hasSample: store.hasNetworkApplicationSample,
+                density: settings.dashboardDensity
             )
         case .cpu, .gpu, .memory, .disk, .network, .fan, .typing:
             EmptyView()
@@ -436,6 +443,11 @@ struct DashboardView: View {
         if settings.showProcessesCard {
             let processSpacing = processRowCount > 0 ? CGFloat(processRowCount) * 4 : 0
             blockHeights.append(42 + CGFloat(processRowCount) * 20 + processSpacing)
+        }
+        if settings.showNetworkApplicationsCard {
+            let rowCount = settings.dashboardDensity == .compact ? 3 : 5
+            let rowSpacing = CGFloat(rowCount) * 4
+            blockHeights.append(42 + CGFloat(rowCount) * 20 + rowSpacing)
         }
 
         let padding = settings.dashboardDensity == .compact ? 6 : 8

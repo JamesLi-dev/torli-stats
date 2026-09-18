@@ -83,6 +83,9 @@
 "dashboard.process_headers" = "PID     CPU          内存";
 "dashboard.process_headers_compact" = "CPU          内存";
 "dashboard.loading_processes" = "正在读取进程…";
+"dashboard.network_applications" = "网络占用 App";
+"dashboard.loading_network_applications" = "正在采样网络占用 App…";
+"dashboard.no_network_applications" = "暂无活跃网络应用";
 
 "面板模块" = "面板模块";
 "传感器" = "传感器";
@@ -195,6 +198,7 @@
 "module.memory" = "内存";
 "module.disk" = "磁盘";
 "module.network" = "网络";
+"module.network_applications" = "网络占用 App";
 "module.fan" = "风扇";
 "module.typing" = "输入";
 "module.power" = "电源";

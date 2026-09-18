@@ -45,6 +45,9 @@ final class AppSettings: ObservableObject {
     @Published var showNetworkCard: Bool {
         didSet { defaults.set(showNetworkCard, forKey: "showNetworkCard") }
     }
+    @Published var showNetworkApplicationsCard: Bool {
+        didSet { defaults.set(showNetworkApplicationsCard, forKey: "showNetworkApplicationsCard") }
+    }
     @Published var showFanCard: Bool {
         didSet { defaults.set(showFanCard, forKey: "showFanCard") }
     }
@@ -245,6 +248,7 @@ final class AppSettings: ObservableObject {
         showMemoryCard = defaults.object(forKey: "showMemoryCard") as? Bool ?? true
         showDiskCard = defaults.object(forKey: "showDiskCard") as? Bool ?? true
         showNetworkCard = defaults.object(forKey: "showNetworkCard") as? Bool ?? true
+        showNetworkApplicationsCard = defaults.object(forKey: "showNetworkApplicationsCard") as? Bool ?? true
         showFanCard = defaults.object(forKey: "showFanCard") as? Bool ?? true
         showTypingCard = defaults.object(forKey: "showTypingCard") as? Bool ?? true
         showPowerCard = defaults.object(forKey: "showPowerCard") as? Bool ?? true

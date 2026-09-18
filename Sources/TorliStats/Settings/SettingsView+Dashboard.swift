@@ -36,6 +36,7 @@ extension SettingsView {
                     Toggle(StatsL10n.text("module.memory"), isOn: $settings.showMemoryCard)
                     Toggle(StatsL10n.text("module.disk"), isOn: $settings.showDiskCard)
                     Toggle(StatsL10n.text("module.network"), isOn: $settings.showNetworkCard)
+                    Toggle(StatsL10n.text("module.network_applications"), isOn: $settings.showNetworkApplicationsCard)
                     Toggle(StatsL10n.text("module.fan"), isOn: $settings.showFanCard)
                     Toggle(StatsL10n.text("module.typing"), isOn: $settings.showTypingCard)
                     Toggle(StatsL10n.text("module.power"), isOn: $settings.showPowerCard)

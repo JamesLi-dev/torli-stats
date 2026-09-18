@@ -83,6 +83,9 @@
 "dashboard.process_headers" = "PID     CPU          Memory";
 "dashboard.process_headers_compact" = "CPU          Memory";
 "dashboard.loading_processes" = "Loading processes…";
+"dashboard.network_applications" = "Network apps";
+"dashboard.loading_network_applications" = "Sampling network apps…";
+"dashboard.no_network_applications" = "No active network apps";
 
 "面板模块" = "Dashboard Modules";
 "传感器" = "Sensors";
@@ -195,6 +198,7 @@
 "module.memory" = "Memory";
 "module.disk" = "Disk";
 "module.network" = "Network";
+"module.network_applications" = "Network Apps";
 "module.fan" = "Fans";
 "module.typing" = "Typing";
 "module.power" = "Power";
