@@ -6,16 +6,10 @@ extension SettingsView {
     var systemSection: some View {
         SettingsSection(title: StatsL10n.text("settings.category.system")) {
             VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Toggle(StatsL10n.text("settings.system.launch_at_login"), isOn: Binding(
-                        get: { settings.launchAtLogin },
-                        set: { settings.setLaunchAtLogin($0) }
-                    ))
-                    Spacer()
-                    Button(StatsL10n.text("settings.system.restore_defaults"), role: .destructive) {
-                        settings.resetToDefaults()
-                    }
-                }
+                Toggle(StatsL10n.text("settings.system.launch_at_login"), isOn: Binding(
+                    get: { settings.launchAtLogin },
+                    set: { settings.setLaunchAtLogin($0) }
+                ))
 
                 Divider()
 
@@ -34,22 +28,27 @@ extension SettingsView {
                         .foregroundStyle(.secondary)
                     Spacer(minLength: 0)
                 }
-                Text(StatsL10n.text("settings.system.typing_privacy"))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                SettingsStatusMessage(
+                    text: StatsL10n.text("settings.system.typing_privacy"),
+                    icon: "hand.raised",
+                    tint: .secondary
+                )
                 HStack(spacing: 8) {
                     if typingStats.permissionStatus == .needsPermission {
                         Button(StatsL10n.text("settings.system.open_input_monitoring")) {
                             typingStats.openInputMonitoringSettings()
                         }
+                        .buttonStyle(.borderedProminent)
                         Button(StatsL10n.text("settings.system.recheck")) {
                             onRequestTypingStatsPermission()
                         }
+                        .buttonStyle(.bordered)
                     }
                     Button(StatsL10n.text("settings.system.clear_typing"), role: .destructive) {
                         typingStats.clearHistory()
                     }
+                    .buttonStyle(.bordered)
+                    .tint(.red)
                     .disabled(typingStats.totalKeyCount == 0)
                 }
 
@@ -61,12 +60,23 @@ extension SettingsView {
                     Button(StatsL10n.text("settings.system.check_updates")) {
                         onCheckForUpdates()
                     }
+                    .buttonStyle(.bordered)
                     .disabled(updateChecker.status == .checking)
                 }
-                Text(updateChecker.status.description)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                SettingsStatusMessage(
+                    text: updateChecker.status.description,
+                    icon: "arrow.triangle.2.circlepath",
+                    tint: .secondary
+                )
+
+                Divider()
+
+                SettingsDestructiveActionRow(
+                    title: StatsL10n.text("settings.system.restore_defaults"),
+                    actionTitle: StatsL10n.text("settings.system.restore_defaults")
+                ) {
+                    settings.resetToDefaults()
+                }
             }
         }
     }

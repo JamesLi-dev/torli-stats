@@ -6,9 +6,10 @@ extension SettingsView {
     var wakaTimeSection: some View {
         SettingsSection(title: StatsL10n.text("settings.wakatime.title")) {
             VStack(alignment: .leading, spacing: 10) {
-                Text(StatsL10n.text("settings.wakatime.help"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                SettingsInlineHint(
+                    text: StatsL10n.text("settings.wakatime.help"),
+                    icon: "key.fill"
+                )
 
                 HStack(spacing: 8) {
                     SecureField(hasWakaTimeAPIKey ? StatsL10n.text("settings.wakatime.api_key_saved") : StatsL10n.text("settings.wakatime.api_key"), text: $wakaTimeAPIKey)
@@ -40,15 +41,16 @@ extension SettingsView {
                     Button(StatsL10n.text("wakatime.refresh")) {
                         onWakaTimeRefresh()
                     }
+                    .buttonStyle(.bordered)
                     .disabled(!settings.wakaTimeEnabled)
                 }
 
                 HStack(spacing: 8) {
-                    Text(wakaTimeMessage ?? wakaTimeUsageStore.state.statusText)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                    Spacer(minLength: 0)
+                    SettingsStatusMessage(
+                        text: wakaTimeMessage ?? wakaTimeUsageStore.state.statusText,
+                        icon: "info.circle",
+                        tint: DashboardPalette.diskProgress
+                    )
                     if hasWakaTimeAPIKey {
                         Button(StatsL10n.text("settings.wakatime.remove_api_key"), role: .destructive) {
                             WakaTimeKeychain.deleteAPIKey()
@@ -57,7 +59,8 @@ extension SettingsView {
                             wakaTimeMessage = StatsL10n.text("settings.wakatime.removed_api_key")
                             settings.wakaTimeEnabled = false
                         }
-                        .buttonStyle(.borderless)
+                        .buttonStyle(.bordered)
+                        .tint(.red)
                     }
                 }
             }

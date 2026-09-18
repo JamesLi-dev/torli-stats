@@ -7,10 +7,7 @@ extension SettingsView {
         SettingsSection(title: StatsL10n.text("settings.category.monitoring")) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 10) {
-                    Text(StatsL10n.text("monitoring.plugged_in_interval"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 60, alignment: .leading)
+                    SettingsFieldLabel(StatsL10n.text("monitoring.plugged_in_interval"), width: 126)
                     Picker("", selection: $settings.refreshInterval) {
                         ForEach(AppSettings.supportedRefreshIntervals, id: \.self) { interval in
                             Text(StatsL10n.format("monitoring.seconds", interval)).tag(interval)
@@ -22,10 +19,7 @@ extension SettingsView {
                     Toggle(StatsL10n.text("monitoring.always_save_power"), isOn: $settings.powerSavingMode)
                 }
                 HStack(spacing: 10) {
-                    Text(StatsL10n.text("monitoring.battery_interval"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 60, alignment: .leading)
+                    SettingsFieldLabel(StatsL10n.text("monitoring.battery_interval"), width: 126)
                     Picker("", selection: $settings.batteryRefreshInterval) {
                         ForEach(AppSettings.supportedRefreshIntervals, id: \.self) { interval in
                             Text(StatsL10n.format("monitoring.seconds", interval)).tag(interval)
@@ -37,11 +31,8 @@ extension SettingsView {
                     Toggle(StatsL10n.text("monitoring.low_battery_saving"), isOn: $settings.lowBatterySavingEnabled)
                 }
                 if settings.lowBatterySavingEnabled {
-                    HStack(spacing: 10) {
-                        Text(StatsL10n.text("monitoring.low_battery_threshold"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 60, alignment: .leading)
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        SettingsFieldLabel(StatsL10n.text("monitoring.low_battery_threshold"), width: 126)
                         Picker("", selection: $settings.lowBatteryThreshold) {
                             ForEach([10, 20, 30], id: \.self) { threshold in
                                 Text("\(threshold)%").tag(threshold)
@@ -50,37 +41,28 @@ extension SettingsView {
                         .labelsHidden()
                         .pickerStyle(.menu)
                         .frame(width: 80)
-                        Text(StatsL10n.text("monitoring.low_battery_hint"))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        SettingsInlineHint(text: StatsL10n.text("monitoring.low_battery_hint"))
                     }
                 }
+
                 Divider()
+
                 Toggle(StatsL10n.text("monitoring.manual_pause"), isOn: $settings.manualMonitoringPaused)
                 if settings.manualMonitoringPaused {
-                    Text(StatsL10n.text("monitoring.manual_pause_hint"))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    SettingsInlineHint(text: StatsL10n.text("monitoring.manual_pause_hint"), icon: "pause.circle")
                 }
                 Toggle(StatsL10n.text("monitoring.background_refresh"), isOn: $settings.backgroundMonitoringEnabled)
                 if !settings.backgroundMonitoringEnabled {
-                    Text(StatsL10n.text("monitoring.background_refresh_hint"))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    SettingsInlineHint(text: StatsL10n.text("monitoring.background_refresh_hint"), icon: "moon")
                 }
                 Toggle(StatsL10n.text("monitoring.adaptive_sampling"), isOn: $settings.adaptiveSamplingEnabled)
                 if settings.adaptiveSamplingEnabled {
-                    Text(StatsL10n.text("monitoring.adaptive_sampling_hint"))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    SettingsInlineHint(text: StatsL10n.text("monitoring.adaptive_sampling_hint"), icon: "waveform.path.ecg")
                 }
                 Toggle(StatsL10n.text("monitoring.night_pause"), isOn: $settings.nightMonitoringPauseEnabled)
                 if settings.nightMonitoringPauseEnabled {
                     HStack(spacing: 10) {
-                        Text(StatsL10n.text("monitoring.pause_schedule"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 60, alignment: .leading)
+                        SettingsFieldLabel(StatsL10n.text("monitoring.pause_schedule"), width: 126)
                         DatePicker(
                             StatsL10n.text("monitoring.start"),
                             selection: timeBinding(\.nightMonitoringPauseStartSeconds),
@@ -95,15 +77,13 @@ extension SettingsView {
                         .labelsHidden()
                         Spacer()
                     }
-                    Text(StatsL10n.text("monitoring.pause_hint"))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    SettingsInlineHint(text: StatsL10n.text("monitoring.pause_hint"), icon: "moon.zzz")
                 }
+
+                Divider()
+
                 HStack(spacing: 10) {
-                    Text(StatsL10n.text("monitoring.process_count"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 60, alignment: .leading)
+                    SettingsFieldLabel(StatsL10n.text("monitoring.process_count"), width: 126)
                     Picker("", selection: $settings.processLimit) {
                         Text(StatsL10n.format("monitoring.items", 3)).tag(3)
                         Text(StatsL10n.format("monitoring.items", 5)).tag(5)
@@ -114,9 +94,7 @@ extension SettingsView {
                     .labelsHidden()
                     .pickerStyle(.menu)
                     .frame(width: 80)
-                    Text(StatsL10n.text("monitoring.process_display"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    SettingsFieldLabel(StatsL10n.text("monitoring.process_display"), width: 78)
                     Picker("", selection: $settings.processSort) {
                         ForEach(ProcessSortOption.allCases) { option in
                             Text(option.title).tag(option)

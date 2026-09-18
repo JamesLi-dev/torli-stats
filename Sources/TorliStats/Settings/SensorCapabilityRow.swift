@@ -18,6 +18,7 @@ struct SensorCapabilityRow: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
+        .padding(.vertical, 3)
         .help(reason)
     }
 }

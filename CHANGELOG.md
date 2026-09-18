@@ -2,21 +2,19 @@
 
 All notable changes to Torli Stats are documented here.
 
-## [1.5.4] - 2026-09-17
+## [1.5.5] - 2026-09-18
 
-<!-- ai-changelog:manual-1.5.4 -->
+<!-- ai-changelog:manual-1.5.5 -->
 ### English
-- Adds a bilingual user and developer guide covering Input Monitoring, WakaTime Keychain access, the sensor helper, stable code signing, and upgrade troubleshooting.
-- Refines Dashboard visual surfaces:
-  - Unifies Codex account cards, WakaTime summaries, power details, empty states, and loading states with neutral glass surfaces and clearer outlines.
-  - Improves Dashboard module spacing, Heatmap cell definition, Chip depth, and light-mode card hierarchy without changing data behavior.
-- Prevents launch-time CPU spikes from being reported as a misleading `100%` value by ignoring back-to-back startup samples and warming up the CPU sampler after a baseline reset.
-- Validation: `swift test`, `swift build`, `./build-app.sh`, `git diff --check`, and `plutil -lint Info.plist` passed.
+- Refines the Settings visual system without changing settings behavior:
+  - Simplifies all Settings pages to a two-level hierarchy: the window background and section card. Account rows, status messages, sensor capabilities, reorder rows, and destructive actions no longer introduce nested cards.
+  - Unifies section surfaces, field labels, inline help, drag-order rows, tab selection, and empty/status presentation across Appearance, Status Bar, Dashboard, Monitoring, Development, System, Notes, and Statistics settings.
+  - Clarifies action hierarchy: connection and authorization actions are prominent; refresh, test, and copy actions are secondary; remove, uninstall, reset, and clear actions are consistently destructive.
+- Keeps a neutral active-tab treatment with stronger contrast, avoiding a blue-tinted Settings surface.
 
 ### 中文
-- 新增中英文用户与开发者说明书，覆盖输入监控、WakaTime 钥匙串访问、传感器辅助进程、稳定代码签名和升级排查。
-- 改进 Dashboard 的显示质感：
-  - 统一 Codex 账户卡片、WakaTime 摘要、电源详情、空状态和加载状态的中性玻璃表面与轮廓。
-  - 改善 Dashboard 模块间距、Heatmap 格子边界、Chip 层次和亮色模式卡片层次，不改变数据行为。
-- 通过忽略启动阶段连续产生的 CPU 采样，并在基线重置后重新进行 CPU 采样预热，避免将启动瞬间的负载误显示为 `100%`。
-- 验证通过：`swift test`、`swift build`、`./build-app.sh`、`git diff --check` 和 `plutil -lint Info.plist`。
+- 改进 Settings 视觉系统，不改变任何设置行为：
+  - 将所有设置页面统一为两层结构：窗口背景与 Section 卡片。账户行、状态提示、传感器能力项、排序行和危险操作不再创建嵌套卡片。
+  - 统一外观、状态栏、面板、监控、开发统计、系统、便签和统计设置中的卡片表面、字段标签、行内提示、拖拽排序行、页内 Tab 及空状态/状态信息。
+  - 明确操作层级：连接和授权为主操作；刷新、测试和复制为次操作；移除、卸载、重置和清空统一为危险操作。
+- 保持中性的 Tab 激活态并提高对比度，避免为 Settings 表面增加蓝色调。

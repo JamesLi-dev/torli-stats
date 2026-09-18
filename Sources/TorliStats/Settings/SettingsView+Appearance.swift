@@ -37,9 +37,7 @@ extension SettingsView {
                 }
                 Spacer(minLength: 0)
             }
-            Text(StatsL10n.text("settings.language.help"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            SettingsInlineHint(text: StatsL10n.text("settings.language.help"))
         }
         .onChange(of: settings.appLanguage) { _, language in
             languageRestartRequired = language != initialLanguage

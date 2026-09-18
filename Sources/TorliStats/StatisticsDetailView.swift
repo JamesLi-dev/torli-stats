@@ -30,21 +30,15 @@ struct StatisticsSettingsPage: View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 8) {
                 ForEach(StatisticsDetailTab.allCases) { tab in
-                    Button {
+                    SettingsTabItem(
+                        title: tab.title,
+                        systemImage: tab.systemImage,
+                        isSelected: selectedTab == tab
+                    ) {
                         withAnimation(.easeInOut(duration: 0.16)) {
                             selectedTab = tab
                         }
-                    } label: {
-                        Label(tab.title, systemImage: tab.systemImage)
-                            .font(.system(size: 14, weight: .semibold, design: .rounded))
-                            .padding(.horizontal, 15)
-                            .padding(.vertical, 10)
-                            .foregroundStyle(selectedTab == tab ? .white : .primary)
-                            .background(selectedTab == tab ? Color.accentColor : AppColors.badge)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

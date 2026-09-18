@@ -86,9 +86,10 @@ extension SettingsView {
         SettingsSection(title: StatsL10n.text("codex.settings.managed_accounts")) {
             VStack(alignment: .leading, spacing: 12) {
                 if settings.codexManagedAccounts.isEmpty {
-                    Text(StatsL10n.text("codex.settings.no_managed_accounts"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    SettingsStatusMessage(
+                        text: StatsL10n.text("codex.settings.no_managed_accounts"),
+                        icon: "person.crop.circle.badge.plus"
+                    )
                 }
 
                 ForEach($settings.codexManagedAccounts) { $account in
@@ -106,7 +107,8 @@ extension SettingsView {
                                 pendingCodexAccountRemovalID = account.id
                                 pendingCodexAccountRemovalName = account.resolvedDisplayName
                             }
-                            .buttonStyle(.borderless)
+                            .buttonStyle(.bordered)
+                            .tint(.red)
                         }
 
                         HStack(spacing: 8) {
@@ -139,13 +141,6 @@ extension SettingsView {
                             codexUsageStore: codexUsageStore
                         )
                     }
-                    .padding(10)
-                    .background(Color.primary.opacity(0.035))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
 
                 HStack(spacing: 8) {
@@ -162,10 +157,10 @@ extension SettingsView {
                     Spacer(minLength: 0)
                 }
 
-                Text(codexAccountMessage ?? StatsL10n.text("codex.settings.managed_accounts_help"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                SettingsStatusMessage(
+                    text: codexAccountMessage ?? StatsL10n.text("codex.settings.managed_accounts_help"),
+                    icon: "info.circle"
+                )
             }
         }
     }

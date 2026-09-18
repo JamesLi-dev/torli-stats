@@ -40,10 +40,11 @@ extension SettingsView {
                         .help(diagnostic)
                 }
 
-                Text(settings.sensorSignatureMessage ?? StatsL10n.text("sensor.settings.signature_not_verified"))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                SettingsStatusMessage(
+                    text: settings.sensorSignatureMessage ?? StatsL10n.text("sensor.settings.signature_not_verified"),
+                    icon: "signature",
+                    tint: settings.sensorHelperEnabled ? .secondary : .orange
+                )
 
                 LazyVGrid(
                     columns: [
@@ -71,31 +72,37 @@ extension SettingsView {
                 }
 
                 if let lastReadAt = settings.sensorLastReadAt {
-                    Text(StatsL10n.format("sensor.settings.last_read", lastReadAt.formatted(date: .omitted, time: .shortened)))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    SettingsInlineHint(
+                        text: StatsL10n.format("sensor.settings.last_read", lastReadAt.formatted(date: .omitted, time: .shortened)),
+                        icon: "clock"
+                    )
                 }
 
                 HStack(spacing: 8) {
                     Button(settings.sensorHelperReachable ? StatsL10n.text("sensor.settings.reinstall") : StatsL10n.text("sensor.settings.authorize")) {
                         settings.installSensorHelper()
                     }
+                    .buttonStyle(.borderedProminent)
                     .disabled(settings.sensorHelperChecking)
 
                     Button(StatsL10n.text("sensor.settings.recheck")) {
                         settings.refreshSensorStatus()
                     }
+                    .buttonStyle(.bordered)
                     .disabled(settings.sensorHelperChecking)
 
                     Button(StatsL10n.text("sensor.settings.copy_diagnostics")) {
                         settings.copySensorDiagnostics()
                     }
+                    .buttonStyle(.bordered)
                     .disabled(settings.sensorHelperChecking)
 
                     if settings.sensorHelperReachable {
                         Button(StatsL10n.text("sensor.settings.uninstall"), role: .destructive) {
                             settings.uninstallSensorHelper()
                         }
+                        .buttonStyle(.bordered)
+                        .tint(.red)
                         .disabled(settings.sensorHelperChecking)
                     }
                 }

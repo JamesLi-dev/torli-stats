@@ -260,39 +260,23 @@ struct NotesSettingsView: View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 8) {
                 ForEach(NotesSettingsCategory.allCases) { category in
-                    Button {
+                    SettingsTabItem(
+                        title: category.title,
+                        systemImage: category.systemImage,
+                        isSelected: selectedCategory == category
+                    ) {
                         withAnimation(.easeInOut(duration: 0.16)) {
                             selectedCategory = category
                         }
-                    } label: {
-                        Label(category.title, systemImage: category.systemImage)
-                            .font(.system(size: 14, weight: .semibold, design: .rounded))
-                            .padding(.horizontal, 15)
-                            .padding(.vertical, 10)
-                            .foregroundStyle(selectedCategory == category ? .white : .primary)
-                            .background(
-                                selectedCategory == category
-                                    ? Color.accentColor
-                                    : AppColors.badge
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(selectedCategory == category ? .isSelected : [])
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             settingsPage
-                .padding(12)
+                .padding(14)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
-                .background(AppColors.card)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-                .shadow(color: Color.black.opacity(0.04), radius: 8, y: 3)
+                .settingsCardSurface()
         }
     }
 
@@ -494,9 +478,7 @@ struct NotesSettingsView: View {
     }
 
     private func subhead(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.secondary)
+        SettingsSubsectionTitle(text)
     }
 
     private func row(_ label: String, @ViewBuilder _ content: () -> some View) -> some View {

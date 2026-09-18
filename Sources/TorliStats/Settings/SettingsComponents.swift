@@ -4,17 +4,37 @@ import UniformTypeIdentifiers
 
 struct SettingsFieldLabel: View {
     let title: String
+    let width: CGFloat
 
-    init(_ title: String) {
+    init(_ title: String, width: CGFloat = 78) {
         self.title = title
+        self.width = width
     }
 
     var body: some View {
         Text(title)
-            .font(.caption)
+            .font(.caption.weight(.medium))
             .foregroundStyle(.secondary)
-            .frame(width: 72, alignment: .leading)
+            .frame(width: width, alignment: .leading)
             .lineLimit(1)
+    }
+}
+
+struct SettingsInlineHint: View {
+    let text: String
+    var icon = "info.circle"
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+            Text(text)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.leading, 2)
     }
 }
 
@@ -26,9 +46,14 @@ struct SettingsSubsectionTitle: View {
     }
 
     var body: some View {
-        Text(title)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
+        HStack(spacing: 6) {
+            Capsule()
+                .fill(Color.secondary.opacity(0.45))
+                .frame(width: 3, height: 11)
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
     }
 }
 
@@ -165,24 +190,145 @@ struct SettingsSection<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: .leading, spacing: 10) {
             Text(StatsL10n.text(title))
                 .font(.system(size: 16, weight: .semibold, design: .rounded))
                 .foregroundStyle(.primary)
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 9) {
                 content
             }
-            .padding(12)
+            .padding(14)
             .frame(maxWidth: .infinity, minHeight: cardMinHeight, alignment: .topLeading)
-            .background(AppColors.card)
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            .shadow(color: Color.black.opacity(0.04), radius: 8, y: 3)
+            .settingsCardSurface()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct SettingsStatusMessage: View {
+    let text: String
+    var icon: String? = nil
+    var tint: Color = .secondary
+
+    var body: some View {
+        HStack(spacing: 7) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+struct SettingsDestructiveActionRow: View {
+    let title: String
+    let actionTitle: String
+    let action: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.red)
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+            Button(actionTitle, role: .destructive, action: action)
+                .buttonStyle(.bordered)
+                .tint(.red)
+        }
+        .padding(.vertical, 3)
+    }
+}
+
+struct SettingsReorderRow: View {
+    let title: String
+    var systemImage = "line.3.horizontal"
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .foregroundStyle(.secondary)
+                .font(.callout)
+                .frame(width: 14)
+            Text(title)
+                .font(.callout)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+            Image(systemName: "arrow.up.and.down")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+    }
+}
+
+struct SettingsTabItem: View {
+    let title: String
+    let systemImage: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .foregroundStyle(isSelected ? .primary : .secondary)
+                .background(isSelected ? Color.primary.opacity(0.13) : .clear)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .stroke(isSelected ? Color.primary.opacity(0.13) : .clear, lineWidth: 0.8)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .shadow(color: isSelected ? Color.black.opacity(0.055) : .clear, radius: 2, y: 1)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+private struct SettingsCardSurface: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(AppColors.card)
+            .background {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.primary.opacity(0.018))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.36),
+                                Color.primary.opacity(0.055),
+                                Color.black.opacity(0.08)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 0.8
+                    )
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .shadow(color: Color.black.opacity(0.045), radius: 9, y: 3)
+    }
+}
+
+extension View {
+    func settingsCardSurface() -> some View {
+        modifier(SettingsCardSurface())
     }
 }
