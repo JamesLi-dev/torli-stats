@@ -69,13 +69,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
             startNotesDeckIfNeeded()
         }
 
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        guard let button = statusItem.button else { return }
-
-        button.target = self
-        button.action = #selector(handleStatusItemClick)
-        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-        button.toolTip = "Torli Stats"
+        guard installStatusItem() else { return }
 
         dashboardPanel.dashboardContentSize = NSSize(
             width: DashboardView.panelWidth,
@@ -287,6 +281,46 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
         updateStatusTitle(store.statusLine)
         if !monitoringPauseController.isPaused {
             checkForUpdatesIfNeeded()
+        }
+    }
+
+    @discardableResult
+    private func installStatusItem() -> Bool {
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        guard let button = statusItem.button else { return false }
+        button.target = self
+        button.action = #selector(handleStatusItemClick)
+        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        button.toolTip = "Torli Stats"
+        return true
+    }
+
+    /// AppKit reads global status-item spacing only when a process starts.
+    /// Relaunch compatible user menu-bar apps, then restart this app so the
+    /// new global preference becomes visible without a full logout.
+    func applyMenuBarSpacing(offset: Int?) throws {
+        if let offset {
+            try MenuBarSpacingManager.apply(offset: offset)
+        } else {
+            try MenuBarSpacingManager.restoreSystemDefault()
+        }
+        MenuBarApplicationRelauncher.relaunchMenuBarServicesAndEligibleApplications(
+            excluding: ProcessInfo.processInfo.processIdentifier
+        )
+        try relaunchForMenuBarSpacing()
+    }
+
+    private func relaunchForMenuBarSpacing() throws {
+        let launcher = Process()
+        launcher.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        launcher.arguments = ["-n", Bundle.main.bundleURL.path]
+        try launcher.run()
+        launcher.waitUntilExit()
+        guard launcher.terminationStatus == 0 else {
+            throw MenuBarSpacingManager.SpacingError.relaunchFailed
+        }
+        DispatchQueue.main.async {
+            NSApp.terminate(nil)
         }
     }
 

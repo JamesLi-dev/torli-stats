@@ -37,7 +37,8 @@ struct DevelopmentStatisticsDetailContent: View {
             }
 
             DetailSection(
-                title: StatsL10n.text("statistics.development.period"),
+                title: StatsL10n.text("statistics.development.overview"),
+                subtitle: store.state.statusText,
                 headerAccessory: AnyView(
                     HStack(spacing: 10) {
                         Picker(StatsL10n.text("statistics.development.period"), selection: $selectedRange) {
@@ -47,6 +48,7 @@ struct DevelopmentStatisticsDetailContent: View {
                         }
                         .pickerStyle(.segmented)
                         .labelsHidden()
+                        .accessibilityLabel(StatsL10n.text("statistics.development.period"))
 
                         Button {
                             store.refresh()
@@ -59,23 +61,28 @@ struct DevelopmentStatisticsDetailContent: View {
                     }
                 )
             ) {
-                EmptyView()
+                if let snapshot {
+                    DetailMetricGrid(items: [
+                        (StatsL10n.text("wakatime.today"), StatisticsFormatting.compactDuration(store.todayPeriod?.totalSeconds ?? 0)),
+                        ("\(selectedRange.title)", StatisticsFormatting.compactDuration(period?.totalSeconds ?? snapshot.totalSeconds)),
+                        (StatsL10n.text("statistics.typing.active_daily_average"), StatisticsFormatting.compactDuration(period?.averageActiveDaySeconds ?? 0)),
+                        (StatsL10n.text("statistics.typing.active_days"), StatsL10n.format("statistics.days", period?.activeDayCount ?? 0))
+                    ])
+                } else {
+                    VStack(spacing: 9) {
+                        Image(systemName: "chart.bar.xaxis")
+                            .font(.system(size: 28))
+                            .foregroundStyle(.secondary)
+                        Text(StatsL10n.text("statistics.development.empty"))
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 180)
+                    .accessibilityElement(children: .combine)
+                }
             }
 
             if let snapshot {
                 developmentContent(snapshot)
-            } else {
-                VStack(spacing: 9) {
-                    Image(systemName: "chart.bar.xaxis")
-                        .font(.system(size: 28))
-                        .foregroundStyle(.secondary)
-                    Text(StatsL10n.text("statistics.development.empty"))
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    Text(store.state.statusText)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, minHeight: 280)
             }
         }
         .onAppear {
@@ -106,15 +113,6 @@ struct DevelopmentStatisticsDetailContent: View {
 
     @ViewBuilder
     private func developmentContent(_ snapshot: WakaTimeSnapshot) -> some View {
-        DetailSection(title: StatsL10n.text("statistics.development.overview"), subtitle: store.state.statusText) {
-            DetailMetricGrid(items: [
-                (StatsL10n.text("wakatime.today"), StatisticsFormatting.compactDuration(store.todayPeriod?.totalSeconds ?? 0)),
-                ("\(selectedRange.title)", StatisticsFormatting.compactDuration(period?.totalSeconds ?? snapshot.totalSeconds)),
-                (StatsL10n.text("statistics.typing.active_daily_average"), StatisticsFormatting.compactDuration(period?.averageActiveDaySeconds ?? 0)),
-                (StatsL10n.text("statistics.typing.active_days"), StatsL10n.format("statistics.days", period?.activeDayCount ?? 0))
-            ])
-        }
-
         if let period, !period.dailyRecords.isEmpty {
             DetailSection(title: StatsL10n.text("statistics.development.daily_coding_duration"), subtitle: StatisticsFormatting.dateRangeText(period.dailyRecords.map(\.dateID))) {
                 DetailedDailyBarChart(

@@ -8,7 +8,8 @@ struct PowerStatusView: View {
     let density: DashboardDensity
 
     private let columns = [
-        GridItem(.adaptive(minimum: 155), spacing: 10, alignment: .leading)
+        GridItem(.flexible(minimum: 0), spacing: 8, alignment: .leading),
+        GridItem(.flexible(minimum: 0), spacing: 8, alignment: .leading)
     ]
 
     private var batteryColor: Color { batteryLevelColor(battery.percentage) }
@@ -61,10 +62,9 @@ struct PowerStatusView: View {
                     Spacer(minLength: 0)
                 }
             } else {
-                // Standard and detailed layouts keep every device in the same
-                // two-column row style. Mixing full rows with compact rings made
-                // grids with three or more accessories visually misalign.
-                LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+                // Standard and detailed layouts always use two equal-width
+                // device cells, so accessories stay balanced as a compact grid.
+                LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
                     BatteryRing(
                         value: battery.percentage,
                         title: "MacBook",
@@ -83,8 +83,8 @@ struct PowerStatusView: View {
                         )
                     }
                 }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 5)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 6)
                 .background(Color.primary.opacity(0.026), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
@@ -124,7 +124,7 @@ private func batteryLevelColor(_ percentage: Double?) -> Color {
     switch percentage {
     case ...10: return DashboardPalette.quotaCritical
     case ...20: return DashboardPalette.quotaWarning
-    case ...50: return Color(red: 0.86, green: 0.65, blue: 0.16)
+    case ...50: return AppColors.caution
     default: return DashboardPalette.quotaSuccess
     }
 }
@@ -134,7 +134,7 @@ private func batteryHealthColor(_ health: Double?) -> Color {
     switch health {
     case ...70: return DashboardPalette.quotaCritical
     case ...80: return DashboardPalette.quotaWarning
-    case ...90: return Color(red: 0.86, green: 0.65, blue: 0.16)
+    case ...90: return AppColors.caution
     default: return DashboardPalette.quotaSuccess
     }
 }
@@ -142,7 +142,7 @@ private func batteryHealthColor(_ health: Double?) -> Color {
 private func thermalStateColor(_ state: SystemThermalState) -> Color {
     switch state {
     case .nominal: return DashboardPalette.quotaSuccess
-    case .fair: return Color(red: 0.86, green: 0.65, blue: 0.16)
+    case .fair: return AppColors.caution
     case .serious: return DashboardPalette.quotaWarning
     case .critical: return DashboardPalette.quotaCritical
     }
@@ -198,7 +198,7 @@ struct BatteryRing: View {
     var color: Color = .green
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             ZStack {
                 Circle()
                     .stroke(Color.primary.opacity(0.12), lineWidth: 3)
@@ -221,7 +221,7 @@ struct BatteryRing: View {
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .foregroundStyle(value == nil ? .secondary : .primary)
             }
-            .frame(width: 38, height: 38)
+            .frame(width: 34, height: 34)
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .top, spacing: 4) {
@@ -232,11 +232,11 @@ struct BatteryRing: View {
                         .minimumScaleFactor(0.8)
                         .help(title)
                 }
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 Text(detail)
-                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .font(.system(size: 8, weight: .medium, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)

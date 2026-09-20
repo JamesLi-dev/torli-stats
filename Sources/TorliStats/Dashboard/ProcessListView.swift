@@ -19,9 +19,10 @@ struct ProcessListView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
+            HStack(alignment: .center) {
                 Label(StatsL10n.text("dashboard.high_usage_processes"), systemImage: "chart.bar.xaxis")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(.secondary)
                 Spacer()
                 HStack(spacing: 8) {
@@ -30,31 +31,40 @@ struct ProcessListView: View {
                             .frame(width: 42, alignment: .trailing)
                     }
                     if showsCPU {
-                        Button("CPU") {
+                        Button {
                             onDisplayModeChange(displayMode == .cpu ? .combined : .cpu)
+                        } label: {
+                            Text("CPU")
+                                .frame(width: 40)
                         }
-                            .buttonStyle(.plain)
-                            .font(.system(size: 9, weight: displayMode == .cpu ? .bold : .medium, design: .monospaced))
-                            .foregroundStyle(displayMode == .cpu ? DashboardPalette.sortSelection : .secondary)
-                            .frame(width: 62, alignment: .trailing)
+                        .buttonStyle(DashboardSortHeaderButtonStyle(isSelected: displayMode == .cpu))
+                        .font(.system(size: 9, weight: displayMode == .cpu ? .bold : .medium, design: .monospaced))
+                        .foregroundStyle(displayMode == .cpu ? DashboardPalette.sortSelection : .secondary)
+                        .frame(width: 62, alignment: .trailing)
                     }
                     if showsMemory {
-                        Button(StatsL10n.text("module.memory")) {
+                        Button {
                             onDisplayModeChange(displayMode == .memory ? .combined : .memory)
+                        } label: {
+                            Text(StatsL10n.text("module.memory"))
+                                .frame(width: 40)
                         }
-                            .buttonStyle(.plain)
-                            .font(.system(size: 9, weight: displayMode == .memory ? .bold : .medium, design: .monospaced))
-                            .foregroundStyle(displayMode == .memory ? DashboardPalette.sortSelection : .secondary)
-                            .frame(width: 76, alignment: .trailing)
+                        .buttonStyle(DashboardSortHeaderButtonStyle(isSelected: displayMode == .memory))
+                        .font(.system(size: 9, weight: displayMode == .memory ? .bold : .medium, design: .monospaced))
+                        .foregroundStyle(displayMode == .memory ? DashboardPalette.sortSelection : .secondary)
+                        .frame(width: 76, alignment: .trailing)
                     }
                 }
                 .font(.system(size: 9, design: .monospaced))
                 .foregroundStyle(.secondary)
             }
+            .frame(height: 18)
 
             if processes.isEmpty {
-                Text(StatsL10n.text("dashboard.loading_processes"))
-                    .foregroundStyle(.secondary)
+                DashboardEmptyState(
+                    icon: "chart.bar.xaxis",
+                    message: StatsL10n.text("activity.no_data")
+                )
             } else {
                 ForEach(Array(displayedProcesses.enumerated()), id: \.element.id) { index, process in
                     HStack(spacing: 8) {
@@ -68,12 +78,16 @@ struct ProcessListView: View {
                         }
                         if showsCPU {
                             Text(String(format: "%5.1f%%", process.cpu))
-                                .foregroundStyle(process.cpu > 20 ? DashboardPalette.quotaWarning : DashboardPalette.diskProgress)
+                                .foregroundStyle(cpuColor(process.cpu))
+                                .contentTransition(.numericText())
+                                .animation(.easeOut(duration: 0.18), value: process.cpu)
                                 .frame(width: 62, alignment: .trailing)
                         }
                         if showsMemory {
                             Text(formatMemory(process.memory))
                                 .foregroundStyle(memoryColor(process.memory))
+                                .contentTransition(.numericText())
+                                .animation(.easeOut(duration: 0.18), value: process.memory)
                                 .frame(width: 76, alignment: .trailing)
                         }
                     }
@@ -98,9 +112,17 @@ struct ProcessListView: View {
         return String(format: "%.0f MB", bytes / 1_000_000)
     }
 
+    private func cpuColor(_ usage: Double) -> Color {
+        if usage >= 50 { return DashboardPalette.quotaCritical }
+        if usage >= 25 { return DashboardPalette.quotaWarning }
+        if usage >= 10 { return DashboardPalette.quotaSuccess }
+        return .secondary
+    }
+
     private func memoryColor(_ bytes: Double) -> Color {
         if bytes >= 2_000_000_000 { return DashboardPalette.quotaCritical }
         if bytes >= 1_000_000_000 { return DashboardPalette.quotaWarning }
+        if bytes >= 500_000_000 { return DashboardPalette.quotaSuccess }
         return .secondary
     }
 }

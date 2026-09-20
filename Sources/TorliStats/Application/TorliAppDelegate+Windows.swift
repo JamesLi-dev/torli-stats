@@ -26,6 +26,10 @@ extension TorliAppDelegate {
             },
             onCheckForUpdates: { [weak self] in
                 self?.checkForUpdates()
+            },
+            onApplyMenuBarSpacing: { [weak self] offset in
+                guard let self else { return }
+                try self.applyMenuBarSpacing(offset: offset)
             }
         )
         let window = NSWindow(

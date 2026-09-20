@@ -26,6 +26,33 @@ enum AppColors {
         dark: NSColor(calibratedWhite: 1.0, alpha: 0.12)
     )
 
+    // Semantic status tokens use slightly brighter dark-mode variants so
+    // status remains legible on the dashboard's dark card surfaces.
+    static let accent = adaptive(
+        light: NSColor(calibratedRed: 0.25, green: 0.56, blue: 0.94, alpha: 1),
+        dark: NSColor(calibratedRed: 0.38, green: 0.66, blue: 1.0, alpha: 1)
+    )
+    static let activity = adaptive(
+        light: NSColor(calibratedRed: 0.72, green: 0.38, blue: 0.88, alpha: 1),
+        dark: NSColor(calibratedRed: 0.78, green: 0.50, blue: 0.96, alpha: 1)
+    )
+    static let success = adaptive(
+        light: NSColor(calibratedRed: 0.17, green: 0.72, blue: 0.40, alpha: 1),
+        dark: NSColor(calibratedRed: 0.30, green: 0.82, blue: 0.51, alpha: 1)
+    )
+    static let caution = adaptive(
+        light: NSColor(calibratedRed: 0.86, green: 0.65, blue: 0.16, alpha: 1),
+        dark: NSColor(calibratedRed: 0.95, green: 0.74, blue: 0.28, alpha: 1)
+    )
+    static let warning = adaptive(
+        light: NSColor(calibratedRed: 0.92, green: 0.57, blue: 0.16, alpha: 1),
+        dark: NSColor(calibratedRed: 1.0, green: 0.66, blue: 0.25, alpha: 1)
+    )
+    static let critical = adaptive(
+        light: NSColor(calibratedRed: 0.88, green: 0.25, blue: 0.28, alpha: 1),
+        dark: NSColor(calibratedRed: 1.0, green: 0.40, blue: 0.43, alpha: 1)
+    )
+
     private static func adaptive(light: NSColor, dark: NSColor) -> Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light

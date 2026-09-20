@@ -39,9 +39,10 @@ struct MetricCard<Content: View, Footer: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: density == .compact ? 3 : 6) {
-            HStack {
+            HStack(alignment: .center) {
                 Label(title, systemImage: icon)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(.secondary)
                 Spacer()
                 DashboardChip(
