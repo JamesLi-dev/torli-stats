@@ -33,10 +33,7 @@ extension SettingsView {
                         .frame(width: 110)
                     }
                     HStack(spacing: 12) {
-                        Text(StatsL10n.text("settings.status_bar.codex_display"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 118, alignment: .leading)
+                        SettingsFieldLabel(StatsL10n.text("settings.status_bar.codex_display"), width: 118)
                         Picker("", selection: $settings.codexStatusBarMode) {
                             ForEach(CodexStatusBarMode.allCases) { mode in
                                 Text(mode.title).tag(mode)
@@ -46,9 +43,7 @@ extension SettingsView {
                         .pickerStyle(.segmented)
                         .frame(width: 210)
 
-                        Text(StatsL10n.text("settings.status_bar.codex_account_count"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        SettingsFieldLabel(StatsL10n.text("settings.status_bar.codex_account_count"), width: 118)
                         Picker("", selection: $settings.codexStatusBarAccountLimit) {
                             ForEach([1, 2, 3], id: \.self) { count in
                                 Text("\(count)").tag(count)
@@ -73,9 +68,7 @@ extension SettingsView {
                         .labelsHidden()
                         .pickerStyle(.segmented)
                         .frame(width: 132)
-                        Text(StatsL10n.text("settings.status_bar.font_size"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        SettingsFieldLabel(StatsL10n.text("settings.status_bar.font_size"), width: 78)
                         Picker("", selection: $settings.statusBarFontSize) {
                             ForEach(StatusBarFontSize.allCases) { size in
                                 Text(size.title).tag(size)
@@ -99,9 +92,7 @@ extension SettingsView {
                         .labelsHidden()
                         .pickerStyle(.segmented)
                         .frame(width: 240)
-                        Text(StatsL10n.text("settings.status_bar.decimal_places"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        SettingsFieldLabel(StatsL10n.text("settings.status_bar.decimal_places"), width: 84)
                         Picker("", selection: $settings.networkRateDecimalPlaces) {
                             ForEach([0, 1, 2], id: \.self) { places in
                                 Text(StatsL10n.format("settings.status_bar.decimal_places_value", places)).tag(places)
@@ -121,9 +112,7 @@ extension SettingsView {
                             .toggleStyle(.switch)
                             .fixedSize(horizontal: true, vertical: false)
                             .disabled(!settings.showStatusBarLogo)
-                        Text(StatsL10n.text("settings.status_bar.animation_style"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        SettingsFieldLabel(StatsL10n.text("settings.status_bar.animation_style"), width: 92)
                         Picker("", selection: $settings.statusBarRunner) {
                             ForEach(StatusBarRunner.allCases) { runner in
                                 Text(runner.title).tag(runner)
@@ -134,10 +123,10 @@ extension SettingsView {
                         .frame(width: 130)
                         .disabled(!settings.showStatusBarLogo)
                     }
-                Text(StatsL10n.text("settings.status_bar.animation_hint"))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                SettingsInlineHint(
+                    text: StatsL10n.text("settings.status_bar.animation_hint"),
+                    icon: "figure.run"
+                )
             }
         }
     }
@@ -145,9 +134,10 @@ extension SettingsView {
     var statusBarOrderSection: some View {
         SettingsSection(title: StatsL10n.text("settings.status_bar.item_order")) {
             VStack(alignment: .leading, spacing: 7) {
-                    Text(StatsL10n.text("settings.status_bar.item_order_hint"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    SettingsInlineHint(
+                        text: StatsL10n.text("settings.status_bar.item_order_hint"),
+                        icon: "arrow.up.and.down"
+                    )
 
                     LazyVGrid(
                         columns: [GridItem(.adaptive(minimum: 300), alignment: .leading)],
@@ -155,20 +145,10 @@ extension SettingsView {
                         spacing: 8
                     ) {
                         ForEach(visibleStatusBarGroups) { group in
-                            HStack(spacing: 8) {
-                                Image(systemName: group == .logo ? "figure.run" : "line.3.horizontal")
-                                    .foregroundStyle(.secondary)
-                                    .font(.callout)
-                                Text(group.title)
-                                    .font(.callout)
-                                    .lineLimit(1)
-                                Spacer(minLength: 0)
-                                Image(systemName: "arrow.up.and.down")
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
-                            }
-                            .padding(.vertical, 4)
-                            .contentShape(Rectangle())
+                            SettingsReorderRow(
+                                title: group.title,
+                                systemImage: group == .logo ? "figure.run" : "line.3.horizontal"
+                            )
                             .onDrag {
                                 draggedStatusBarGroup = group
                                 return NSItemProvider(object: group.rawValue as NSString)

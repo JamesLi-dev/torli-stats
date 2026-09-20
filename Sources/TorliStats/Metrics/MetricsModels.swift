@@ -7,6 +7,15 @@ struct ProcessRow: Identifiable {
     let memory: Double
 }
 
+struct NetworkApplicationRow: Identifiable, Equatable {
+    let id: String
+    let name: String
+    let download: Double
+    let upload: Double
+
+    var totalRate: Double { download + upload }
+}
+
 enum SystemThermalState {
     case nominal
     case fair

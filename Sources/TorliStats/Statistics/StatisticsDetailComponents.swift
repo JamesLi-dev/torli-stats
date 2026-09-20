@@ -37,15 +37,9 @@ struct DetailSection<Content: View>: View {
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppColors.card)
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .shadow(color: Color.black.opacity(0.04), radius: 8, y: 3)
+        .settingsCardSurface()
     }
 }
 

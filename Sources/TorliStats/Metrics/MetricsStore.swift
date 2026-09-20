@@ -61,6 +61,8 @@ final class MetricsStore: ObservableObject {
     private(set) var cpuTemperature: Double?
     private(set) var gpuTemperature: Double?
     private(set) var processes: [ProcessRow] = []
+    private(set) var networkApplications: [NetworkApplicationRow] = []
+    private(set) var hasNetworkApplicationSample = false
     private(set) var statusLine = StatusLine(
         cpu: "0%", memory: "0%", download: 0, upload: 0
     )
@@ -77,8 +79,10 @@ final class MetricsStore: ObservableObject {
     // read from delaying CPU, GPU, or network updates.
     private let highMetricsQueue = DispatchQueue(label: "local.torli.stats.metrics.high", qos: .userInitiated)
     private let lowMetricsQueue = DispatchQueue(label: "local.torli.stats.metrics.low", qos: .utility)
+    private let networkApplicationsQueue = DispatchQueue(label: "local.torli.stats.metrics.network-applications", qos: .utility)
     private var highTimer: DispatchSourceTimer?
     private var lowTimer: DispatchSourceTimer?
+    private var networkApplicationsTimer: DispatchSourceTimer?
     private let monitoringPauseLock = NSLock()
     private var monitoringPaused = false
     private var adaptiveLowFrequency = false
@@ -86,6 +90,10 @@ final class MetricsStore: ObservableObject {
     private(set) var monitoringPauseMessage: String?
     private(set) var isAdaptiveLowFrequency = false
     private var cpuSampler = CPUSampler()
+    // The first valid interval after launch can include app startup work. Keep
+    // that warm-up interval out of the UI so a fresh build does not briefly
+    // report a misleading 100% CPU value.
+    private var cpuWarmupSamples = 1
     private var previousNetwork: NetworkTotals?
     private var previousNetworkTime: TimeInterval?
     private var workerGPU = 0.0
@@ -115,6 +123,7 @@ final class MetricsStore: ObservableObject {
     private var diskMonitoringEnabled = true
     private var bluetoothMonitoringEnabled = true
     private var processMonitoringEnabled = true
+    private var networkApplicationMonitoringEnabled = false
     private var sensorReadingsNeeded = true
     private var sensorPollingStopped = false
     private var deviceInfoLoaded = false
@@ -132,6 +141,7 @@ final class MetricsStore: ObservableObject {
     func refreshNow() {
         highMetricsQueue.async { [weak self] in self?.collectHighFrequency(force: true) }
         lowMetricsQueue.async { [weak self] in self?.collectLowFrequency(force: true) }
+        networkApplicationsQueue.async { [weak self] in self?.collectNetworkApplications(force: true) }
     }
 
     /// Publishes pause state and its user-facing reason together, so Dashboard
@@ -162,6 +172,7 @@ final class MetricsStore: ObservableObject {
             self.previousNetwork = nil
             self.previousNetworkTime = nil
             self.cpuSampler = CPUSampler()
+            self.cpuWarmupSamples = 1
             guard !paused else { return }
             self.installHighTimer(interval: self.effectiveHighRefreshInterval())
             self.collectHighFrequency()
@@ -173,6 +184,17 @@ final class MetricsStore: ObservableObject {
             guard !paused else { return }
             self.installLowTimer(interval: self.effectiveLowRefreshInterval())
             self.collectLowFrequency()
+        }
+        networkApplicationsQueue.async { [weak self] in
+            guard let self else { return }
+            self.networkApplicationsTimer?.cancel()
+            self.networkApplicationsTimer = nil
+            guard !paused, self.networkApplicationMonitoringEnabled else {
+                self.publishNetworkApplications([], hasSample: false)
+                return
+            }
+            self.installNetworkApplicationsTimer()
+            self.collectNetworkApplications()
         }
     }
 
@@ -292,13 +314,35 @@ final class MetricsStore: ObservableObject {
         }
     }
 
+    func setNetworkApplicationMonitoring(_ enabled: Bool) {
+        networkApplicationsQueue.async { [weak self] in
+            guard let self, self.networkApplicationMonitoringEnabled != enabled else { return }
+            self.networkApplicationMonitoringEnabled = enabled
+            self.networkApplicationsTimer?.cancel()
+            self.networkApplicationsTimer = nil
+            guard enabled, !self.isAutomaticallyPaused else {
+                self.publishNetworkApplications([], hasSample: false)
+                return
+            }
+            self.installNetworkApplicationsTimer()
+            self.collectNetworkApplications()
+        }
+    }
+
     func setProcessLimit(_ limit: Int) {
         guard [3, 5, 8, 10, 15].contains(limit) else { return }
         lowMetricsQueue.async { [weak self] in self?.processLimit = limit }
     }
 
     func setProcessSort(_ sort: ProcessSortOption) {
-        lowMetricsQueue.async { [weak self] in self?.processSort = sort }
+        lowMetricsQueue.async { [weak self] in
+            guard let self, self.processSort != sort else { return }
+            self.processSort = sort
+            // Header sorting is a direct Dashboard interaction; refresh the
+            // process block now instead of waiting for the next low-frequency
+            // collection interval.
+            self.collectLowFrequency()
+        }
     }
 
     func setPowerSavingMode(_ enabled: Bool) {
@@ -363,14 +407,35 @@ final class MetricsStore: ObservableObject {
         lowTimer = timer
     }
 
+    private func installNetworkApplicationsTimer() {
+        guard !isAutomaticallyPaused, networkApplicationMonitoringEnabled else { return }
+        networkApplicationsTimer?.cancel()
+        let timer = DispatchSource.makeTimerSource(queue: networkApplicationsQueue)
+        timer.schedule(deadline: .now() + 5, repeating: 5, leeway: .seconds(1))
+        timer.setEventHandler { [weak self] in self?.collectNetworkApplications() }
+        timer.resume()
+        networkApplicationsTimer = timer
+    }
+
     deinit {
         highTimer?.cancel()
         lowTimer?.cancel()
+        networkApplicationsTimer?.cancel()
     }
 
     private func collectHighFrequency(force: Bool = false) {
         guard force || !isAutomaticallyPaused else { return }
         let cpuSnapshot = cpuSampler.sample()
+        let shouldPublishCPU = cpuSnapshot.isReady && cpuWarmupSamples == 0
+        if !cpuSnapshot.isReady {
+            cpuWarmupSamples = 1
+        } else if cpuWarmupSamples > 0 {
+            cpuWarmupSamples -= 1
+        }
+        let sampledCPU = shouldPublishCPU ? cpuSnapshot.total : 0
+        let sampledPerCore = shouldPublishCPU
+            ? cpuSnapshot.perCore
+            : Array(repeating: 0, count: cpuSnapshot.perCore.count)
         let now = ProcessInfo.processInfo.systemUptime
         let stableGPU: Double
         if gpuMonitoringEnabled {
@@ -409,15 +474,15 @@ final class MetricsStore: ObservableObject {
         previousNetwork = totals
         previousNetworkTime = now
 
-        append(&workerCPUHistory, cpuSnapshot.total)
+        append(&workerCPUHistory, sampledCPU)
         append(&workerGPUHistory, workerGPU)
         append(&workerMemoryHistory, memory)
         append(&workerDownloadHistory, download)
         append(&workerUploadHistory, upload)
 
         let snapshot = HighFrequencySnapshot(
-            cpu: cpuSnapshot.total,
-            cpuPerCore: cpuSnapshot.perCore,
+            cpu: sampledCPU,
+            cpuPerCore: sampledPerCore,
             gpu: workerGPU,
             memory: memory,
             memoryUsed: memorySnapshot.used,
@@ -431,13 +496,34 @@ final class MetricsStore: ObservableObject {
             networkDownloadHistory: workerDownloadHistory,
             networkUploadHistory: workerUploadHistory,
             statusLine: StatusLine(
-                cpu: "\(Int(cpuSnapshot.total))%",
+                cpu: "\(Int(sampledCPU))%",
                 memory: "\(Int(memory))%",
                 download: download,
                 upload: upload
             )
         )
         DispatchQueue.main.async { [weak self] in self?.apply(snapshot) }
+    }
+
+    private func collectNetworkApplications(force: Bool = false) {
+        guard networkApplicationMonitoringEnabled, (force || !isAutomaticallyPaused) else { return }
+        // Keep a deeper source list than the Dashboard displays so changing
+        // download/upload sort can reveal another active application at once.
+        let applications = NetworkProcessReader.topApplications(limit: 20)
+        guard networkApplicationMonitoringEnabled, (force || !isAutomaticallyPaused) else { return }
+        publishNetworkApplications(applications, hasSample: true)
+    }
+
+    private func publishNetworkApplications(_ applications: [NetworkApplicationRow], hasSample: Bool) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self,
+                  self.networkApplications != applications || self.hasNetworkApplicationSample != hasSample else {
+                return
+            }
+            self.objectWillChange.send()
+            self.networkApplications = applications
+            self.hasNetworkApplicationSample = hasSample
+        }
     }
 
     private func collectLowFrequency(force: Bool = false) {

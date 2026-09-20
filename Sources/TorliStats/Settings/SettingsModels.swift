@@ -161,6 +161,7 @@ enum DashboardModule: String, CaseIterable, Codable, Identifiable {
     case memory
     case disk
     case network
+    case networkApplications
     case fan
     case typing
     case power
@@ -177,6 +178,7 @@ enum DashboardModule: String, CaseIterable, Codable, Identifiable {
         case .memory: return StatsL10n.text("module.memory")
         case .disk: return StatsL10n.text("module.disk")
         case .network: return StatsL10n.text("module.network")
+        case .networkApplications: return StatsL10n.text("module.network_applications")
         case .fan: return StatsL10n.text("module.fan")
         case .typing: return StatsL10n.text("module.typing")
         case .power: return StatsL10n.text("module.power")
@@ -189,7 +191,7 @@ enum DashboardModule: String, CaseIterable, Codable, Identifiable {
     var isMetric: Bool {
         switch self {
         case .cpu, .gpu, .memory, .disk, .network, .fan, .typing: return true
-        case .power, .codex, .wakatime, .processes: return false
+        case .power, .codex, .wakatime, .processes, .networkApplications: return false
         }
     }
 }

@@ -2,29 +2,19 @@
 
 All notable changes to Torli Stats are documented here.
 
-## [Unreleased]
+## [1.5.5] - 2026-09-18
 
-<!-- ai-changelog:manual-1.5.3 -->
-### 2026-09-16
-
+<!-- ai-changelog:manual-1.5.5 -->
 ### English
-- Bumps the application version from `1.5.2` to `1.5.3` in `Info.plist` and `VERSION`.
-- Improves Dashboard runtime feedback:
-  - Animates metric values, CPU/input charts, progress bars, battery rings, heatmap mode changes, and panel presentation.
-  - Adds actionable empty states for input monitoring, WakaTime, Codex, and sensor access.
-  - Uses a shared `DashboardChip` component for system, status, account, and range labels.
-  - Adds chart baselines and safer text compression/truncation for narrow cards.
-  - Limits hover elevation to interactive cards and gives icon buttons hover/pressed feedback.
-- Keeps the Dashboard scrollable with mouse-wheel and trackpad input while hiding the native scroll indicator.
-- No new permission declarations, persistence migrations, or migration code are introduced. `LSMinimumSystemVersion` remains `15.0`.
+- Refines the Settings visual system without changing settings behavior:
+  - Simplifies all Settings pages to a two-level hierarchy: the window background and section card. Account rows, status messages, sensor capabilities, reorder rows, and destructive actions no longer introduce nested cards.
+  - Unifies section surfaces, field labels, inline help, drag-order rows, tab selection, and empty/status presentation across Appearance, Status Bar, Dashboard, Monitoring, Development, System, Notes, and Statistics settings.
+  - Clarifies action hierarchy: connection and authorization actions are prominent; refresh, test, and copy actions are secondary; remove, uninstall, reset, and clear actions are consistently destructive.
+- Keeps a neutral active-tab treatment with stronger contrast, avoiding a blue-tinted Settings surface.
 
 ### 中文
-- 在 `Info.plist` 和 `VERSION` 中将应用版本从 `1.5.2` 更新为 `1.5.3`。
-- 改进 Dashboard 运行时反馈：
-  - 为指标数值、CPU/输入图表、进度条、电池环、Heatmap 模式切换和面板展示增加动画。
-  - 为输入监控、WakaTime、Codex 和传感器访问增加可操作的空状态。
-  - 使用统一的 `DashboardChip` 组件渲染系统、状态、账户和范围标签。
-  - 增加图表基准线，并改善窄卡片中的文本压缩和截断处理。
-  - 仅可交互卡片显示悬停抬升效果，图标按钮增加悬停和按下反馈。
-- Dashboard 继续支持鼠标滚轮和触控板滚动，同时隐藏原生滚动指示器。
-- 本次修改未新增权限声明、持久化迁移或迁移代码。`LSMinimumSystemVersion` 仍为 `15.0`。
+- 改进 Settings 视觉系统，不改变任何设置行为：
+  - 将所有设置页面统一为两层结构：窗口背景与 Section 卡片。账户行、状态提示、传感器能力项、排序行和危险操作不再创建嵌套卡片。
+  - 统一外观、状态栏、面板、监控、开发统计、系统、便签和统计设置中的卡片表面、字段标签、行内提示、拖拽排序行、页内 Tab 及空状态/状态信息。
+  - 明确操作层级：连接和授权为主操作；刷新、测试和复制为次操作；移除、卸载、重置和清空统一为危险操作。
+- 保持中性的 Tab 激活态并提高对比度，避免为 Settings 表面增加蓝色调。

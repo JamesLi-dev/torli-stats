@@ -210,6 +210,7 @@ struct DashboardView: View {
         case .memory: return settings.showMemoryCard
         case .disk: return settings.showDiskCard
         case .network: return settings.showNetworkCard
+        case .networkApplications: return settings.showNetworkApplicationsCard
         case .fan: return settings.showFanCard
         case .typing: return settings.showTypingCard && settings.typingStatsEnabled
         case .power: return settings.showPowerCard
@@ -336,7 +337,7 @@ struct DashboardView: View {
             .contentShape(DashboardLayout.cardShape)
             .onTapGesture(perform: onTypingDetails)
             .help(StatsL10n.text("dashboard.typing_details"))
-        case .power, .codex, .wakatime, .processes:
+        case .power, .codex, .wakatime, .processes, .networkApplications:
             EmptyView()
         }
     }
@@ -373,7 +374,14 @@ struct DashboardView: View {
                 processes: store.processes,
                 density: settings.dashboardDensity,
                 displayMode: settings.processSort,
-                showPID: settings.showProcessPID
+                showPID: settings.showProcessPID,
+                onDisplayModeChange: { settings.processSort = $0 }
+            )
+        case .networkApplications:
+            NetworkApplicationListView(
+                applications: store.networkApplications,
+                hasSample: store.hasNetworkApplicationSample,
+                density: settings.dashboardDensity
             )
         case .cpu, .gpu, .memory, .disk, .network, .fan, .typing:
             EmptyView()
@@ -434,7 +442,13 @@ struct DashboardView: View {
             }
         }
         if settings.showProcessesCard {
-            blockHeights.append(42 + CGFloat(processRowCount) * 18)
+            let processSpacing = processRowCount > 0 ? CGFloat(processRowCount) * 4 : 0
+            blockHeights.append(42 + CGFloat(processRowCount) * 20 + processSpacing)
+        }
+        if settings.showNetworkApplicationsCard {
+            let rowCount = settings.dashboardDensity == .compact ? 3 : 5
+            let rowSpacing = CGFloat(rowCount) * 4
+            blockHeights.append(42 + CGFloat(rowCount) * 20 + rowSpacing)
         }
 
         let padding = settings.dashboardDensity == .compact ? 6 : 8
@@ -490,6 +504,43 @@ struct DashboardView: View {
     }
 }
 
+struct DashboardStatusSurface<Content: View>: View {
+    let tint: Color
+    let content: Content
+
+    init(tint: Color = .secondary, @ViewBuilder content: () -> Content) {
+        self.tint = tint
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(.horizontal, 8)
+            .padding(.vertical, 7)
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.primary.opacity(0.026))
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(tint.opacity(0.035))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.34),
+                                tint.opacity(0.10),
+                                Color.black.opacity(0.07)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 0.7
+                    )
+            }
+    }
+}
+
 struct DashboardEmptyState: View {
     let icon: String
     let message: String
@@ -498,31 +549,26 @@ struct DashboardEmptyState: View {
     var actionHelp: String?
 
     var body: some View {
-        HStack(spacing: 7) {
-            Image(systemName: icon)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(tint)
-            Text(message)
-                .font(.system(size: 10, weight: .medium, design: .rounded))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-            Spacer(minLength: 0)
-            if let action, let actionHelp {
-                Button(action: action) {
-                    Image(systemName: "arrow.up.right")
+        DashboardStatusSurface(tint: tint) {
+            HStack(spacing: 7) {
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(tint)
+                Text(message)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                Spacer(minLength: 0)
+                if let action, let actionHelp {
+                    Button(action: action) {
+                        Image(systemName: "arrow.up.right")
+                    }
+                    .buttonStyle(DashboardIconButtonStyle())
+                    .help(actionHelp)
+                    .accessibilityLabel(actionHelp)
                 }
-                .buttonStyle(DashboardIconButtonStyle())
-                .help(actionHelp)
-                .accessibilityLabel(actionHelp)
             }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 7)
-        .background(tint.opacity(0.07), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(tint.opacity(0.12), lineWidth: 0.6)
         }
     }
 }
@@ -536,7 +582,7 @@ enum DashboardLayout {
     static let cardCornerRadius: CGFloat = 12
     static let progressBarHeight: CGFloat = 4
     static let codexProgressBarHeight: CGFloat = 5
-    static let sectionSpacing: CGFloat = 8
+    static let sectionSpacing: CGFloat = 10
 
     static func metricCardHeight(for density: DashboardDensity) -> CGFloat {
         switch density {
@@ -580,7 +626,7 @@ private struct DashboardCardSurfaceModifier: ViewModifier {
         LinearGradient(
             colors: colorScheme == .dark
                 ? [Color.white.opacity(0.14), Color.white.opacity(0.035)]
-                : [Color.white.opacity(0.68), Color.black.opacity(0.05)],
+                : [Color.white.opacity(0.78), Color.black.opacity(0.12)],
             startPoint: .top,
             endPoint: .bottom
         )
@@ -604,9 +650,9 @@ private struct DashboardCardSurfaceModifier: ViewModifier {
             }
             .clipShape(DashboardLayout.cardShape)
             .shadow(
-                color: Color.black.opacity(colorScheme == .dark ? 0.14 : 0.05),
-                radius: isInteractive && isHovered ? 8 : 5,
-                y: isInteractive && isHovered ? 2 : 1
+                color: Color.black.opacity(colorScheme == .dark ? 0.14 : 0.105),
+                radius: isInteractive && isHovered ? 8 : 6,
+                y: isInteractive && isHovered ? 2 : 1.5
             )
             .brightness(isInteractive && isHovered ? 0.012 : 0)
             .onHover { hovering in

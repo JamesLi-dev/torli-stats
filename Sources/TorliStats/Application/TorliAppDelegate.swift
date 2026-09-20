@@ -172,6 +172,10 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
             app.updatePopoverSize()
         }
         observeSetting(settings.$showNetworkCard) { $0.updatePopoverSize() }
+        observeSetting(settings.$showNetworkApplicationsCard) { app in
+            app.updateMetricsCollectionRequirements()
+            app.updatePopoverSize()
+        }
         observeSetting(settings.$showFanCard) { app in
             app.updateMetricsCollectionRequirements()
             app.updatePopoverSize()
@@ -352,6 +356,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
             processes: settings.showProcessesCard,
             sensorReadings: settings.showCPUCard || settings.showGPUCard || settings.showFanCard
         )
+        store.setNetworkApplicationMonitoring(settings.showNetworkApplicationsCard)
     }
 
     private func applyPowerPolicy() {

@@ -7,10 +7,7 @@ extension SettingsView {
         SettingsSection(title: StatsL10n.text("settings.dashboard_modules")) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 10) {
-                    Text(StatsL10n.text("dashboard.density"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 60, alignment: .leading)
+                    SettingsFieldLabel(StatsL10n.text("dashboard.density"), width: 78)
                     Picker("", selection: $settings.dashboardDensity) {
                         ForEach(DashboardDensity.allCases) { density in
                             Text(density.title).tag(density)
@@ -39,6 +36,7 @@ extension SettingsView {
                     Toggle(StatsL10n.text("module.memory"), isOn: $settings.showMemoryCard)
                     Toggle(StatsL10n.text("module.disk"), isOn: $settings.showDiskCard)
                     Toggle(StatsL10n.text("module.network"), isOn: $settings.showNetworkCard)
+                    Toggle(StatsL10n.text("module.network_applications"), isOn: $settings.showNetworkApplicationsCard)
                     Toggle(StatsL10n.text("module.fan"), isOn: $settings.showFanCard)
                     Toggle(StatsL10n.text("module.typing"), isOn: $settings.showTypingCard)
                     Toggle(StatsL10n.text("module.power"), isOn: $settings.showPowerCard)
@@ -50,9 +48,10 @@ extension SettingsView {
                 Divider()
 
                 VStack(alignment: .leading, spacing: 7) {
-                Text(StatsL10n.text("dashboard.order_hint"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                SettingsInlineHint(
+                    text: StatsL10n.text("dashboard.order_hint"),
+                    icon: "arrow.up.and.down"
+                )
 
                 LazyVGrid(
                     columns: [GridItem(.adaptive(minimum: 130), alignment: .leading)],
@@ -60,20 +59,7 @@ extension SettingsView {
                     spacing: 6
                 ) {
                     ForEach(visibleDashboardModules) { module in
-                        HStack(spacing: 7) {
-                            Image(systemName: "line.3.horizontal")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(module.title)
-                                .font(.caption)
-                                .lineLimit(1)
-                            Spacer(minLength: 0)
-                            Image(systemName: "arrow.up.and.down")
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                        }
-                        .padding(.vertical, 3)
-                        .contentShape(Rectangle())
+                        SettingsReorderRow(title: module.title)
                         .onDrag {
                             draggedDashboardModule = module
                             return NSItemProvider(object: module.rawValue as NSString)

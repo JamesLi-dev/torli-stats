@@ -23,9 +23,15 @@ struct WakaTimeUsageView: View {
                 if let snapshot {
                     snapshotContent(snapshot, status: StatsL10n.text("wakatime.refreshing"))
                 } else {
-                    ProgressView(StatsL10n.text("wakatime.syncing"))
-                        .controlSize(.small)
-                        .font(.caption)
+                    DashboardStatusSurface(tint: DashboardPalette.diskProgress) {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text(StatsL10n.text("wakatime.syncing"))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             case .available(let snapshot, let refreshedAt):
                 snapshotContent(snapshot, status: StatsL10n.format("wakatime.status.updated_at", refreshedAt.formatted(date: .omitted, time: .shortened)))
@@ -33,9 +39,12 @@ struct WakaTimeUsageView: View {
                 if let snapshot {
                     snapshotContent(snapshot, status: StatsL10n.format("wakatime.cached", message))
                 } else {
-                    Text(message)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    DashboardStatusSurface(tint: DashboardPalette.diskProgress) {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
                 }
             }
         }
@@ -124,12 +133,25 @@ struct WakaTimeUsageView: View {
                 }
             }
         }
-        .padding(.horizontal, 7)
-        .padding(.vertical, 6)
-        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .background {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary.opacity(0.026))
+        }
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color.primary.opacity(0.06), lineWidth: 0.6)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.34),
+                            Color.black.opacity(0.07)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 0.7
+                )
         }
     }
 

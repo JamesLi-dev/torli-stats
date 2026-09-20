@@ -1,6 +1,6 @@
 # Torli Stats
 
-[中文说明](README_CN.md)
+[中文说明](README_CN.md) · [Full user and developer guide](docs/user-guide.md)
 
 A lightweight, local system monitor for the macOS menu bar. Torli Stats keeps the most useful system metrics one click away without sending data to a server.
 

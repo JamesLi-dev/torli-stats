@@ -1,6 +1,6 @@
 # Torli Stats
 
-[English README](README.md)
+[English README](README.md) · [完整用户与开发者说明书](docs/user-guide.md)
 
 Torli Stats 是一款运行在 macOS 状态栏中的本地系统监控工具，不会向服务器发送监控数据。
 
