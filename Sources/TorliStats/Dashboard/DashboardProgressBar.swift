@@ -1,32 +1,26 @@
 import SwiftUI
 
 enum DashboardPalette {
+    // Compatibility aliases for dashboard callers. Semantic colors are shared
+    // through AppColors so they adapt consistently to the active appearance.
     static let cpuBars = LinearGradient(
-        colors: [
-            Color(red: 0.38, green: 0.84, blue: 0.50),
-            Color(red: 0.15, green: 0.68, blue: 0.36)
-        ],
+        colors: [AppColors.success.opacity(0.76), AppColors.success],
         startPoint: .top,
         endPoint: .bottom
     )
 
     static let inputBars = LinearGradient(
-        colors: [
-            Color(red: 0.34, green: 0.68, blue: 0.98),
-            Color(red: 0.20, green: 0.48, blue: 0.90)
-        ],
+        colors: [AppColors.accent.opacity(0.76), AppColors.accent],
         startPoint: .top,
         endPoint: .bottom
     )
 
-    static let diskProgress = Color(red: 0.25, green: 0.56, blue: 0.94)
-    static let activity = Color(red: 0.72, green: 0.38, blue: 0.88)
-    static let quotaSuccess = Color(red: 0.17, green: 0.72, blue: 0.40)
-    static let quotaWarning = Color(red: 0.92, green: 0.57, blue: 0.16)
-    // A vivid green selection color for sortable column headers. It remains
-    // distinct from blue metric accents and warning/error states.
-    static let sortSelection = Color(red: 0.18, green: 0.76, blue: 0.40)
-    static let quotaCritical = Color(red: 0.88, green: 0.25, blue: 0.28)
+    static let diskProgress = AppColors.accent
+    static let activity = AppColors.activity
+    static let quotaSuccess = AppColors.success
+    static let quotaWarning = AppColors.warning
+    static let sortSelection = AppColors.success
+    static let quotaCritical = AppColors.critical
 }
 
 struct DashboardChip: View {
@@ -51,6 +45,51 @@ struct DashboardChip: View {
                     .stroke(tint.opacity(0.15), lineWidth: 0.6)
             }
             .shadow(color: Color.black.opacity(0.035), radius: 1, y: 0.5)
+    }
+}
+
+struct DashboardSortHeaderButtonStyle: ButtonStyle {
+    let isSelected: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        DashboardSortHeaderButtonLabel(
+            label: configuration.label,
+            isSelected: isSelected,
+            isPressed: configuration.isPressed
+        )
+    }
+}
+
+private struct DashboardSortHeaderButtonLabel<Label: View>: View {
+    let label: Label
+    let isSelected: Bool
+    let isPressed: Bool
+    @State private var isHovered = false
+
+    private var surfaceColor: Color {
+        if isPressed { return Color.primary.opacity(0.12) }
+        if isSelected { return DashboardPalette.sortSelection.opacity(isHovered ? 0.20 : 0.12) }
+        if isHovered { return Color.primary.opacity(0.07) }
+        return .clear
+    }
+
+    var body: some View {
+        label
+            .padding(.vertical, 2)
+            .background(surfaceColor, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .stroke(
+                        isSelected || isHovered
+                            ? (isSelected ? DashboardPalette.sortSelection : Color.primary).opacity(0.18)
+                            : .clear,
+                        lineWidth: 0.6
+                    )
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .animation(.easeOut(duration: 0.14), value: isHovered)
+            .animation(.easeOut(duration: 0.10), value: isPressed)
+            .onHover { isHovered = $0 }
     }
 }
 
