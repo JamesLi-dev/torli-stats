@@ -82,7 +82,7 @@ struct DashboardView: View {
                     }
                 }
             }
-            .padding(settings.dashboardDensity == .compact ? 6 : 8)
+            .padding(settings.dashboardDensity == .compact ? AppMetrics.compactPadding : AppMetrics.contentPadding)
             .frame(width: Self.panelWidth, alignment: .top)
         }
         .frame(width: Self.panelWidth)
@@ -137,17 +137,16 @@ struct DashboardView: View {
                         .allowsHitTesting(false)
                 }
         } else {
-            // Keep the light surface translucent, then add only a quiet cool
-            // gradient so the cards have depth without competing with their
-            // metric colors.
+            // Keep the light material neutral: the surface adds depth without
+            // introducing a blue cast that competes with metric status colors.
             DashboardLayout.popoverShape
                 .fill(.thinMaterial)
                 .overlay {
                     LinearGradient(
                         colors: [
                             Color.white.opacity(0.52),
-                            Color.white.opacity(0.28),
-                            Color(red: 0.88, green: 0.93, blue: 1.0).opacity(0.14)
+                            AppColors.card.opacity(0.26),
+                            Color.primary.opacity(0.025)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -235,7 +234,7 @@ struct DashboardView: View {
             }
         case .gpu:
             MetricCard(title: "GPU", icon: "display", value: "\(Int(store.gpu))%", badge: store.deviceInfo.gpuCores.map { StatsL10n.format("dashboard.gpu_cores", $0) } ?? "—", density: settings.dashboardDensity) {
-                Sparkline(values: store.gpuHistory, color: .orange)
+                Sparkline(values: store.gpuHistory, color: AppColors.warning)
             } footer: {
                 HStack(spacing: 6) {
                     Text(store.deviceInfo.gpuModel)
@@ -256,7 +255,7 @@ struct DashboardView: View {
                 valueColor: highUsageColor(store.memory, warning: 75, critical: 90),
                 badgeColor: memoryPressureColor
             ) {
-                Sparkline(values: store.memoryHistory, color: .yellow)
+                Sparkline(values: store.memoryHistory, color: AppColors.caution)
             } footer: {
                 Text(StatsL10n.format("dashboard.memory_usage", store.memoryUsed, store.memoryTotal))
                     .help(StatsL10n.text("dashboard.memory_usage_help"))
@@ -451,7 +450,7 @@ struct DashboardView: View {
             blockHeights.append(42 + CGFloat(rowCount) * 20 + rowSpacing)
         }
 
-        let padding = settings.dashboardDensity == .compact ? 6 : 8
+        let padding = settings.dashboardDensity == .compact ? AppMetrics.compactPadding : AppMetrics.contentPadding
         let spacing = CGFloat(max(0, blockHeights.count - 1)) * DashboardLayout.sectionSpacing
         let height = CGFloat(padding * 2) + blockHeights.reduce(0, +) + spacing
 
@@ -471,16 +470,16 @@ struct DashboardView: View {
 
     private var memoryPressureColor: Color {
         switch store.memoryPressure {
-        case .normal: return .green
-        case .warning: return .orange
-        case .critical: return .red
+        case .normal: return AppColors.success
+        case .warning: return AppColors.warning
+        case .critical: return AppColors.critical
         case .unknown: return .secondary
         }
     }
 
     private func highUsageColor(_ value: Double, warning: Int, critical: Int) -> Color {
-        if value >= Double(max(warning, critical)) { return .red }
-        if value >= Double(min(warning, critical)) { return .orange }
+        if value >= Double(max(warning, critical)) { return AppColors.critical }
+        if value >= Double(min(warning, critical)) { return AppColors.warning }
         return .primary
     }
 
@@ -578,11 +577,11 @@ enum DashboardLayout {
     // larger radii leave a second, visible curve inside the outer bezel.
     // Keep the panel's outer curve visibly softer than its inner cards while
     // the custom borderless panel defines the final bezel.
-    static let popoverCornerRadius: CGFloat = 16
-    static let cardCornerRadius: CGFloat = 12
+    static let popoverCornerRadius = AppMetrics.panelCornerRadius
+    static let cardCornerRadius = AppMetrics.dashboardCardCornerRadius
     static let progressBarHeight: CGFloat = 4
     static let codexProgressBarHeight: CGFloat = 5
-    static let sectionSpacing: CGFloat = 10
+    static let sectionSpacing = AppMetrics.sectionSpacing
 
     static func metricCardHeight(for density: DashboardDensity) -> CGFloat {
         switch density {
@@ -603,7 +602,7 @@ enum DashboardLayout {
     }
 
     static func metricSpacing(for density: DashboardDensity) -> CGFloat {
-        density == .compact ? 6 : 8
+        density == .compact ? AppMetrics.compactPadding : AppMetrics.contentPadding
     }
 }
 

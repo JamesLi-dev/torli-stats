@@ -193,9 +193,9 @@ private struct ActivityMetricSwitch: View {
             }
         }
         .frame(width: 240)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: AppMetrics.compactCornerRadius + 2, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: AppMetrics.compactCornerRadius + 2, style: .continuous)
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
     }
@@ -204,11 +204,16 @@ private struct ActivityMetricSwitch: View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundStyle(isSelected ? Color.white : Color.primary)
+                .foregroundStyle(isSelected ? AppColors.accent : Color.primary)
                 .frame(maxWidth: .infinity, minHeight: 28)
-                .background(isSelected ? Color.accentColor : AppColors.badge)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(
+            AppSelectionButtonStyle(
+                isSelected: isSelected,
+                tint: AppColors.accent,
+                cornerRadius: 0
+            )
+        )
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

@@ -20,13 +20,13 @@ struct DetailSection<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center, spacing: 8) {
+        VStack(alignment: .leading, spacing: AppMetrics.sectionSpacing) {
+            HStack(alignment: .center, spacing: AppMetrics.contentPadding) {
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(AppTypography.detailTitle)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .font(AppTypography.metadata.monospaced())
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -37,7 +37,7 @@ struct DetailSection<Content: View>: View {
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
+        .padding(AppMetrics.sectionPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .settingsCardSurface()
     }
@@ -51,10 +51,10 @@ struct DetailMetricGrid: View {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 VStack(alignment: .leading, spacing: 3) {
                     Text(item.0)
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .font(AppTypography.metadata)
                         .foregroundStyle(.secondary)
                     Text(item.1)
-                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .font(AppTypography.detailMetric)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                 }
@@ -84,7 +84,7 @@ struct BreakdownList: View {
                     }
                     .frame(height: 4)
                     Text(StatisticsFormatting.compactDuration(value.totalSeconds))
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .font(AppTypography.metadata.monospaced())
                         .foregroundStyle(.secondary)
                         .frame(width: 58, alignment: .trailing)
                 }

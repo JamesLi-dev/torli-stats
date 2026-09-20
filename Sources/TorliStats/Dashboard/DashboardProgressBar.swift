@@ -52,44 +52,13 @@ struct DashboardSortHeaderButtonStyle: ButtonStyle {
     let isSelected: Bool
 
     func makeBody(configuration: Configuration) -> some View {
-        DashboardSortHeaderButtonLabel(
-            label: configuration.label,
+        AppSelectionButtonStyle(
             isSelected: isSelected,
-            isPressed: configuration.isPressed
+            tint: DashboardPalette.sortSelection,
+            cornerRadius: AppMetrics.microCornerRadius,
+            verticalPadding: 2
         )
-    }
-}
-
-private struct DashboardSortHeaderButtonLabel<Label: View>: View {
-    let label: Label
-    let isSelected: Bool
-    let isPressed: Bool
-    @State private var isHovered = false
-
-    private var surfaceColor: Color {
-        if isPressed { return Color.primary.opacity(0.12) }
-        if isSelected { return DashboardPalette.sortSelection.opacity(isHovered ? 0.20 : 0.12) }
-        if isHovered { return Color.primary.opacity(0.07) }
-        return .clear
-    }
-
-    var body: some View {
-        label
-            .padding(.vertical, 2)
-            .background(surfaceColor, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .stroke(
-                        isSelected || isHovered
-                            ? (isSelected ? DashboardPalette.sortSelection : Color.primary).opacity(0.18)
-                            : .clear,
-                        lineWidth: 0.6
-                    )
-            }
-            .contentShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-            .animation(.easeOut(duration: 0.14), value: isHovered)
-            .animation(.easeOut(duration: 0.10), value: isPressed)
-            .onHover { isHovered = $0 }
+        .makeBody(configuration: configuration)
     }
 }
 
@@ -113,7 +82,7 @@ private struct DashboardIconButtonLabel<Label: View>: View {
     var body: some View {
         label
             .font(.system(size: 11, weight: .semibold, design: .rounded))
-            .frame(width: 22, height: 22)
+            .frame(width: AppMetrics.iconButtonSize, height: AppMetrics.iconButtonSize)
             .background(surfaceColor, in: Circle())
             .overlay {
                 Circle()

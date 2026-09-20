@@ -157,20 +157,18 @@ struct SettingsSidebarItem: View {
         Button(action: action) {
             HStack(spacing: 7) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 14, weight: .regular))
+                    .font(AppTypography.navigation)
                     .frame(width: 20, height: 18)
                 Text(title)
-                    .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
+                    .font(isSelected ? AppTypography.navigationSelected : AppTypography.navigation)
             }
-                .foregroundStyle(isSelected ? .primary : .secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 11)
-                .padding(.vertical, 9)
-                .background(isSelected ? AppColors.badge : .clear)
-                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                .contentShape(Rectangle())
+            .foregroundStyle(isSelected ? .primary : .secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 9)
+            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppSelectionButtonStyle(isSelected: isSelected))
         // Sidebar selection is represented by its fill; keyboard focus should
         // not add AppKit's blue focus ring to an unselected navigation row.
         .focusable(false)
@@ -192,13 +190,13 @@ struct SettingsSection<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(StatsL10n.text(title))
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .font(AppTypography.sectionTitle)
                 .foregroundStyle(.primary)
 
             VStack(alignment: .leading, spacing: 9) {
                 content
             }
-            .padding(14)
+            .padding(AppMetrics.sectionPadding)
             .frame(maxWidth: .infinity, minHeight: cardMinHeight, alignment: .topLeading)
             .settingsCardSurface()
         }
@@ -286,15 +284,8 @@ struct SettingsTabItem: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .foregroundStyle(isSelected ? .primary : .secondary)
-                .background(isSelected ? Color.primary.opacity(0.13) : .clear)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .stroke(isSelected ? Color.primary.opacity(0.13) : .clear, lineWidth: 0.8)
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                .shadow(color: isSelected ? Color.black.opacity(0.055) : .clear, radius: 2, y: 1)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppSelectionButtonStyle(isSelected: isSelected))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
@@ -304,11 +295,11 @@ private struct SettingsCardSurface: ViewModifier {
         content
             .background(AppColors.card)
             .background {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: AppMetrics.cardCornerRadius, style: .continuous)
                     .fill(Color.primary.opacity(0.018))
             }
             .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: AppMetrics.cardCornerRadius, style: .continuous)
                     .stroke(
                         LinearGradient(
                             colors: [
@@ -322,7 +313,7 @@ private struct SettingsCardSurface: ViewModifier {
                         lineWidth: 0.8
                     )
             }
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: AppMetrics.cardCornerRadius, style: .continuous))
             .shadow(color: Color.black.opacity(0.045), radius: 9, y: 3)
     }
 }

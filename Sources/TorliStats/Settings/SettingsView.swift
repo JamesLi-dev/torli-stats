@@ -114,7 +114,7 @@ struct SettingsView: View {
                     settingsContent
                 }
                 .frame(maxWidth: .infinity, alignment: .topLeading)
-                .padding(28)
+                .padding(AppMetrics.windowContentPadding)
                 .background(ThinScrollViewConfigurator())
             }
             .scrollIndicators(.hidden)
@@ -261,7 +261,7 @@ struct SettingsView: View {
     private func settingsPage<Content: View>(
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 18) { content() }
+        VStack(alignment: .leading, spacing: AppMetrics.sectionSpacing + 8) { content() }
     }
 
 }
