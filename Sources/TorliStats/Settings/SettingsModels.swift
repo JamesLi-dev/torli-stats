@@ -59,8 +59,8 @@ enum SystemStatusBarStyle: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .compact: return StatsL10n.text("display.compact")
-        case .stacked: return StatsL10n.text("display.stacked")
+        case .compact: return StatsL10n.text("settings.status_bar.layout_vertical")
+        case .stacked: return StatsL10n.text("settings.status_bar.layout_horizontal")
         }
     }
 }

@@ -467,6 +467,8 @@
 "settings.status_bar.codex_account_count" = "Accounts";
 "settings.status_bar.system_metrics_style" = "System Metrics Style";
 "settings.status_bar.display_style" = "Display Style";
+"settings.status_bar.layout_vertical" = "Vertical";
+"settings.status_bar.layout_horizontal" = "Horizontal";
 "settings.status_bar.font_size" = "Text Size";
 "status_bar.font.small" = "Small";
 "status_bar.font.standard" = "Standard";

@@ -467,6 +467,8 @@
 "settings.status_bar.codex_account_count" = "账号数";
 "settings.status_bar.system_metrics_style" = "系统指标样式";
 "settings.status_bar.display_style" = "显示方式";
+"settings.status_bar.layout_vertical" = "竖向";
+"settings.status_bar.layout_horizontal" = "横向";
 "settings.status_bar.font_size" = "文字大小";
 "status_bar.font.small" = "小";
 "status_bar.font.standard" = "标准";
