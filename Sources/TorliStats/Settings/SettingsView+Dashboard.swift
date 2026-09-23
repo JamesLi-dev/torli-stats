@@ -15,6 +15,7 @@ extension SettingsView {
                     }
                     .labelsHidden()
                     .pickerStyle(.segmented)
+                    .frame(width: 280)
                 }
 
                 HStack(spacing: 18) {

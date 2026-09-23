@@ -66,6 +66,7 @@ struct TypingStatisticsDetailContent: View {
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
+                    .frame(width: 240)
                     .accessibilityLabel(StatsL10n.text("statistics.typing.period"))
                 )
             ) {

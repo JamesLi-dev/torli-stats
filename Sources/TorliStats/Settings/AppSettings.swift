@@ -112,13 +112,13 @@ final class AppSettings: ObservableObject {
     @Published var statusBarFontSize: StatusBarFontSize {
         didSet { defaults.set(statusBarFontSize.rawValue, forKey: "statusBarFontSize") }
     }
-    /// Offset from the system menu-bar spacing. It is persisted as a pending
-    /// value and affects the system only after the user explicitly applies it.
-    @Published var menuBarSpacingOffset: Int {
-        didSet { defaults.set(menuBarSpacingOffset, forKey: "menuBarSpacingOffset") }
-    }
     @Published var showStatusBarMetricIcons: Bool {
         didSet { defaults.set(showStatusBarMetricIcons, forKey: "showStatusBarMetricIcons") }
+    }
+    /// Keeps the default title color untouched unless users explicitly opt in
+    /// to threshold colors, allowing AppKit to dim inactive menu bars.
+    @Published var statusBarUsageColorsEnabled: Bool {
+        didSet { defaults.set(statusBarUsageColorsEnabled, forKey: "statusBarUsageColorsEnabled") }
     }
     @Published var networkRateUnit: NetworkRateUnit {
         didSet { defaults.set(networkRateUnit.rawValue, forKey: "networkRateUnit") }
@@ -276,11 +276,8 @@ final class AppSettings: ObservableObject {
         statusBarMetricOrder = Self.validStatusBarMetricOrder(defaults.stringArray(forKey: "statusBarMetricOrder"))
         systemStatusBarStyle = SystemStatusBarStyle(rawValue: defaults.string(forKey: "systemStatusBarStyle") ?? "") ?? .compact
         statusBarFontSize = StatusBarFontSize(rawValue: defaults.string(forKey: "statusBarFontSize") ?? "") ?? .standard
-        let savedMenuBarSpacingOffset = defaults.object(forKey: "menuBarSpacingOffset") as? Int
-        menuBarSpacingOffset = savedMenuBarSpacingOffset.flatMap {
-            MenuBarSpacingManager.supportedOffsets.contains($0) ? $0 : nil
-        } ?? 0
         showStatusBarMetricIcons = defaults.object(forKey: "showStatusBarMetricIcons") as? Bool ?? true
+        statusBarUsageColorsEnabled = defaults.object(forKey: "statusBarUsageColorsEnabled") as? Bool ?? false
         networkRateUnit = NetworkRateUnit(rawValue: defaults.string(forKey: "networkRateUnit") ?? "") ?? .automatic
         let savedNetworkRateDecimalPlaces = defaults.object(forKey: "networkRateDecimalPlaces") as? Int
         networkRateDecimalPlaces = savedNetworkRateDecimalPlaces.flatMap { [0, 1, 2].contains($0) ? $0 : nil } ?? 1

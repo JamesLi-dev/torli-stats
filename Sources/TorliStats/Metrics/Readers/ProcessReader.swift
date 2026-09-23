@@ -6,6 +6,12 @@ enum ProcessReader {
         let pipe = Pipe()
         process.executableURL = URL(fileURLWithPath: "/bin/ps")
         process.arguments = ["-axo", "pid=,pcpu=,rss=,comm="]
+        // `ps` serializes non-ASCII command paths as `M-…` escapes when its
+        // inherited locale is C. Force UTF-8 only for this child process so
+        // application names such as 同花顺 remain readable in the Dashboard.
+        var environment = ProcessInfo.processInfo.environment
+        environment["LC_ALL"] = "C.UTF-8"
+        process.environment = environment
         process.standardOutput = pipe
 
         do {

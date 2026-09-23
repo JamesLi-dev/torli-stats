@@ -1,11 +1,6 @@
 import AppKit
 import SwiftUI
 
-enum MenuBarSpacingAction {
-    case apply
-    case restore
-}
-
 final class SettingsNavigation: ObservableObject {
     static let shared = SettingsNavigation()
     @Published var selectedCategory: SettingsCategory = .appearance
@@ -32,15 +27,12 @@ struct SettingsView: View {
     @State var wakaTimeMessage: String?
     @State var languageRestartRequired = false
     @State var initialLanguage: AppLanguage
-    @State var pendingMenuBarSpacingAction: MenuBarSpacingAction?
-    @State var menuBarSpacingMessage: String?
     @ObservedObject private var navigation = SettingsNavigation.shared
     @StateObject private var notesSettings = SettingsModel()
     let onCodexRefresh: () -> Void
     let onWakaTimeRefresh: () -> Void
     let onRequestTypingStatsPermission: () -> Void
     let onCheckForUpdates: () -> Void
-    let onApplyMenuBarSpacing: (Int?) throws -> Void
 
     init(
         settings: AppSettings,
@@ -51,8 +43,7 @@ struct SettingsView: View {
         onCodexRefresh: @escaping () -> Void,
         onWakaTimeRefresh: @escaping () -> Void,
         onRequestTypingStatsPermission: @escaping () -> Void,
-        onCheckForUpdates: @escaping () -> Void,
-        onApplyMenuBarSpacing: @escaping (Int?) throws -> Void
+        onCheckForUpdates: @escaping () -> Void
     ) {
         self.settings = settings
         self._initialLanguage = State(initialValue: settings.appLanguage)
@@ -65,7 +56,6 @@ struct SettingsView: View {
         self.onWakaTimeRefresh = onWakaTimeRefresh
         self.onRequestTypingStatsPermission = onRequestTypingStatsPermission
         self.onCheckForUpdates = onCheckForUpdates
-        self.onApplyMenuBarSpacing = onApplyMenuBarSpacing
     }
 
     var visibleStatusBarGroups: [StatusBarMetricGroup] {
@@ -114,7 +104,7 @@ struct SettingsView: View {
                     settingsContent
                 }
                 .frame(maxWidth: .infinity, alignment: .topLeading)
-                .padding(28)
+                .padding(AppMetrics.windowContentPadding)
                 .background(ThinScrollViewConfigurator())
             }
             .scrollIndicators(.hidden)
@@ -145,23 +135,6 @@ struct SettingsView: View {
             }
         } message: {
             Text(StatsL10n.text("codex.settings.remove_confirmation_message"))
-        }
-        .confirmationDialog(
-            menuBarSpacingConfirmationTitle,
-            isPresented: Binding(
-                get: { pendingMenuBarSpacingAction != nil },
-                set: { if !$0 { pendingMenuBarSpacingAction = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button(menuBarSpacingConfirmationActionTitle) {
-                applyPendingMenuBarSpacingAction()
-            }
-            Button(StatsL10n.text("common.cancel"), role: .cancel) {
-                pendingMenuBarSpacingAction = nil
-            }
-        } message: {
-            Text(StatsL10n.text("settings.status_bar.menu_spacing.confirmation"))
         }
         .frame(minWidth: 900, idealWidth: 940, minHeight: 680, idealHeight: 760)
         .background(.clear)
@@ -230,38 +203,10 @@ struct SettingsView: View {
         }
     }
 
-    var menuBarSpacingConfirmationTitle: String {
-        switch pendingMenuBarSpacingAction {
-        case .restore: return StatsL10n.text("settings.status_bar.menu_spacing.restore_confirmation_title")
-        case .apply, nil: return StatsL10n.text("settings.status_bar.menu_spacing.apply_confirmation_title")
-        }
-    }
-
-    var menuBarSpacingConfirmationActionTitle: String {
-        pendingMenuBarSpacingAction == .restore
-            ? StatsL10n.text("settings.status_bar.menu_spacing.restore")
-            : StatsL10n.text("settings.status_bar.menu_spacing.apply")
-    }
-
-    func applyPendingMenuBarSpacingAction() {
-        guard let action = pendingMenuBarSpacingAction else { return }
-        do {
-            try onApplyMenuBarSpacing(action == .apply ? settings.menuBarSpacingOffset : nil)
-            menuBarSpacingMessage = StatsL10n.text(
-                action == .apply
-                    ? "settings.status_bar.menu_spacing.applied"
-                    : "settings.status_bar.menu_spacing.restored"
-            )
-        } catch {
-            menuBarSpacingMessage = StatsL10n.text("settings.status_bar.menu_spacing.apply_failed")
-        }
-        pendingMenuBarSpacingAction = nil
-    }
-
     private func settingsPage<Content: View>(
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 18) { content() }
+        VStack(alignment: .leading, spacing: AppMetrics.sectionSpacing + 8) { content() }
     }
 
 }

@@ -48,6 +48,7 @@ struct DevelopmentStatisticsDetailContent: View {
                         }
                         .pickerStyle(.segmented)
                         .labelsHidden()
+                        .frame(width: 240)
                         .accessibilityLabel(StatsL10n.text("statistics.development.period"))
 
                         Button {
@@ -184,31 +185,13 @@ private struct ActivityMetricSwitch: View {
     @Binding var showsTokens: Bool
 
     var body: some View {
-        HStack(spacing: 0) {
-            segment(StatsL10n.text("activity.coding_time"), isSelected: !showsTokens) {
-                showsTokens = false
-            }
-            segment("AI Token", isSelected: showsTokens) {
-                showsTokens = true
-            }
+        Picker(StatsL10n.text("activity.coding_time"), selection: $showsTokens) {
+            Text(StatsL10n.text("activity.coding_time")).tag(false)
+            Text("AI Token").tag(true)
         }
+        .pickerStyle(.segmented)
+        .labelsHidden()
         .frame(width: 240)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-        )
-    }
-
-    private func segment(_ title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundStyle(isSelected ? Color.white : Color.primary)
-                .frame(maxWidth: .infinity, minHeight: 28)
-                .background(isSelected ? Color.accentColor : AppColors.badge)
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityLabel(StatsL10n.text("activity.coding_time"))
     }
 }

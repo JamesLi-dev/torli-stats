@@ -41,7 +41,7 @@ struct MetricCard<Content: View, Footer: View>: View {
         VStack(alignment: .leading, spacing: density == .compact ? 3 : 6) {
             HStack(alignment: .center) {
                 Label(title, systemImage: icon)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .font(AppTypography.cardTitle)
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -53,24 +53,24 @@ struct MetricCard<Content: View, Footer: View>: View {
             }
 
             Text(value)
-                .font(.system(size: 19, weight: .bold, design: .rounded))
+                .font(AppTypography.metricValue)
                 .foregroundStyle(valueColor)
                 .contentTransition(.numericText())
 
             if density != .compact {
                 content
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .font(AppTypography.metadata)
                     .frame(height: chartHeight)
 
                 Spacer(minLength: 0)
 
                 footer
-                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .font(AppTypography.compactMetadata)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
         }
-        .padding(density == .compact ? 6 : 6)
+        .padding(AppMetrics.compactPadding)
         .frame(height: cardHeight, alignment: .top)
         .dashboardCardSurface(interactive: isInteractive)
     }

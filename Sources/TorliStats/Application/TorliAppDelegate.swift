@@ -28,7 +28,6 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
     private var codexSettingsUpdateWorkItem: DispatchWorkItem?
     var popoverSizeUpdateWorkItem: DispatchWorkItem?
     private var pendingCodexDefaultRefresh = false
-    var statusBarLayeredContentView: StatusBarLayeredContentView?
     var appliedStatusLogoConfiguration: StatusBarLogoConfiguration?
 
     override init() {
@@ -215,6 +214,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
         observeSetting(settings.$systemStatusBarStyle) { $0.updateStatusTitle($0.store.statusLine) }
         observeSetting(settings.$statusBarFontSize) { $0.updateStatusTitle($0.store.statusLine) }
         observeSetting(settings.$showStatusBarMetricIcons) { $0.updateStatusTitle($0.store.statusLine) }
+        observeSetting(settings.$statusBarUsageColorsEnabled) { $0.updateStatusTitle($0.store.statusLine) }
         observeSetting(settings.$networkRateUnit) { $0.updateStatusTitle($0.store.statusLine) }
         observeSetting(settings.$networkRateDecimalPlaces) { $0.updateStatusTitle($0.store.statusLine) }
         observeSetting(settings.$privacyMode) { $0.updateStatusTitle($0.store.statusLine) }
@@ -293,35 +293,6 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         button.toolTip = "Torli Stats"
         return true
-    }
-
-    /// AppKit reads global status-item spacing only when a process starts.
-    /// Relaunch compatible user menu-bar apps, then restart this app so the
-    /// new global preference becomes visible without a full logout.
-    func applyMenuBarSpacing(offset: Int?) throws {
-        if let offset {
-            try MenuBarSpacingManager.apply(offset: offset)
-        } else {
-            try MenuBarSpacingManager.restoreSystemDefault()
-        }
-        MenuBarApplicationRelauncher.relaunchMenuBarServicesAndEligibleApplications(
-            excluding: ProcessInfo.processInfo.processIdentifier
-        )
-        try relaunchForMenuBarSpacing()
-    }
-
-    private func relaunchForMenuBarSpacing() throws {
-        let launcher = Process()
-        launcher.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        launcher.arguments = ["-n", Bundle.main.bundleURL.path]
-        try launcher.run()
-        launcher.waitUntilExit()
-        guard launcher.terminationStatus == 0 else {
-            throw MenuBarSpacingManager.SpacingError.relaunchFailed
-        }
-        DispatchQueue.main.async {
-            NSApp.terminate(nil)
-        }
     }
 
     private func observeSetting<P: Publisher>(

@@ -190,18 +190,21 @@ final class StatusBarLogoAnimator {
         }
 
         let frameWidth = cgImage.width / runner.frameCount
-        let aspectRatio = CGFloat(frameWidth) / CGFloat(cgImage.height)
+        let horizontalBounds = visibleHorizontalBounds(
+            in: cgImage,
+            frameWidth: frameWidth,
+            frameCount: runner.frameCount
+        )
+        let visibleWidth = horizontalBounds.count
+        let aspectRatio = CGFloat(visibleWidth) / CGFloat(cgImage.height)
         let artworkWidth = artworkHeight * aspectRatio
-        // The status bar compositor supplies the same inter-item spacing for
-        // runners and metric groups, so runner frames should not include an
-        // additional transparent trailing gap of their own.
         let imageSize = NSSize(width: artworkWidth, height: artworkHeight)
 
         return (0..<runner.frameCount).compactMap { index in
             let sourceRect = CGRect(
-                x: index * frameWidth,
+                x: index * frameWidth + horizontalBounds.lowerBound,
                 y: 0,
-                width: frameWidth,
+                width: visibleWidth,
                 height: cgImage.height
             )
             guard let cropped = cgImage.cropping(to: sourceRect) else { return nil }
@@ -215,5 +218,33 @@ final class StatusBarLogoAnimator {
             frame.isTemplate = runner.usesTemplateRendering
             return frame
         }
+    }
+
+    /// Sprite cells reserve transparent horizontal padding for animation
+    /// motion. Remove only shared empty margins across all frames so the native
+    /// status button can place the title closer without shrinking the artwork
+    /// or making the animation jitter.
+    private static func visibleHorizontalBounds(
+        in image: CGImage,
+        frameWidth: Int,
+        frameCount: Int
+    ) -> Range<Int> {
+        let bitmap = NSBitmapImageRep(cgImage: image)
+        var minimumX = frameWidth
+        var maximumX = -1
+
+        for frame in 0..<frameCount {
+            for y in 0..<image.height {
+                for x in 0..<frameWidth {
+                    guard let color = bitmap.colorAt(x: frame * frameWidth + x, y: y),
+                          color.alphaComponent > 0.02 else { continue }
+                    minimumX = min(minimumX, x)
+                    maximumX = max(maximumX, x)
+                }
+            }
+        }
+
+        guard maximumX >= minimumX else { return 0..<frameWidth }
+        return minimumX..<(maximumX + 1)
     }
 }

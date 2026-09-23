@@ -19,6 +19,8 @@ extension SettingsView {
                         Toggle(StatsL10n.text("settings.status_bar.upload"), isOn: $settings.showUpload)
                         Toggle(StatsL10n.text("settings.status_bar.show_metric_icons"), isOn: $settings.showStatusBarMetricIcons)
                             .fixedSize(horizontal: true, vertical: false)
+                        Toggle(StatsL10n.text("settings.status_bar.usage_colors"), isOn: $settings.statusBarUsageColorsEnabled)
+                            .fixedSize(horizontal: true, vertical: false)
                         Toggle(StatsL10n.text("settings.status_bar.codex_progress"), isOn: $settings.showCodexStatusItem)
                             .fixedSize(horizontal: true, vertical: false)
                         Toggle(StatsL10n.text("settings.status_bar.typing"), isOn: $settings.showTypingStatusItem)
@@ -81,38 +83,6 @@ extension SettingsView {
 
                     Divider()
 
-                    SettingsSubsectionTitle(StatsL10n.text("settings.status_bar.menu_spacing.title"))
-                    HStack(spacing: 12) {
-                        SettingsFieldLabel(StatsL10n.text("settings.status_bar.menu_spacing.label"), width: 118)
-                        Slider(
-                            value: Binding(
-                                get: { Double(settings.menuBarSpacingOffset) },
-                                set: { settings.menuBarSpacingOffset = Int($0.rounded()) }
-                            ),
-                            in: Double(MenuBarSpacingManager.supportedOffsets.lowerBound)...Double(MenuBarSpacingManager.supportedOffsets.upperBound),
-                            step: 1
-                        )
-                        .frame(width: 180)
-                        Text(menuBarSpacingOffsetText)
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 76, alignment: .leading)
-                        Button(StatsL10n.text("settings.status_bar.menu_spacing.apply")) {
-                            pendingMenuBarSpacingAction = .apply
-                        }
-                        .buttonStyle(.borderedProminent)
-                        Button(StatsL10n.text("settings.status_bar.menu_spacing.restore")) {
-                            pendingMenuBarSpacingAction = .restore
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                    SettingsInlineHint(
-                        text: menuBarSpacingMessage ?? StatsL10n.text("settings.status_bar.menu_spacing.hint"),
-                        icon: "menubar.rectangle"
-                    )
-
-                    Divider()
-
                     SettingsSubsectionTitle(StatsL10n.text("settings.status_bar.network"))
                     HStack(spacing: 12) {
                         SettingsFieldLabel(StatsL10n.text("settings.status_bar.network_unit"))
@@ -161,13 +131,6 @@ extension SettingsView {
                 )
             }
         }
-    }
-
-    private var menuBarSpacingOffsetText: String {
-        if settings.menuBarSpacingOffset == 0 {
-            return StatsL10n.text("settings.status_bar.menu_spacing.system_default")
-        }
-        return StatsL10n.format("settings.status_bar.menu_spacing.points", settings.menuBarSpacingOffset)
     }
 
     var statusBarOrderSection: some View {
