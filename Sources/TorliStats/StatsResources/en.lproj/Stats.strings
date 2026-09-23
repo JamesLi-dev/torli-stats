@@ -460,6 +460,7 @@
 "settings.status_bar.download" = "Download";
 "settings.status_bar.upload" = "Upload";
 "settings.status_bar.show_metric_icons" = "Show Network Indicators";
+"settings.status_bar.usage_colors" = "Use Threshold Colors";
 "settings.status_bar.codex_progress" = "Codex Progress";
 "settings.status_bar.typing" = "Typing Statistics";
 "settings.status_bar.codex_display" = "Codex Display";

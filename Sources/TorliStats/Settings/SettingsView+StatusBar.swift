@@ -19,6 +19,8 @@ extension SettingsView {
                         Toggle(StatsL10n.text("settings.status_bar.upload"), isOn: $settings.showUpload)
                         Toggle(StatsL10n.text("settings.status_bar.show_metric_icons"), isOn: $settings.showStatusBarMetricIcons)
                             .fixedSize(horizontal: true, vertical: false)
+                        Toggle(StatsL10n.text("settings.status_bar.usage_colors"), isOn: $settings.statusBarUsageColorsEnabled)
+                            .fixedSize(horizontal: true, vertical: false)
                         Toggle(StatsL10n.text("settings.status_bar.codex_progress"), isOn: $settings.showCodexStatusItem)
                             .fixedSize(horizontal: true, vertical: false)
                         Toggle(StatsL10n.text("settings.status_bar.typing"), isOn: $settings.showTypingStatusItem)

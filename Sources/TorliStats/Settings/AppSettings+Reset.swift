@@ -12,7 +12,7 @@ extension AppSettings {
             "showCPUCard", "showGPUCard", "showMemoryCard", "showDiskCard",
             "showNetworkCard", "showNetworkApplicationsCard", "showFanCard", "showTypingCard", "showPowerCard", "showProcessesCard",
             "showCodexCard", "showWakaTimeCard", "wakaTimeEnabled", "wakaTimeRange", "dashboardDensity", "showDashboardDeviceInfo", "showTemperatureTags", "showProcessPID", "dashboardModuleOrder", "showCodexStatusItem", "showTypingStatusItem", "codexStatusMetric", "codexStatusBarMode", "codexStatusBarAccountLimit", "statusBarMetricOrder",
-            "systemStatusBarStyle", "statusBarFontSize", "showStatusBarMetricIcons", "networkRateUnit", "networkRateDecimalPlaces", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "automaticUpdateChecks", "typingStatsEnabled", "codexDefaultAccountName", "codexHomePath", "codexAutoRefresh", "codexTokenActivityEnabled", "codexRefreshInterval", "codexManagedAccounts", "powerSavingMode", "manualMonitoringPaused", "backgroundMonitoringEnabled", "nightMonitoringPauseEnabled", "adaptiveSamplingEnabled", "nightMonitoringPauseStartSeconds", "nightMonitoringPauseEndSeconds", "batteryRefreshInterval", "lowBatterySavingEnabled", "lowBatteryThreshold", "processLimit", "processSort", "refreshInterval"
+            "systemStatusBarStyle", "statusBarFontSize", "showStatusBarMetricIcons", "statusBarUsageColorsEnabled", "networkRateUnit", "networkRateDecimalPlaces", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarRunner", "privacyMode", "automaticUpdateChecks", "typingStatsEnabled", "codexDefaultAccountName", "codexHomePath", "codexAutoRefresh", "codexTokenActivityEnabled", "codexRefreshInterval", "codexManagedAccounts", "powerSavingMode", "manualMonitoringPaused", "backgroundMonitoringEnabled", "nightMonitoringPauseEnabled", "adaptiveSamplingEnabled", "nightMonitoringPauseStartSeconds", "nightMonitoringPauseEndSeconds", "batteryRefreshInterval", "lowBatterySavingEnabled", "lowBatteryThreshold", "processLimit", "processSort", "refreshInterval"
         ].forEach { defaults.removeObject(forKey: $0) }
 
         theme = .system
@@ -48,6 +48,7 @@ extension AppSettings {
         systemStatusBarStyle = .compact
         statusBarFontSize = .standard
         showStatusBarMetricIcons = true
+        statusBarUsageColorsEnabled = false
         networkRateUnit = .automatic
         networkRateDecimalPlaces = 1
         showStatusBarLogo = true

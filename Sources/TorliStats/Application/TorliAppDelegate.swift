@@ -28,7 +28,6 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
     private var codexSettingsUpdateWorkItem: DispatchWorkItem?
     var popoverSizeUpdateWorkItem: DispatchWorkItem?
     private var pendingCodexDefaultRefresh = false
-    var statusBarLayeredContentView: StatusBarLayeredContentView?
     var appliedStatusLogoConfiguration: StatusBarLogoConfiguration?
 
     override init() {
@@ -215,6 +214,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
         observeSetting(settings.$systemStatusBarStyle) { $0.updateStatusTitle($0.store.statusLine) }
         observeSetting(settings.$statusBarFontSize) { $0.updateStatusTitle($0.store.statusLine) }
         observeSetting(settings.$showStatusBarMetricIcons) { $0.updateStatusTitle($0.store.statusLine) }
+        observeSetting(settings.$statusBarUsageColorsEnabled) { $0.updateStatusTitle($0.store.statusLine) }
         observeSetting(settings.$networkRateUnit) { $0.updateStatusTitle($0.store.statusLine) }
         observeSetting(settings.$networkRateDecimalPlaces) { $0.updateStatusTitle($0.store.statusLine) }
         observeSetting(settings.$privacyMode) { $0.updateStatusTitle($0.store.statusLine) }

@@ -80,20 +80,9 @@ extension TorliAppDelegate {
         let isStale: Bool
     }
 
-    private struct StatusBarTextLayout {
-        let image: NSImage
-        let runnerOriginX: CGFloat
-    }
-
     private func updateStatusBarRunnerImage(_ image: NSImage?) {
         statusLogoImage = image
-        if let statusBarLayeredContentView {
-            statusBarLayeredContentView.updateRunnerImage(image)
-        } else {
-            // The animator can produce its first frame before the static text
-            // layout is installed.
-            updateStatusTitle(store.statusLine)
-        }
+        updateStatusTitle(store.statusLine)
     }
 
     func updateStatusTitle(_ line: StatusLine) {
@@ -108,69 +97,54 @@ extension TorliAppDelegate {
         style.maximumLineHeight = lineHeight
         let commonAttributes: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: NSColor.labelColor,
             .paragraphStyle: style,
             .baselineOffset: -max(0, fontSize - 5)
         ]
 
-        if let statusLogoImage,
-           settings.statusBarMetricOrder.contains(.logo),
-           let layout = makeStatusBarTextLayout(
-               runnerSize: statusLogoImage.size,
-               line: line,
-               attributes: commonAttributes,
-               appearance: button.effectiveAppearance,
-               lineHeight: lineHeight
-           ) {
-            button.image = nil
-            button.imagePosition = .noImage
-            button.attributedTitle = NSAttributedString(string: "")
-
-            let contentView: StatusBarLayeredContentView
-            if let statusBarLayeredContentView {
-                contentView = statusBarLayeredContentView
-            } else {
-                contentView = StatusBarLayeredContentView(frame: button.bounds)
-                contentView.autoresizingMask = [.width, .height]
-                button.addSubview(contentView)
-                statusBarLayeredContentView = contentView
-            }
-            statusItem.length = ceil(layout.image.size.width)
-            contentView.update(
-                textImage: layout.image,
-                runnerOriginX: layout.runnerOriginX,
-                runnerImage: statusLogoImage
-            )
+        statusItem.length = NSStatusItem.variableLength
+        let includesRunner = settings.showStatusBarLogo
+            && settings.statusBarMetricOrder.contains(.logo)
+            && statusLogoImage != nil
+        if includesRunner {
+            button.image = statusLogoImage
+            button.imagePosition = runnerImagePosition
+            // Keep image and title adjacent as one native button content group.
+            // The sprite's transparent side padding is trimmed before it reaches
+            // AppKit, so the standard image/title gap remains visually compact.
+            button.imageHugsTitle = true
         } else {
-            statusBarLayeredContentView?.removeFromSuperview()
-            statusBarLayeredContentView = nil
-            statusItem.length = NSStatusItem.variableLength
-            let groups = settings.statusBarMetricOrder.compactMap {
-                normalizedStatusBarGroup(
-                    statusBarGroupContent(for: $0, line: line, attributes: commonAttributes),
-                    attributes: commonAttributes
-                )
-            }
-            let firstLine = groups.compactMap(\.firstLine)
-            let secondLine = groups.compactMap(\.secondLine)
-            let attributedTitle = NSMutableAttributedString()
-
-            if !firstLine.isEmpty {
-                attributedTitle.append(joinStatusBarSegments(firstLine, attributes: commonAttributes, separator: "  "))
-            }
-            if !firstLine.isEmpty && !secondLine.isEmpty {
-                attributedTitle.append(NSAttributedString(string: "\n", attributes: commonAttributes))
-            }
-            if !secondLine.isEmpty {
-                attributedTitle.append(joinStatusBarSegments(secondLine, attributes: commonAttributes, separator: "  "))
-            }
-            if attributedTitle.length == 0 {
-                attributedTitle.append(NSAttributedString(string: "Torli", attributes: commonAttributes))
-            }
             button.image = nil
             button.imagePosition = .noImage
-            button.attributedTitle = attributedTitle
+            button.imageHugsTitle = false
         }
+
+        let groups = settings.statusBarMetricOrder.compactMap { group -> StatusBarGroupContent? in
+            guard group != .logo else { return nil }
+            return normalizedStatusBarGroup(
+                statusBarGroupContent(for: group, line: line, attributes: commonAttributes),
+                attributes: commonAttributes
+            )
+        }
+        let firstLine = groups.compactMap(\.firstLine)
+        let secondLine = groups.compactMap(\.secondLine)
+        let attributedTitle = NSMutableAttributedString()
+        let runnerTitleGap = includesRunner ? "  " : ""
+
+        if !firstLine.isEmpty {
+            attributedTitle.append(NSAttributedString(string: runnerTitleGap, attributes: commonAttributes))
+            attributedTitle.append(joinStatusBarSegments(firstLine, attributes: commonAttributes, separator: "  "))
+        }
+        if !firstLine.isEmpty && !secondLine.isEmpty {
+            attributedTitle.append(NSAttributedString(string: "\n", attributes: commonAttributes))
+        }
+        if !secondLine.isEmpty {
+            attributedTitle.append(NSAttributedString(string: runnerTitleGap, attributes: commonAttributes))
+            attributedTitle.append(joinStatusBarSegments(secondLine, attributes: commonAttributes, separator: "  "))
+        }
+        if attributedTitle.length == 0 && !includesRunner {
+            attributedTitle.append(NSAttributedString(string: "Torli", attributes: commonAttributes))
+        }
+        button.attributedTitle = attributedTitle
 
         let codexValues = codexStatusBarValues()
         if codexValues.isEmpty {
@@ -185,60 +159,12 @@ extension TorliAppDelegate {
         }
     }
 
-    private func makeStatusBarTextLayout(
-        runnerSize: NSSize,
-        line: StatusLine,
-        attributes: [NSAttributedString.Key: Any],
-        appearance: NSAppearance,
-        lineHeight: CGFloat
-    ) -> StatusBarTextLayout? {
-        var segments: [(group: StatusBarMetricGroup, content: StatusBarGroupContent?, width: CGFloat)] = []
-
-        for group in settings.statusBarMetricOrder {
-            if group == .logo {
-                segments.append((group, nil, runnerSize.width))
-                continue
-            }
-            guard let content = normalizedStatusBarGroup(
-                statusBarGroupContent(for: group, line: line, attributes: attributes),
-                attributes: attributes
-            ) else { continue }
-            let width = max(content.firstLine?.size().width ?? 0, content.secondLine?.size().width ?? 0)
-            segments.append((group, content, width))
-        }
-
-        guard !segments.isEmpty else { return nil }
-        // Use the same two-character gap as the static status-bar layout and
-        // intra-group columns, so Runner, Codex, system, and network groups
-        // remain visually aligned at every configured font size.
-        let font = attributes[.font] as? NSFont
-        let spacing = max(8, (font?.maximumAdvancement.width ?? 4) * 2)
-        let totalWidth = segments.reduce(CGFloat.zero) { $0 + $1.width }
-            + CGFloat(max(0, segments.count - 1)) * spacing
-        guard totalWidth > 0 else { return nil }
-
-        let image = NSImage(size: NSSize(width: ceil(totalWidth), height: max(20, ceil(lineHeight * 2))))
-        image.lockFocus()
-        var x: CGFloat = 0
-        var runnerOriginX: CGFloat = 0
-        appearance.performAsCurrentDrawingAppearance {
-            for segment in segments {
-                if segment.group == .logo {
-                    // Leave a transparent runner-sized slot. The runner is a
-                    // separate image subview and is the only element updated
-                    // for animation frames.
-                    runnerOriginX = x
-                } else if let content = segment.content {
-                    content.firstLine?.draw(at: NSPoint(x: x, y: lineHeight))
-                    content.secondLine?.draw(at: NSPoint(x: x, y: 0))
-                }
-                x += segment.width + spacing
-            }
-        }
-
-        image.unlockFocus()
-        image.isTemplate = false
-        return StatusBarTextLayout(image: image, runnerOriginX: runnerOriginX)
+    private var runnerImagePosition: NSControl.ImagePosition {
+        let order = settings.statusBarMetricOrder
+        guard let runnerIndex = order.firstIndex(of: .logo) else { return .imageLeading }
+        let groupsBeforeRunner = runnerIndex
+        let groupsAfterRunner = max(0, order.count - runnerIndex - 1)
+        return groupsBeforeRunner <= groupsAfterRunner ? .imageLeading : .imageTrailing
     }
 
     private struct FormattedNetworkRate {
@@ -328,7 +254,7 @@ extension TorliAppDelegate {
                 let values = metrics.map {
                     statusBarText(
                         $0.value,
-                        attributes: attributes.merging([.foregroundColor: resourceUsageColor(usage: $0.usage)]) { _, new in new }
+                        attributes: statusBarUsageAttributes(usage: $0.usage, base: attributes)
                     )
                 }
                 let widths = zip(labels, values).map { max($0.string.count, $1.string.count) }
@@ -349,8 +275,8 @@ extension TorliAppDelegate {
             )
 
         case .logo:
-            // Logo is composed with the two-line text groups as one image in
-            // `updateStatusTitle`, allowing it to be placed at any position.
+            // The runner is provided through the status button's native image
+            // property; it is not part of the title text.
             return StatusBarGroupContent(firstLine: nil, secondLine: nil)
 
         case .typing:
@@ -377,11 +303,10 @@ extension TorliAppDelegate {
                 let used = Int(min(100, max(0, value.usedPercent)).rounded())
                 let remaining = 100 - used
                 let displayed = settings.codexStatusMetric == .used ? used : remaining
+                let color = value.isStale ? NSColor.systemOrange : resourceUsageColor(usage: value.usedPercent)
                 return statusBarText(
                     "\(displayed)%",
-                    attributes: attributes.merging([
-                        .foregroundColor: value.isStale ? NSColor.systemOrange : codexStatusColor(usedPercent: value.usedPercent)
-                    ]) { _, new in new }
+                    attributes: statusBarUsageAttributes(color: color, base: attributes)
                 )
             }
             // Use the same width for each account's name and percentage
@@ -434,10 +359,38 @@ extension TorliAppDelegate {
         result.append(
             NSAttributedString(
                 string: rightAligned(value, width: width),
-                attributes: attributes.merging([.foregroundColor: resourceUsageColor(usage: usage)]) { _, new in new }
+                attributes: statusBarUsageAttributes(usage: usage, base: attributes)
             )
         )
         return result
+    }
+
+    private func statusBarUsageAttributes(
+        usage: Double,
+        base attributes: [NSAttributedString.Key: Any]
+    ) -> [NSAttributedString.Key: Any] {
+        statusBarUsageAttributes(color: resourceUsageColor(usage: usage), base: attributes)
+    }
+
+    private func statusBarUsageAttributes(
+        color: NSColor,
+        base attributes: [NSAttributedString.Key: Any]
+    ) -> [NSAttributedString.Key: Any] {
+        guard settings.statusBarUsageColorsEnabled else { return attributes }
+        return attributes.merging([.foregroundColor: color]) { _, new in new }
+    }
+
+    private func resourceUsageColor(usage: Double) -> NSColor {
+        let clampedUsage = min(100, max(0, usage))
+        let color: NSColor
+        if clampedUsage > 80 {
+            color = .systemRed
+        } else if clampedUsage >= 50 {
+            color = .systemOrange
+        } else {
+            color = .systemGreen
+        }
+        return color
     }
 
     private func statusBarText(_ value: String, attributes: [NSAttributedString.Key: Any]) -> NSAttributedString {
@@ -460,27 +413,50 @@ extension TorliAppDelegate {
         attributes: [NSAttributedString.Key: Any]
     ) -> StatusBarGroupContent? {
         guard group.firstLine != nil || group.secondLine != nil else { return nil }
-        let width = max(group.firstLine?.string.count ?? 0, group.secondLine?.string.count ?? 0)
+        // Count-based padding works for the Latin-only groups, but the typing
+        // label is localized (for example, “输入”). Measure the actual glyph
+        // advances so either line reserves exactly the same visual width.
+        let width = max(
+            group.firstLine.map(statusBarSegmentWidth) ?? 0,
+            group.secondLine.map(statusBarSegmentWidth) ?? 0
+        )
         let firstLine = group.firstLine.map { segment in
-            paddedStatusBarSegment(segment, width: width, attributes: attributes)
-        } ?? statusBarText(String(repeating: " ", count: width), attributes: attributes)
+            paddedStatusBarSegment(segment, toWidth: width, attributes: attributes)
+        } ?? statusBarWidthSpacer(width, attributes: attributes)
         let secondLine = group.secondLine.map { segment in
-            paddedStatusBarSegment(segment, width: width, attributes: attributes)
-        } ?? statusBarText(String(repeating: " ", count: width), attributes: attributes)
+            paddedStatusBarSegment(segment, toWidth: width, attributes: attributes)
+        } ?? statusBarWidthSpacer(width, attributes: attributes)
         return StatusBarGroupContent(firstLine: firstLine, secondLine: secondLine)
     }
 
     private func paddedStatusBarSegment(
         _ segment: NSAttributedString,
-        width: Int,
+        toWidth width: CGFloat,
         attributes: [NSAttributedString.Key: Any]
     ) -> NSAttributedString {
         let result = NSMutableAttributedString(attributedString: segment)
-        let padding = max(0, width - segment.string.count)
-        if padding > 0 {
-            result.append(NSAttributedString(string: String(repeating: " ", count: padding), attributes: attributes))
+        let padding = width - statusBarSegmentWidth(segment)
+        if padding > 0.01 {
+            result.append(statusBarWidthSpacer(padding, attributes: attributes))
         }
         return result
+    }
+
+    private func statusBarSegmentWidth(_ segment: NSAttributedString) -> CGFloat {
+        segment.size().width
+    }
+
+    /// A single space with adjusted kerning produces an exact invisible width.
+    /// This keeps localized labels and their value line aligned without
+    /// estimating glyph width from Unicode character counts.
+    private func statusBarWidthSpacer(
+        _ width: CGFloat,
+        attributes: [NSAttributedString.Key: Any]
+    ) -> NSAttributedString {
+        guard width > 0.01 else { return NSAttributedString() }
+        let spaceWidth = NSAttributedString(string: " ", attributes: attributes).size().width
+        let spacerAttributes = attributes.merging([.kern: width - spaceWidth]) { _, new in new }
+        return NSAttributedString(string: " ", attributes: spacerAttributes)
     }
 
     private func joinStatusBarColumns(
@@ -495,7 +471,16 @@ extension TorliAppDelegate {
                 result.append(NSAttributedString(string: separator, attributes: attributes))
             }
             let width = widths.indices.contains(index) ? widths[index] : segment.string.count
-            result.append(paddedStatusBarSegment(segment, width: width, attributes: attributes))
+            result.append(segment)
+            let padding = max(0, width - segment.string.count)
+            if padding > 0 {
+                result.append(
+                    NSAttributedString(
+                        string: String(repeating: " ", count: padding),
+                        attributes: attributes
+                    )
+                )
+            }
         }
         return result
     }
@@ -517,17 +502,6 @@ extension TorliAppDelegate {
 
     private func compactTypingCount(_ value: Int) -> String {
         value >= 1_000 ? String(format: "%.1fK", Double(value) / 1_000) : String(value)
-    }
-
-    private func resourceUsageColor(usage: Double) -> NSColor {
-        let clampedUsage = min(100, max(0, usage))
-        if clampedUsage > 80 { return .systemRed }
-        if clampedUsage >= 50 { return .systemOrange }
-        return .systemGreen
-    }
-
-    private func codexStatusColor(usedPercent: Double) -> NSColor {
-        resourceUsageColor(usage: usedPercent)
     }
 
     private func rightAligned(_ value: String, width: Int) -> String {

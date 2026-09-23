@@ -115,6 +115,11 @@ final class AppSettings: ObservableObject {
     @Published var showStatusBarMetricIcons: Bool {
         didSet { defaults.set(showStatusBarMetricIcons, forKey: "showStatusBarMetricIcons") }
     }
+    /// Keeps the default title color untouched unless users explicitly opt in
+    /// to threshold colors, allowing AppKit to dim inactive menu bars.
+    @Published var statusBarUsageColorsEnabled: Bool {
+        didSet { defaults.set(statusBarUsageColorsEnabled, forKey: "statusBarUsageColorsEnabled") }
+    }
     @Published var networkRateUnit: NetworkRateUnit {
         didSet { defaults.set(networkRateUnit.rawValue, forKey: "networkRateUnit") }
     }
@@ -272,6 +277,7 @@ final class AppSettings: ObservableObject {
         systemStatusBarStyle = SystemStatusBarStyle(rawValue: defaults.string(forKey: "systemStatusBarStyle") ?? "") ?? .compact
         statusBarFontSize = StatusBarFontSize(rawValue: defaults.string(forKey: "statusBarFontSize") ?? "") ?? .standard
         showStatusBarMetricIcons = defaults.object(forKey: "showStatusBarMetricIcons") as? Bool ?? true
+        statusBarUsageColorsEnabled = defaults.object(forKey: "statusBarUsageColorsEnabled") as? Bool ?? false
         networkRateUnit = NetworkRateUnit(rawValue: defaults.string(forKey: "networkRateUnit") ?? "") ?? .automatic
         let savedNetworkRateDecimalPlaces = defaults.object(forKey: "networkRateDecimalPlaces") as? Int
         networkRateDecimalPlaces = savedNetworkRateDecimalPlaces.flatMap { [0, 1, 2].contains($0) ? $0 : nil } ?? 1

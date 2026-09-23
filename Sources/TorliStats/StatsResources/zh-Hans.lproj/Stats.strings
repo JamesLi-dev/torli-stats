@@ -460,6 +460,7 @@
 "settings.status_bar.download" = "下载";
 "settings.status_bar.upload" = "上传";
 "settings.status_bar.show_metric_icons" = "显示网络方向标记";
+"settings.status_bar.usage_colors" = "使用阶梯颜色";
 "settings.status_bar.codex_progress" = "Codex 进度";
 "settings.status_bar.typing" = "输入统计";
 "settings.status_bar.codex_display" = "Codex 展示";
