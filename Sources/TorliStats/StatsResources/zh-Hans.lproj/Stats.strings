@@ -59,7 +59,8 @@
 "dashboard.live" = "实时";
 "dashboard.fan" = "风扇";
 "dashboard.sensor_unavailable" = "传感器暂不可用";
-"dashboard.current_speed" = "当前转速";
+"dashboard.fan_percent" = "%.0f%%";
+"dashboard.fan_summary" = "风扇转速 · 最大 %@ RPM";
 "dashboard.authorize_fan" = "需要授权读取风扇";
 "dashboard.rpm_unavailable" = "当前机型未提供 RPM";
 "dashboard.fan_speed" = "风扇转速";

@@ -59,7 +59,8 @@
 "dashboard.live" = "Live";
 "dashboard.fan" = "Fan";
 "dashboard.sensor_unavailable" = "Sensor unavailable";
-"dashboard.current_speed" = "Current speed";
+"dashboard.fan_percent" = "%.0f%%";
+"dashboard.fan_summary" = "Fan speed · max %@ RPM";
 "dashboard.authorize_fan" = "Authorize fan access";
 "dashboard.rpm_unavailable" = "This Mac does not provide RPM";
 "dashboard.fan_speed" = "Fan speed";

@@ -45,17 +45,21 @@ struct MetricCard<Content: View, Footer: View>: View {
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(.secondary)
                 Spacer()
-                DashboardChip(
-                    text: badge,
-                    tint: badgeColor,
-                    verticalPadding: 4
-                )
+                if !badge.isEmpty {
+                    DashboardChip(
+                        text: badge,
+                        tint: badgeColor,
+                        verticalPadding: 4
+                    )
+                }
             }
 
-            Text(value)
-                .font(AppTypography.metricValue)
-                .foregroundStyle(valueColor)
-                .contentTransition(.numericText())
+            if !value.isEmpty {
+                Text(value)
+                    .font(AppTypography.metricValue)
+                    .foregroundStyle(valueColor)
+                    .contentTransition(.numericText())
+            }
 
             if density != .compact {
                 content

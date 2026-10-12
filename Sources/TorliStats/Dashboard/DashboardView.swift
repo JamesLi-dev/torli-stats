@@ -276,7 +276,18 @@ struct DashboardView: View {
                 }
             }
         case .fan:
-            MetricCard(title: StatsL10n.text("dashboard.fan"), icon: "fanblades.fill", value: store.fanRPM.map(String.init) ?? "—", badge: "RPM", density: settings.dashboardDensity) {
+            let useCompactFanLayout = settings.dashboardDensity == .compact
+            let fanPercentage: Double? = {
+                guard let rpm = store.fanRPM, let maximum = store.fanMaxRPM, maximum > 0 else { return nil }
+                return min(1, Double(rpm) / Double(maximum)) * 100
+            }()
+            MetricCard(
+                title: StatsL10n.text("dashboard.fan"),
+                icon: "fanblades.fill",
+                value: useCompactFanLayout ? (store.fanRPM.map(String.init) ?? "—") : "",
+                badge: fanPercentage.map { StatsL10n.format("dashboard.fan_percent", $0) } ?? (useCompactFanLayout ? "RPM" : ""),
+                density: settings.dashboardDensity
+            ) {
                 if !settings.sensorHelperEnabled || store.fanRPM == nil {
                     DashboardEmptyState(
                         icon: "fanblades.fill",
@@ -286,17 +297,40 @@ struct DashboardView: View {
                         action: { onOpenSettings(.monitoring) },
                         actionHelp: StatsL10n.text("sensor.settings.title")
                     )
-                } else {
-                    HStack(spacing: 6) {
-                        Image(systemName: "gauge.with.dots.needle.67percent")
-                        Text(StatsL10n.text("dashboard.current_speed"))
+                } else if let rpm = store.fanRPM {
+                    let maximum = store.fanMaxRPM ?? 0
+                    let fraction = maximum > 0 ? min(1, Double(rpm) / Double(maximum)) : 0
+                    HStack(alignment: .center, spacing: 9) {
+                        DashboardFanRotor(
+                            fraction: fraction,
+                            tint: maximum > 0 ? fanProgressColor(fraction) : .secondary
+                        )
+                        HStack(alignment: .lastTextBaseline, spacing: 6) {
+                            Text(String(rpm))
+                                .font(.system(size: 25, weight: .bold, design: .rounded))
+                                .contentTransition(.numericText())
+                            Text("RPM")
+                                .font(AppTypography.metadata.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    // Metric cards normally reserve this vertical position for
+                    // the large value. The fan row owns that value, so align
+                    // it with neighbouring cards rather than the chart slot.
+                    .offset(y: 6)
                 }
             } footer: {
-                Text(settings.sensorHelperEnabled
-                    ? (store.fanRPM == nil ? StatsL10n.text("dashboard.rpm_unavailable") : StatsL10n.text("dashboard.fan_speed"))
-                    : StatsL10n.text("dashboard.authorize_fan"))
+                if settings.sensorHelperEnabled,
+                   store.fanRPM != nil,
+                   let maximum = store.fanMaxRPM,
+                   maximum > 0 {
+                    Text(StatsL10n.format("dashboard.fan_summary", maximum.formatted()))
+                } else {
+                    Text(settings.sensorHelperEnabled
+                        ? (store.fanRPM == nil ? StatsL10n.text("dashboard.rpm_unavailable") : StatsL10n.text("dashboard.fan_speed"))
+                        : StatsL10n.text("dashboard.authorize_fan"))
+                }
             }
         case .typing:
             MetricCard(
@@ -481,6 +515,12 @@ struct DashboardView: View {
         if value >= Double(max(warning, critical)) { return AppColors.critical }
         if value >= Double(min(warning, critical)) { return AppColors.warning }
         return .primary
+    }
+
+    private func fanProgressColor(_ fraction: Double) -> Color {
+        if fraction >= 0.85 { return AppColors.critical }
+        if fraction >= 0.65 { return AppColors.warning }
+        return AppColors.success
     }
 
     private func formatRate(_ bytes: Double) -> String {

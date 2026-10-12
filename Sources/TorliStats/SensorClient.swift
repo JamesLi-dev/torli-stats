@@ -5,6 +5,7 @@ struct PrivilegedSensorValues {
     let isHelperReachable: Bool
     let isAvailable: Bool
     let fanRPM: Int?
+    let fanMaxRPM: Int?
     let cpuTemperature: Double?
     let gpuTemperature: Double?
     let helperVersion: String?
@@ -65,6 +66,7 @@ final class SensorClient {
                     isHelperReachable: true,
                     isAvailable: (values["available"] as? NSNumber)?.boolValue ?? false,
                     fanRPM: (values["fanRPM"] as? NSNumber)?.intValue,
+                    fanMaxRPM: (values["fanMaxRPM"] as? NSNumber)?.intValue,
                     cpuTemperature: (values["cpuTemperature"] as? NSNumber)?.doubleValue,
                     gpuTemperature: (values["gpuTemperature"] as? NSNumber)?.doubleValue,
                     helperVersion: values["helperVersion"] as? String,
@@ -127,6 +129,7 @@ final class SensorClient {
         isHelperReachable: false,
         isAvailable: false,
         fanRPM: nil,
+        fanMaxRPM: nil,
         cpuTemperature: nil,
         gpuTemperature: nil,
         helperVersion: nil,

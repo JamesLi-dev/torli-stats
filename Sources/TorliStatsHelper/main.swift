@@ -43,6 +43,7 @@ private enum SMCReader {
 
     private static let smc = SMCConnection()
     private static var lastFanRPM: Int?
+    private static var lastFanMaximumRPM: Int?
     private static var lastCPUTemperature: Double?
     private static var lastGPUTemperature: Double?
 
@@ -85,10 +86,20 @@ private enum SMCReader {
 
         // Zero is a valid reading: a MacBook fan can be stopped. Only an
         // absent/unreadable key should be treated as missing.
-        let fanValues = fanKeys.compactMap { smc.readNumber($0) }
-            .filter { $0 >= 0 && $0 < 20_000 }
-        if let rpm = fanValues.max() {
-            lastFanRPM = Int(rpm.rounded())
+        let fanReadings = fanKeys.compactMap { key -> (current: Double, maximum: Double?)? in
+            guard let current = smc.readNumber(key), current >= 0, current < 20_000 else { return nil }
+            let maximumKey = String(key.dropLast(2)) + "Mx"
+            let maximum = smc.readNumber(maximumKey).flatMap { value in
+                value > 0 && value < 20_000 ? value : nil
+            }
+            return (current, maximum)
+        }
+        if let reading = fanReadings.max(by: { $0.current < $1.current }) {
+            lastFanRPM = Int(reading.current.rounded())
+            // Multiple fans can have different limits. The dashboard reports
+            // the highest current RPM, so use that same fan's limit for the
+            // progress bar rather than combining unrelated fans.
+            lastFanMaximumRPM = reading.maximum.map { Int($0.rounded()) }
             result["fanReason"] = "sensor.fan.read"
         } else {
             result["fanReason"] = "sensor.fan.unavailable"
@@ -100,22 +111,22 @@ private enum SMCReader {
             guard let value = smc.readNumber(key), value >= 10, value <= 125 else { return nil }
             return (key, value)
         }
-        // TCMz is the CPU-die hotspot and is closest to what monitoring
-        // utilities label as "CPU temperature". TCMb is the steadier average
-        // fallback. Do not use an arbitrary hottest Tp key as the primary
-        // value: some firmware keys are not CPU temperatures despite their T*
-        // names and can produce 100+°C-looking outliers.
-        let preferredCPUKeys = ["TCMz", "TCMb", "TCDX", "TC0P"]
+        // The dashboard presents a representative CPU temperature, not a
+        // hotspot. TCMz is often the die hotspot and can be materially higher
+        // than the temperature users see in mainstream monitoring tools. Use
+        // TCMb when it is exposed; it is the steadier CPU-average reading.
+        let preferredCPUKeys = ["TCMb", "TCDX", "TC0P", "TCMz"]
         if let temperature = preferredCPUKeys.compactMap({ key in
             cpuReadings.first(where: { $0.0 == key })?.1
         }).first {
             lastCPUTemperature = temperature
         } else {
-            // A median across all T* keys can be skewed by power-management
-            // and package sensors. Tp01...Tp16 are the CPU cluster sensors;
-            // the hottest valid cluster is a more useful dashboard value.
+            // On Apple Silicon, no single CPU-package key is guaranteed to be
+            // available. A cluster median is representative without allowing
+            // one hot core to make the dashboard appear hotter than the CPU as
+            // a whole. Use all recognized CPU candidates only as a last resort.
             let clusterReadings = cpuReadings.filter { isAppleSiliconCPUKey($0.0) }
-            let temperature = clusterReadings.map { $0.1 }.max()
+            let temperature = median(clusterReadings.map { $0.1 })
                 ?? median(cpuReadings.map { $0.1 })
             if let temperature { lastCPUTemperature = temperature }
         }
@@ -138,6 +149,7 @@ private enum SMCReader {
             : "sensor.gpu_temperature.read"
 
         if let lastFanRPM { result["fanRPM"] = NSNumber(value: lastFanRPM) }
+        if let lastFanMaximumRPM { result["fanMaxRPM"] = NSNumber(value: lastFanMaximumRPM) }
         if let lastCPUTemperature { result["cpuTemperature"] = NSNumber(value: lastCPUTemperature) }
         if let lastGPUTemperature { result["gpuTemperature"] = NSNumber(value: lastGPUTemperature) }
         return result as NSDictionary

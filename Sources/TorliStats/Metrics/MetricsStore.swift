@@ -58,6 +58,7 @@ final class MetricsStore: ObservableObject {
     private(set) var deviceInfo = DeviceInfo.placeholder()
     private(set) var bluetoothBatteries: [BluetoothBatterySnapshot] = []
     private(set) var fanRPM: Int?
+    private(set) var fanMaxRPM: Int?
     private(set) var cpuTemperature: Double?
     private(set) var gpuTemperature: Double?
     private(set) var processes: [ProcessRow] = []
@@ -126,6 +127,12 @@ final class MetricsStore: ObservableObject {
     private var networkApplicationMonitoringEnabled = false
     private var sensorReadingsNeeded = true
     private var sensorPollingStopped = false
+    // Temperature can change substantially during a short compile or render.
+    // Sample it independently of the 30-second low-frequency collectors, but
+    // retain a modest throttle because each read crosses the privileged XPC
+    // boundary and queries multiple SMC keys.
+    private let sensorSampleInterval: TimeInterval = 5
+    private var lastSensorSampleUptime: TimeInterval?
     private var deviceInfoLoaded = false
     private let sensorClient = SensorClient()
     private(set) var intervalSeconds: Int
@@ -268,11 +275,13 @@ final class MetricsStore: ObservableObject {
             guard self.sensorHelperEnabled != enabled else { return }
             self.sensorHelperEnabled = enabled
             self.sensorPollingStopped = !enabled
+            self.lastSensorSampleUptime = nil
             if enabled {
                 self.pollSensorIfNeeded()
             } else {
                 DispatchQueue.main.async {
                     self.fanRPM = nil
+                    self.fanMaxRPM = nil
                     self.cpuTemperature = nil
                     self.gpuTemperature = nil
                 }
@@ -302,8 +311,10 @@ final class MetricsStore: ObservableObject {
             self.processMonitoringEnabled = processes
             self.sensorReadingsNeeded = sensorReadings
             if !sensorReadings {
+                self.lastSensorSampleUptime = nil
                 DispatchQueue.main.async {
                     self.fanRPM = nil
+                    self.fanMaxRPM = nil
                     self.cpuTemperature = nil
                     self.gpuTemperature = nil
                 }
@@ -425,6 +436,10 @@ final class MetricsStore: ObservableObject {
 
     private func collectHighFrequency(force: Bool = false) {
         guard force || !isAutomaticallyPaused else { return }
+        // Keep temperatures reasonably current without putting disk,
+        // Bluetooth, and process enumeration on this high-frequency queue.
+        lowMetricsQueue.async { [weak self] in self?.pollSensorIfNeeded() }
+
         let cpuSnapshot = cpuSampler.sample()
         let shouldPublishCPU = cpuSnapshot.isReady && cpuWarmupSamples == 0
         if !cpuSnapshot.isReady {
@@ -596,6 +611,13 @@ final class MetricsStore: ObservableObject {
     private func pollSensorIfNeeded(force: Bool = false) {
         guard (force || !isAutomaticallyPaused), sensorHelperEnabled,
               sensorReadingsNeeded, !sensorPollingStopped else { return }
+
+        let now = ProcessInfo.processInfo.systemUptime
+        guard force || lastSensorSampleUptime.map({ now - $0 >= sensorSampleInterval }) != false else {
+            return
+        }
+        lastSensorSampleUptime = now
+
         sensorClient.read { [weak self] values in
             guard let self else { return }
             self.lowMetricsQueue.async {
@@ -613,6 +635,7 @@ final class MetricsStore: ObservableObject {
                 DispatchQueue.main.async {
                     self.objectWillChange.send()
                     if let fanRPM = values.fanRPM { self.fanRPM = fanRPM }
+                    self.fanMaxRPM = values.fanMaxRPM
                     if let cpuTemperature = values.cpuTemperature { self.cpuTemperature = cpuTemperature }
                     if let gpuTemperature = values.gpuTemperature { self.gpuTemperature = gpuTemperature }
                 }
