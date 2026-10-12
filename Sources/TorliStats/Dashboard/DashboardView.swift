@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import TorliStatsShared
 
 private enum DashboardLayoutBlock: Identifiable {
     case metrics([DashboardModule])
@@ -30,8 +31,12 @@ struct DashboardView: View {
     var onTypingPermission: () -> Void = {}
     var onOpenSettings: (SettingsCategory) -> Void = { _ in }
 
+    private var moduleSpacing: CGFloat {
+        DashboardLayout.moduleSpacing(for: settings.dashboardDensity)
+    }
+
     private var metricGridSpacing: CGFloat {
-        DashboardLayout.metricSpacing(for: settings.dashboardDensity)
+        moduleSpacing
     }
 
     private var columns: [GridItem] {
@@ -43,7 +48,7 @@ struct DashboardView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(alignment: .leading, spacing: DashboardLayout.sectionSpacing) {
+            LazyVStack(alignment: .leading, spacing: moduleSpacing) {
                 if settings.showDashboardDeviceInfo {
                     DeviceInfoView(
                         info: store.deviceInfo,
@@ -277,16 +282,22 @@ struct DashboardView: View {
             }
         case .fan:
             let useCompactFanLayout = settings.dashboardDensity == .compact
-            let fanPercentage: Double? = {
+            let hasFanData = settings.sensorHelperEnabled && store.fanRPM != nil
+            // Manual modes describe the percentage of each fan's controllable
+            // min...max range. In automatic mode, retain the actual RPM/max
+            // ratio because there is no requested target to show.
+            let fanFraction: Double? = settings.fanControlMode.percentage ?? {
                 guard let rpm = store.fanRPM, let maximum = store.fanMaxRPM, maximum > 0 else { return nil }
-                return min(1, Double(rpm) / Double(maximum)) * 100
+                return min(1, Double(rpm) / Double(maximum))
             }()
+            let fanPercentage = fanFraction.map { $0 * 100 }
             MetricCard(
                 title: StatsL10n.text("dashboard.fan"),
                 icon: "fanblades.fill",
                 value: useCompactFanLayout ? (store.fanRPM.map(String.init) ?? "—") : "",
                 badge: fanPercentage.map { StatsL10n.format("dashboard.fan_percent", $0) } ?? (useCompactFanLayout ? "RPM" : ""),
-                density: settings.dashboardDensity
+                density: settings.dashboardDensity,
+                contentHeight: useCompactFanLayout ? nil : (hasFanData ? 54 : 66)
             ) {
                 if !settings.sensorHelperEnabled || store.fanRPM == nil {
                     DashboardEmptyState(
@@ -297,28 +308,40 @@ struct DashboardView: View {
                         action: { onOpenSettings(.monitoring) },
                         actionHelp: StatsL10n.text("sensor.settings.title")
                     )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 } else if let rpm = store.fanRPM {
                     let maximum = store.fanMaxRPM ?? 0
-                    let fraction = maximum > 0 ? min(1, Double(rpm) / Double(maximum)) : 0
-                    HStack(alignment: .center, spacing: 9) {
-                        DashboardFanRotor(
-                            fraction: fraction,
-                            tint: maximum > 0 ? fanProgressColor(fraction) : .secondary
-                        )
-                        HStack(alignment: .lastTextBaseline, spacing: 6) {
-                            Text(String(rpm))
-                                .font(.system(size: 25, weight: .bold, design: .rounded))
-                                .contentTransition(.numericText())
-                            Text("RPM")
-                                .font(AppTypography.metadata.weight(.semibold))
-                                .foregroundStyle(.secondary)
+                    let fraction = fanFraction ?? (maximum > 0 ? min(1, Double(rpm) / Double(maximum)) : 0)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(alignment: .center, spacing: 9) {
+                            DashboardFanRotor(
+                                fraction: fraction,
+                                tint: maximum > 0 ? fanProgressColor(fraction) : .secondary
+                            )
+                            HStack(alignment: .lastTextBaseline, spacing: 6) {
+                                Text(String(rpm))
+                                    .font(.system(size: 25, weight: .bold, design: .rounded))
+                                    .contentTransition(.numericText())
+                                Text("RPM")
+                                    .font(AppTypography.metadata.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
                         }
+                        .padding(.top, 2)
+                        HStack(spacing: 1) {
+                            fanModeButton(.automatic, labelKey: "fan.control.automatic")
+                            fanModeButton(.cooling, labelKey: "fan.control.cooling")
+                            fanModeButton(.maximumCooling, labelKey: "fan.control.maximum_cooling")
+                        }
+                        .padding(1)
+                        .background(Color.primary.opacity(0.055), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .stroke(Color.primary.opacity(0.08), lineWidth: 0.6)
+                        }
+                        .disabled(!settings.sensorHelperEnabled || !settings.sensorFanAvailable || settings.fanControlApplying)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    // Metric cards normally reserve this vertical position for
-                    // the large value. The fan row owns that value, so align
-                    // it with neighbouring cards rather than the chart slot.
-                    .offset(y: 6)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
             } footer: {
                 if settings.sensorHelperEnabled,
@@ -458,7 +481,7 @@ struct DashboardView: View {
         if metricRows > 0 {
             blockHeights.append(
                 metricRows * metricCardHeight
-                    + max(0, metricRows - 1) * DashboardLayout.metricSpacing(for: settings.dashboardDensity)
+                    + max(0, metricRows - 1) * DashboardLayout.moduleSpacing(for: settings.dashboardDensity)
             )
         }
         if settings.showPowerCard { blockHeights.append(powerHeight) }
@@ -485,7 +508,7 @@ struct DashboardView: View {
         }
 
         let padding = settings.dashboardDensity == .compact ? AppMetrics.compactPadding : AppMetrics.contentPadding
-        let spacing = CGFloat(max(0, blockHeights.count - 1)) * DashboardLayout.sectionSpacing
+        let spacing = CGFloat(max(0, blockHeights.count - 1)) * DashboardLayout.moduleSpacing(for: settings.dashboardDensity)
         let height = CGFloat(padding * 2) + blockHeights.reduce(0, +) + spacing
 
         // The popover height follows the enabled modules and process count;
@@ -521,6 +544,32 @@ struct DashboardView: View {
         if fraction >= 0.85 { return AppColors.critical }
         if fraction >= 0.65 { return AppColors.warning }
         return AppColors.success
+    }
+
+    private func fanModeButton(_ mode: FanControlMode, labelKey: String) -> some View {
+        let selected = settings.fanControlMode == mode
+        let tint = fanModeTint(mode)
+        return Button { settings.applyFanControl(mode: mode) } label: {
+            Text(StatsL10n.text(labelKey))
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(selected ? tint : .secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 2)
+        }
+        .buttonStyle(AppSelectionButtonStyle(
+            isSelected: selected,
+            tint: tint,
+            cornerRadius: 5,
+            horizontalPadding: 3
+        ))
+    }
+
+    private func fanModeTint(_ mode: FanControlMode) -> Color {
+        switch mode {
+        case .automatic: return AppColors.accent
+        case .cooling: return AppColors.success
+        case .maximumCooling: return AppColors.critical
+        }
     }
 
     private func formatRate(_ bytes: Double) -> String {
@@ -641,8 +690,8 @@ enum DashboardLayout {
         RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
     }
 
-    static func metricSpacing(for density: DashboardDensity) -> CGFloat {
-        density == .compact ? AppMetrics.compactPadding : AppMetrics.contentPadding
+    static func moduleSpacing(for density: DashboardDensity) -> CGFloat {
+        density == .compact ? AppMetrics.compactPadding : sectionSpacing
     }
 }
 

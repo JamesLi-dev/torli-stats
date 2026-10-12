@@ -21,17 +21,17 @@ struct DashboardFanRotor: View {
 
     private var rotor: some View {
         Image(systemName: "fanblades.fill")
-            .font(.system(size: 16, weight: .medium))
+            .font(.system(size: 15, weight: .medium))
             .foregroundStyle(tint)
     }
 
     var body: some View {
         ZStack {
             Circle()
-                .stroke(Color.primary.opacity(0.12), lineWidth: 2.5)
+                .stroke(Color.primary.opacity(0.12), lineWidth: 2.3)
             Circle()
                 .trim(from: 0, to: clampedFraction)
-                .stroke(tint, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                .stroke(tint, style: StrokeStyle(lineWidth: 2.3, lineCap: .round))
                 .rotationEffect(.degrees(-90))
 
             if reduceMotion || clampedFraction == 0 {
@@ -44,7 +44,7 @@ struct DashboardFanRotor: View {
                 }
             }
         }
-        .frame(width: 26, height: 26)
+        .frame(width: 24, height: 24)
         .accessibilityHidden(true)
     }
 }
