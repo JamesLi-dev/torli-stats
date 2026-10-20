@@ -14,7 +14,7 @@ let package = Package(
     targets: [
         .testTarget(
             name: "TorliStatsTests",
-            dependencies: ["TorliStats"]
+            dependencies: ["TorliStats", "TorliStatsShared"]
         ),
         .target(
             name: "TorliStatsShared",

@@ -123,6 +123,21 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 self.updateStatusBarLogoSpeed()
                 self.updateStatusTitle(self.store.statusLine)
+                // Published store changes are announced before their new
+                // values are assigned. Defer the cooling-curve decision one
+                // main-loop turn so it uses the freshly sampled readings.
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.settings.updateFanCoolingTarget(
+                        cpuTemperature: self.store.cpuTemperature,
+                        gpuTemperature: self.store.gpuTemperature,
+                        cpuUsage: self.store.cpu
+                    )
+                    self.settings.updateFanControlTransition(
+                        currentRPM: self.store.fanRPM,
+                        maximumRPM: self.store.fanMaxRPM
+                    )
+                }
             }
             .store(in: &cancellables)
 

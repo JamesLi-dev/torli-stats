@@ -68,12 +68,13 @@
 "fan.control.automatic" = "Auto";
 "fan.control.cooling" = "Cool";
 "fan.control.maximum_cooling" = "Max";
-"fan.control.safety_hint" = "Cool uses about 60% of the controllable fan range. Returning to Auto, quitting the app, or losing the helper connection restores macOS automatic control.";
+"fan.control.safety_hint" = "Cool starts at 40% of maximum speed and steps up with heat or CPU load. The percentage shown is the measured RPM relative to the maximum. Returning to Auto, quitting the app, or losing the helper connection restores macOS automatic control.";
 "fan.control.helper_required" = "Authorize the fan and temperature helper first.";
 "fan.control.unavailable" = "This Mac does not provide a controllable fan.";
 "fan.control.apply_failed" = "Could not apply the fan mode; restored the default mode.";
 "fan.control.automatic_applied" = "Restored macOS automatic control.";
 "fan.control.mode_applied" = "Fan speed mode applied.";
+"fan.control.transitioning" = "Starting…";
 "dashboard.typing" = "Typing";
 "dashboard.typing_summary" = "Total %@ · Active %@";
 "dashboard.typing_details" = "View typing trends";
