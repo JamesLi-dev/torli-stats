@@ -7,16 +7,10 @@ struct DashboardFanRotor: View {
     let fraction: Double
     let tint: Color
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isHovered = false
 
     private var clampedFraction: Double {
         min(1, max(0, fraction))
-    }
-
-    private var visualRevolutionsPerSecond: Double {
-        // Keep low-speed fans visibly alive while making high-speed changes
-        // easy to distinguish without turning the icon into a blur.
-        0.25 + clampedFraction * 1.75
     }
 
     private var rotor: some View {
@@ -34,17 +28,15 @@ struct DashboardFanRotor: View {
                 .stroke(tint, style: StrokeStyle(lineWidth: 2.3, lineCap: .round))
                 .rotationEffect(.degrees(-90))
 
-            if reduceMotion || clampedFraction == 0 {
-                rotor
-            } else {
-                TimelineView(.animation(minimumInterval: 1.0 / 24.0, paused: false)) { timeline in
-                    let angle = (timeline.date.timeIntervalSinceReferenceDate * visualRevolutionsPerSecond * 360)
-                        .truncatingRemainder(dividingBy: 360)
-                    rotor.rotationEffect(.degrees(angle))
-                }
-            }
+            // Keep the indicator static during normal monitoring. Hovering
+            // provides a small interaction cue without a continuous redraw.
+            rotor
+                .rotationEffect(.degrees(isHovered ? 28 : 0))
+                .animation(.easeOut(duration: 0.18), value: isHovered)
         }
         .frame(width: 24, height: 24)
+        .contentShape(Circle())
+        .onHover { isHovered = $0 }
         .accessibilityHidden(true)
     }
 }
