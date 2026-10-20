@@ -84,12 +84,12 @@ enum StatusBarRunner: String, CaseIterable, Identifiable {
 /// See THIRD_PARTY_NOTICES.md for Apache-2.0 attribution.
 final class StatusBarLogoAnimator {
     private static let artworkHeight: CGFloat = 20
-    // The status-bar composition redraws text and the runner into one image.
-    // Keep its rate bounded to avoid a CPU-feedback loop while preserving
-    // visibly smooth motion at low system load.
-    private static let minimumFramesPerSecond: Double = 6
-    private static let fixedFramesPerSecond: Double = 8
-    private static let maximumFramesPerSecond: Double = 12
+    // Replacing a native status-item image asks AppKit to redraw its menu-bar
+    // replicas. Keep the runner deliberately low-rate to avoid turning the
+    // animation into a CPU-feedback loop while retaining visible motion.
+    private static let minimumFramesPerSecond: Double = 4
+    private static let fixedFramesPerSecond: Double = 6
+    private static let maximumFramesPerSecond: Double = 8
 
     private let onFrameChange: (NSImage?) -> Void
     private let frames: [NSImage]
@@ -122,9 +122,9 @@ final class StatusBarLogoAnimator {
         timer?.invalidate()
     }
 
-    /// CPU acceleration keeps RunCat-like responsive motion between 6 and
-    /// 12 fps. When disabled, the runner remains animated at a predictable,
-    /// lower-cost 8 fps instead of becoming static.
+    /// CPU acceleration keeps RunCat-like responsive motion between 4 and
+    /// 8 fps. When disabled, the runner remains animated at a predictable,
+    /// lower-cost 6 fps instead of becoming static.
     func setCPUUsage(_ cpuUsage: Double) {
         latestCPUUsage = cpuUsage
         guard !isPaused, isAnimated, frames.count > 1 else { return }

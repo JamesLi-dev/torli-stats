@@ -492,7 +492,7 @@
 "settings.status_bar.show_logo" = "显示 Logo";
 "settings.status_bar.animate_with_cpu" = "随 CPU 加速";
 "settings.status_bar.animation_style" = "动画样式";
-"settings.status_bar.animation_hint" = "关闭“随 CPU 加速”后以固定 8 FPS 播放；系统启用“减少动态效果”时自动显示静态图标。";
+"settings.status_bar.animation_hint" = "关闭“随 CPU 加速”后以固定 6 FPS 播放；系统启用“减少动态效果”时自动显示静态图标。";
 "settings.status_bar.item_order" = "菜单栏项目顺序";
 "settings.status_bar.item_order_hint" = "仅显示已启用的项目；拖动调整其状态栏顺序。";
 

@@ -492,7 +492,7 @@
 "settings.status_bar.show_logo" = "Show Logo";
 "settings.status_bar.animate_with_cpu" = "Animate with CPU";
 "settings.status_bar.animation_style" = "Animation Style";
-"settings.status_bar.animation_hint" = "When “Animate with CPU” is off, animation runs at a fixed 8 FPS; a static icon is shown when Reduce Motion is enabled.";
+"settings.status_bar.animation_hint" = "When “Animate with CPU” is off, animation runs at a fixed 6 FPS; a static icon is shown when Reduce Motion is enabled.";
 "settings.status_bar.item_order" = "Menu Bar Item Order";
 "settings.status_bar.item_order_hint" = "Only enabled items are shown; drag to change their menu bar order.";
 

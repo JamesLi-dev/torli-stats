@@ -218,10 +218,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
         observeSetting(settings.$networkRateUnit) { $0.updateStatusTitle($0.store.statusLine) }
         observeSetting(settings.$networkRateDecimalPlaces) { $0.updateStatusTitle($0.store.statusLine) }
         observeSetting(settings.$privacyMode) { $0.updateStatusTitle($0.store.statusLine) }
-        observeSetting(settings.$showStatusBarLogo) { app in
-            app.updateStatusBarLogo()
-            app.updateStatusTitle(app.store.statusLine)
-        }
+        observeSetting(settings.$showStatusBarLogo) { $0.updateStatusBarLogo() }
         observeSetting(settings.$statusBarLogoAnimation) { $0.updateStatusBarLogo() }
         observeSetting(settings.$statusBarRunner) { $0.updateStatusBarLogo() }
 
