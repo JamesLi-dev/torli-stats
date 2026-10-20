@@ -59,10 +59,21 @@
 "dashboard.live" = "实时";
 "dashboard.fan" = "风扇";
 "dashboard.sensor_unavailable" = "传感器暂不可用";
-"dashboard.current_speed" = "当前转速";
+"dashboard.fan_percent" = "%.0f%%";
+"dashboard.fan_summary" = "风扇转速 · 最大 %@ RPM";
 "dashboard.authorize_fan" = "需要授权读取风扇";
 "dashboard.rpm_unavailable" = "当前机型未提供 RPM";
 "dashboard.fan_speed" = "风扇转速";
+"fan.control.title" = "风扇控制";
+"fan.control.automatic" = "自动";
+"fan.control.cooling" = "降温";
+"fan.control.maximum_cooling" = "强冷";
+"fan.control.safety_hint" = "降温为约 60% 的可控转速范围；切换自动、退出应用或辅助进程断连时，都会恢复由 macOS 自动调节。";
+"fan.control.helper_required" = "需要先授权风扇与温度辅助进程。";
+"fan.control.unavailable" = "此 Mac 未提供可控制的风扇。";
+"fan.control.apply_failed" = "未能应用转速档位，已恢复默认模式。";
+"fan.control.automatic_applied" = "已恢复由 macOS 自动调节。";
+"fan.control.mode_applied" = "已应用风扇转速档位。";
 "dashboard.typing" = "输入";
 "dashboard.typing_summary" = "累计 %@ · 活跃 %@";
 "dashboard.typing_details" = "查看输入统计趋势";
@@ -467,6 +478,8 @@
 "settings.status_bar.codex_account_count" = "账号数";
 "settings.status_bar.system_metrics_style" = "系统指标样式";
 "settings.status_bar.display_style" = "显示方式";
+"settings.status_bar.layout_vertical" = "竖向";
+"settings.status_bar.layout_horizontal" = "横向";
 "settings.status_bar.font_size" = "文字大小";
 "status_bar.font.small" = "小";
 "status_bar.font.standard" = "标准";
@@ -479,7 +492,7 @@
 "settings.status_bar.show_logo" = "显示 Logo";
 "settings.status_bar.animate_with_cpu" = "随 CPU 加速";
 "settings.status_bar.animation_style" = "动画样式";
-"settings.status_bar.animation_hint" = "关闭“随 CPU 加速”后以固定 8 FPS 播放；系统启用“减少动态效果”时自动显示静态图标。";
+"settings.status_bar.animation_hint" = "关闭“随 CPU 加速”后以固定 6 FPS 播放；系统启用“减少动态效果”时自动显示静态图标。";
 "settings.status_bar.item_order" = "菜单栏项目顺序";
 "settings.status_bar.item_order_hint" = "仅显示已启用的项目；拖动调整其状态栏顺序。";
 

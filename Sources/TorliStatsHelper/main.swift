@@ -3,8 +3,31 @@ import IOKit
 import TorliStatsShared
 
 final class SensorService: NSObject, SensorServiceProtocol {
+    private let queue = DispatchQueue(label: "local.torli.stats.sensor-service")
+    private var manualFanControlActive = false
+
     func readSensors(withReply reply: @escaping (NSDictionary) -> Void) {
-        reply(SMCReader.snapshot())
+        queue.async { reply(SMCReader.snapshot()) }
+    }
+
+    func setFanControlMode(_ mode: NSNumber, withReply reply: @escaping (NSDictionary) -> Void) {
+        queue.async {
+            guard let requestedMode = FanControlMode(rawValue: mode.intValue) else {
+                reply(["success": false, "reason": "fan.control.invalid_mode"])
+                return
+            }
+            let result = SMCReader.setFanControlMode(requestedMode)
+            self.manualFanControlActive = (result["success"] as? Bool ?? false) && requestedMode != .automatic
+            reply(result)
+        }
+    }
+
+    func restoreAutomaticFanControlAfterDisconnect() {
+        queue.async {
+            guard self.manualFanControlActive else { return }
+            _ = SMCReader.setFanControlMode(.automatic)
+            self.manualFanControlActive = false
+        }
     }
 }
 
@@ -14,8 +37,12 @@ final class ListenerDelegate: NSObject, NSXPCListenerDelegate {
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {
         connection.exportedInterface = NSXPCInterface(with: SensorServiceProtocol.self)
         connection.exportedObject = service
-        connection.invalidationHandler = {}
-        connection.interruptionHandler = {}
+        connection.invalidationHandler = { [weak self] in
+            self?.service.restoreAutomaticFanControlAfterDisconnect()
+        }
+        connection.interruptionHandler = { [weak self] in
+            self?.service.restoreAutomaticFanControlAfterDisconnect()
+        }
         connection.resume()
         return true
     }
@@ -43,6 +70,7 @@ private enum SMCReader {
 
     private static let smc = SMCConnection()
     private static var lastFanRPM: Int?
+    private static var lastFanMaximumRPM: Int?
     private static var lastCPUTemperature: Double?
     private static var lastGPUTemperature: Double?
 
@@ -85,10 +113,20 @@ private enum SMCReader {
 
         // Zero is a valid reading: a MacBook fan can be stopped. Only an
         // absent/unreadable key should be treated as missing.
-        let fanValues = fanKeys.compactMap { smc.readNumber($0) }
-            .filter { $0 >= 0 && $0 < 20_000 }
-        if let rpm = fanValues.max() {
-            lastFanRPM = Int(rpm.rounded())
+        let fanReadings = fanKeys.compactMap { key -> (current: Double, maximum: Double?)? in
+            guard let current = smc.readNumber(key), current >= 0, current < 20_000 else { return nil }
+            let maximumKey = String(key.dropLast(2)) + "Mx"
+            let maximum = smc.readNumber(maximumKey).flatMap { value in
+                value > 0 && value < 20_000 ? value : nil
+            }
+            return (current, maximum)
+        }
+        if let reading = fanReadings.max(by: { $0.current < $1.current }) {
+            lastFanRPM = Int(reading.current.rounded())
+            // Multiple fans can have different limits. The dashboard reports
+            // the highest current RPM, so use that same fan's limit for the
+            // progress bar rather than combining unrelated fans.
+            lastFanMaximumRPM = reading.maximum.map { Int($0.rounded()) }
             result["fanReason"] = "sensor.fan.read"
         } else {
             result["fanReason"] = "sensor.fan.unavailable"
@@ -100,22 +138,22 @@ private enum SMCReader {
             guard let value = smc.readNumber(key), value >= 10, value <= 125 else { return nil }
             return (key, value)
         }
-        // TCMz is the CPU-die hotspot and is closest to what monitoring
-        // utilities label as "CPU temperature". TCMb is the steadier average
-        // fallback. Do not use an arbitrary hottest Tp key as the primary
-        // value: some firmware keys are not CPU temperatures despite their T*
-        // names and can produce 100+°C-looking outliers.
-        let preferredCPUKeys = ["TCMz", "TCMb", "TCDX", "TC0P"]
+        // The dashboard presents a representative CPU temperature, not a
+        // hotspot. TCMz is often the die hotspot and can be materially higher
+        // than the temperature users see in mainstream monitoring tools. Use
+        // TCMb when it is exposed; it is the steadier CPU-average reading.
+        let preferredCPUKeys = ["TCMb", "TCDX", "TC0P", "TCMz"]
         if let temperature = preferredCPUKeys.compactMap({ key in
             cpuReadings.first(where: { $0.0 == key })?.1
         }).first {
             lastCPUTemperature = temperature
         } else {
-            // A median across all T* keys can be skewed by power-management
-            // and package sensors. Tp01...Tp16 are the CPU cluster sensors;
-            // the hottest valid cluster is a more useful dashboard value.
+            // On Apple Silicon, no single CPU-package key is guaranteed to be
+            // available. A cluster median is representative without allowing
+            // one hot core to make the dashboard appear hotter than the CPU as
+            // a whole. Use all recognized CPU candidates only as a last resort.
             let clusterReadings = cpuReadings.filter { isAppleSiliconCPUKey($0.0) }
-            let temperature = clusterReadings.map { $0.1 }.max()
+            let temperature = median(clusterReadings.map { $0.1 })
                 ?? median(cpuReadings.map { $0.1 })
             if let temperature { lastCPUTemperature = temperature }
         }
@@ -138,9 +176,85 @@ private enum SMCReader {
             : "sensor.gpu_temperature.read"
 
         if let lastFanRPM { result["fanRPM"] = NSNumber(value: lastFanRPM) }
+        if let lastFanMaximumRPM { result["fanMaxRPM"] = NSNumber(value: lastFanMaximumRPM) }
         if let lastCPUTemperature { result["cpuTemperature"] = NSNumber(value: lastCPUTemperature) }
         if let lastGPUTemperature { result["gpuTemperature"] = NSNumber(value: lastGPUTemperature) }
         return result as NSDictionary
+    }
+
+    /// Fan control deliberately accepts only the fixed, user-visible modes in
+    /// `FanControlMode`; it never forwards arbitrary SMC keys or RPM values.
+    static func setFanControlMode(_ mode: FanControlMode) -> NSDictionary {
+        guard smc.open() else {
+            return ["success": false, "reason": "fan.control.smc_unavailable"]
+        }
+
+        let discovered = smc.discoverKeys()
+        let actualKeys = unique((0...9).map { "F\($0)Ac" } + discovered.filter {
+            $0.count == 4 && $0.first == "F" && $0.hasSuffix("Ac")
+        })
+        let fans = actualKeys.compactMap { key -> (index: String, minimum: Double, maximum: Double)? in
+            let index = String(key.dropFirst().prefix(1))
+            guard let minimum = smc.readNumber("F\(index)Mn"),
+                  let maximum = smc.readNumber("F\(index)Mx"),
+                  minimum >= 0, maximum >= minimum, maximum < 20_000 else {
+                return nil
+            }
+            return (index, minimum, maximum)
+        }
+        guard !fans.isEmpty else {
+            return ["success": false, "reason": "fan.control.unavailable"]
+        }
+
+        if mode == .automatic {
+            let restored = fans.allSatisfy { smc.writeNumber("F\($0.index)Md", value: 0) }
+            // Ftst is not present on every Apple Silicon generation. Clearing
+            // it when available returns thermalmonitord to normal ownership.
+            _ = smc.writeNumber("Ftst", value: 0)
+            return [
+                "success": restored,
+                "mode": NSNumber(value: FanControlMode.automatic.rawValue),
+                "reason": restored ? "fan.control.automatic" : "fan.control.restore_failed"
+            ]
+        }
+
+        // Some Apple Silicon firmware accepts direct mode writes while others
+        // require Ftst before thermalmonitord yields control. Try the direct
+        // path first, then one guarded unlock attempt.
+        var usedTestMode = false
+        for fan in fans {
+            if smc.writeNumber("F\(fan.index)Md", value: 1) { continue }
+            if !usedTestMode {
+                guard smc.writeNumber("Ftst", value: 1) else {
+                    restoreAutomatic(fans)
+                    return ["success": false, "reason": "fan.control.mode_failed"]
+                }
+                usedTestMode = true
+            }
+            guard smc.writeNumber("F\(fan.index)Md", value: 1) else {
+                restoreAutomatic(fans)
+                return ["success": false, "reason": "fan.control.mode_failed"]
+            }
+        }
+
+        for fan in fans {
+            guard let target = mode.targetRPM(minimum: fan.minimum, maximum: fan.maximum),
+                  smc.writeNumber("F\(fan.index)Tg", value: target) else {
+                restoreAutomatic(fans)
+                return ["success": false, "reason": "fan.control.target_failed"]
+            }
+        }
+
+        return [
+            "success": true,
+            "mode": NSNumber(value: mode.rawValue),
+            "reason": "fan.control.applied"
+        ]
+    }
+
+    private static func restoreAutomatic(_ fans: [(index: String, minimum: Double, maximum: Double)]) {
+        for fan in fans { _ = smc.writeNumber("F\(fan.index)Md", value: 0) }
+        _ = smc.writeNumber("Ftst", value: 0)
     }
 
     private static func unique(_ keys: [String]) -> [String] {
@@ -273,6 +387,35 @@ private final class SMCConnection {
         return decode(type: info.type, bytes: bytes)
     }
 
+    /// Encodes only the SMC numeric representations used by fan mode and
+    /// target keys. Unsupported key formats are rejected rather than guessed.
+    func writeNumber(_ key: String, value: Double) -> Bool {
+        guard isOpen, value.isFinite, let info = keyInfo(key),
+              let bytes = encoded(value: value, type: info.type, size: Int(info.size)) else {
+            return false
+        }
+
+        var input = SMCKeyData()
+        var output = SMCKeyData()
+        input.key = fourCharCode(key)
+        input.data8 = 6 // kSMCWriteKey
+        input.keyInfo.dataSize = info.size
+        input.keyInfo.dataType = info.type
+        withUnsafeMutableBytes(of: &input.bytes) { destination in
+            destination.prefix(bytes.count).copyBytes(from: bytes)
+        }
+
+        var outputSize = MemoryLayout<SMCKeyData>.size
+        return IOConnectCallStructMethod(
+            connection,
+            2,
+            &input,
+            MemoryLayout<SMCKeyData>.size,
+            &output,
+            &outputSize
+        ) == kIOReturnSuccess
+    }
+
     private func keyInfo(_ key: String) -> (type: UInt32, size: UInt32)? {
         if let cached = keyInfoCache[key] { return cached }
 
@@ -296,6 +439,30 @@ private final class SMCConnection {
         let info = (output.keyInfo.dataType, output.keyInfo.dataSize)
         keyInfoCache[key] = info
         return info
+    }
+
+    private func encoded(value: Double, type: UInt32, size: Int) -> [UInt8]? {
+        guard size > 0 else { return nil }
+        switch fourCharString(type) {
+        case "fpe2":
+            let raw = Int((value * 4).rounded())
+            guard (0...Int(UInt16.max)).contains(raw), size >= 2 else { return nil }
+            return [UInt8((raw >> 8) & 0xff), UInt8(raw & 0xff)]
+        case "flt ":
+            guard size >= 4 else { return nil }
+            let raw = Float(value).bitPattern
+            return [UInt8(raw & 0xff), UInt8((raw >> 8) & 0xff), UInt8((raw >> 16) & 0xff), UInt8((raw >> 24) & 0xff)]
+        case "ui8 ":
+            let raw = Int(value.rounded())
+            guard (0...Int(UInt8.max)).contains(raw) else { return nil }
+            return [UInt8(raw)]
+        case "ui16":
+            let raw = Int(value.rounded())
+            guard (0...Int(UInt16.max)).contains(raw), size >= 2 else { return nil }
+            return [UInt8((raw >> 8) & 0xff), UInt8(raw & 0xff)]
+        default:
+            return nil
+        }
     }
 
     private func decode(type: UInt32, bytes: [UInt8]) -> Double? {

@@ -1,10 +1,17 @@
 import Foundation
 import TorliStatsShared
 
+struct FanControlResult {
+    let success: Bool
+    let mode: FanControlMode?
+    let reason: String
+}
+
 struct PrivilegedSensorValues {
     let isHelperReachable: Bool
     let isAvailable: Bool
     let fanRPM: Int?
+    let fanMaxRPM: Int?
     let cpuTemperature: Double?
     let gpuTemperature: Double?
     let helperVersion: String?
@@ -26,6 +33,31 @@ final class SensorClient {
     func read(completion: @escaping (PrivilegedSensorValues) -> Void) {
         callbackQueue.async { [weak self] in
             self?.startRead(completion: completion)
+        }
+    }
+
+    func setFanControl(mode: FanControlMode, completion: @escaping (FanControlResult) -> Void) {
+        callbackQueue.async { [weak self] in
+            guard let self else { return }
+            let connection = self.makeConnection()
+            let proxy = connection.remoteObjectProxyWithErrorHandler { _ in
+                self.callbackQueue.async {
+                    completion(FanControlResult(success: false, mode: nil, reason: "fan.control.connection_failed"))
+                }
+            } as? SensorServiceProtocol
+            guard let proxy else {
+                completion(FanControlResult(success: false, mode: nil, reason: "fan.control.connection_failed"))
+                return
+            }
+            proxy.setFanControlMode(NSNumber(value: mode.rawValue)) { values in
+                self.callbackQueue.async {
+                    completion(FanControlResult(
+                        success: (values["success"] as? NSNumber)?.boolValue ?? false,
+                        mode: (values["mode"] as? NSNumber).flatMap { FanControlMode(rawValue: $0.intValue) },
+                        reason: values["reason"] as? String ?? "fan.control.operation_failed"
+                    ))
+                }
+            }
         }
     }
 
@@ -65,6 +97,7 @@ final class SensorClient {
                     isHelperReachable: true,
                     isAvailable: (values["available"] as? NSNumber)?.boolValue ?? false,
                     fanRPM: (values["fanRPM"] as? NSNumber)?.intValue,
+                    fanMaxRPM: (values["fanMaxRPM"] as? NSNumber)?.intValue,
                     cpuTemperature: (values["cpuTemperature"] as? NSNumber)?.doubleValue,
                     gpuTemperature: (values["gpuTemperature"] as? NSNumber)?.doubleValue,
                     helperVersion: values["helperVersion"] as? String,
@@ -127,6 +160,7 @@ final class SensorClient {
         isHelperReachable: false,
         isAvailable: false,
         fanRPM: nil,
+        fanMaxRPM: nil,
         cpuTemperature: nil,
         gpuTemperature: nil,
         helperVersion: nil,

@@ -34,6 +34,9 @@ extension TorliAppDelegate {
             self.updateStatusBarRunnerImage(image)
         }
         statusLogoAnimator?.setPaused(monitoringPauseController.mode != .realtime)
+        // Install the static title once after the animator has produced its
+        // initial frame. Later frames update only the native image.
+        updateStatusTitle(store.statusLine)
     }
 
     func updateStatusBarLogoSpeed() {
@@ -42,19 +45,12 @@ extension TorliAppDelegate {
     }
 
     /// A key press updates several input-stat values. The status bar only
-    /// needs a periodic aggregate refresh, rather than one expensive image
-    /// composition for every published value.
+    /// needs a periodic aggregate refresh, rather than one title rebuild for
+    /// every published value.
     func scheduleTypingStatusUpdate() {
         guard settings.showTypingStatusItem,
               settings.typingStatsEnabled,
               settings.statusBarMetricOrder.contains(.typing) else { return }
-
-        // An animated runner already composites the current metric text on
-        // its next frame, so a separate input-driven redraw is redundant.
-        if settings.showStatusBarLogo,
-           !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
-            return
-        }
 
         guard typingStatusUpdateWorkItem == nil else { return }
         let minimumInterval: TimeInterval = 0.4
@@ -82,7 +78,18 @@ extension TorliAppDelegate {
 
     private func updateStatusBarRunnerImage(_ image: NSImage?) {
         statusLogoImage = image
-        updateStatusTitle(store.statusLine)
+
+        // Rebuilding the attributed title for every animation frame forces
+        // AppKit to typeset and snapshot the complete status item. The title
+        // changes only with metrics or settings; an animation frame needs to
+        // replace the native runner image alone.
+        guard settings.showStatusBarLogo,
+              settings.statusBarMetricOrder.contains(.logo),
+              let button = statusItem?.button,
+              button.image !== image else {
+            return
+        }
+        button.image = image
     }
 
     func updateStatusTitle(_ line: StatusLine) {
@@ -106,7 +113,9 @@ extension TorliAppDelegate {
             && settings.statusBarMetricOrder.contains(.logo)
             && statusLogoImage != nil
         if includesRunner {
-            button.image = statusLogoImage
+            if button.image !== statusLogoImage {
+                button.image = statusLogoImage
+            }
             button.imagePosition = runnerImagePosition
             // Keep image and title adjacent as one native button content group.
             // The sprite's transparent side padding is trimmed before it reaches

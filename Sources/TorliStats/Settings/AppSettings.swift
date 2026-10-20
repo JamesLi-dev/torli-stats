@@ -239,7 +239,10 @@ final class AppSettings: ObservableObject {
     @Published private(set) var sensorGPUTemperatureReason: String
     @Published private(set) var sensorOperationDiagnostic: String?
     @Published private(set) var sensorHelperMessage: String?
-    private let sensorClient = SensorClient()
+    @Published var fanControlMode: FanControlMode
+    @Published var fanControlApplying: Bool
+    @Published var fanControlMessage: String?
+    let sensorClient = SensorClient()
 
     init() {
         theme = ThemePreference(rawValue: defaults.string(forKey: "themePreference") ?? "") ?? .system
@@ -338,6 +341,11 @@ final class AppSettings: ObservableObject {
         sensorGPUTemperatureReason = StatsL10n.text("sensor.status.not_checked")
         sensorOperationDiagnostic = nil
         sensorHelperMessage = nil
+        // Never restore a forced fan mode merely because the app relaunched.
+        // A user must actively select a mode in the current session.
+        fanControlMode = .automatic
+        fanControlApplying = false
+        fanControlMessage = nil
         probeSensorHelper()
     }
 

@@ -9,10 +9,11 @@ struct MetricCard<Content: View, Footer: View>: View {
     let valueColor: Color
     let badgeColor: Color
     let isInteractive: Bool
+    let contentHeight: CGFloat?
     let content: Content
     let footer: Footer
 
-    init(title: String, icon: String, value: String, badge: String, density: DashboardDensity = .standard, valueColor: Color = .primary, badgeColor: Color = Color.primary.opacity(0.78), isInteractive: Bool = false, @ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer = { EmptyView() }) {
+    init(title: String, icon: String, value: String, badge: String, density: DashboardDensity = .standard, valueColor: Color = .primary, badgeColor: Color = Color.primary.opacity(0.78), isInteractive: Bool = false, contentHeight: CGFloat? = nil, @ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer = { EmptyView() }) {
         self.title = title
         self.icon = icon
         self.value = value
@@ -21,6 +22,7 @@ struct MetricCard<Content: View, Footer: View>: View {
         self.valueColor = valueColor
         self.badgeColor = badgeColor
         self.isInteractive = isInteractive
+        self.contentHeight = contentHeight
         self.content = content()
         self.footer = footer()
     }
@@ -45,22 +47,26 @@ struct MetricCard<Content: View, Footer: View>: View {
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(.secondary)
                 Spacer()
-                DashboardChip(
-                    text: badge,
-                    tint: badgeColor,
-                    verticalPadding: 4
-                )
+                if !badge.isEmpty {
+                    DashboardChip(
+                        text: badge,
+                        tint: badgeColor,
+                        verticalPadding: 4
+                    )
+                }
             }
 
-            Text(value)
-                .font(AppTypography.metricValue)
-                .foregroundStyle(valueColor)
-                .contentTransition(.numericText())
+            if !value.isEmpty {
+                Text(value)
+                    .font(AppTypography.metricValue)
+                    .foregroundStyle(valueColor)
+                    .contentTransition(.numericText())
+            }
 
             if density != .compact {
                 content
                     .font(AppTypography.metadata)
-                    .frame(height: chartHeight)
+                    .frame(height: contentHeight ?? chartHeight)
 
                 Spacer(minLength: 0)
 
@@ -70,7 +76,9 @@ struct MetricCard<Content: View, Footer: View>: View {
                     .lineLimit(1)
             }
         }
-        .padding(AppMetrics.compactPadding)
+        .padding(.horizontal, AppMetrics.compactPadding)
+        .padding(.top, AppMetrics.compactPadding)
+        .padding(.bottom, AppMetrics.compactPadding + 2)
         .frame(height: cardHeight, alignment: .top)
         .dashboardCardSurface(interactive: isInteractive)
     }
