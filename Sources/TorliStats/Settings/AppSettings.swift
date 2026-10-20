@@ -241,7 +241,11 @@ final class AppSettings: ObservableObject {
     @Published private(set) var sensorHelperMessage: String?
     @Published var fanControlMode: FanControlMode
     @Published var fanControlApplying: Bool
+    @Published var fanControlTransitioning = false
     @Published var fanControlMessage: String?
+    var appliedFanCoolingTarget: FanControlMode?
+    var fanControlTransitionTarget: FanControlMode?
+    var fanControlTransitionWorkItem: DispatchWorkItem?
     let sensorClient = SensorClient()
 
     init() {

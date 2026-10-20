@@ -283,10 +283,9 @@ struct DashboardView: View {
         case .fan:
             let useCompactFanLayout = settings.dashboardDensity == .compact
             let hasFanData = settings.sensorHelperEnabled && store.fanRPM != nil
-            // Manual modes describe the percentage of each fan's controllable
-            // min...max range. In automatic mode, retain the actual RPM/max
-            // ratio because there is no requested target to show.
-            let fanFraction: Double? = settings.fanControlMode.percentage ?? {
+            // The badge and progress ring always describe the measured fan
+            // speed, rather than a selected control strategy or its target.
+            let fanFraction: Double? = {
                 guard let rpm = store.fanRPM, let maximum = store.fanMaxRPM, maximum > 0 else { return nil }
                 return min(1, Double(rpm) / Double(maximum))
             }()
@@ -295,7 +294,9 @@ struct DashboardView: View {
                 title: StatsL10n.text("dashboard.fan"),
                 icon: "fanblades.fill",
                 value: useCompactFanLayout ? (store.fanRPM.map(String.init) ?? "—") : "",
-                badge: fanPercentage.map { StatsL10n.format("dashboard.fan_percent", $0) } ?? (useCompactFanLayout ? "RPM" : ""),
+                badge: (settings.fanControlApplying || settings.fanControlTransitioning)
+                    ? StatsL10n.text("fan.control.transitioning")
+                    : fanPercentage.map { StatsL10n.format("dashboard.fan_percent", $0) } ?? (useCompactFanLayout ? "RPM" : ""),
                 density: settings.dashboardDensity,
                 contentHeight: useCompactFanLayout ? nil : (hasFanData ? 54 : 66)
             ) {
@@ -567,7 +568,7 @@ struct DashboardView: View {
     private func fanModeTint(_ mode: FanControlMode) -> Color {
         switch mode {
         case .automatic: return AppColors.accent
-        case .cooling: return AppColors.success
+        case .cooling, .coolingWarm, .coolingHot: return AppColors.success
         case .maximumCooling: return AppColors.critical
         }
     }
