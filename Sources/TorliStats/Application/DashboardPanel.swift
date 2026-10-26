@@ -7,6 +7,9 @@ final class DashboardPanel: NSPanel {
     private static let statusBarGap: CGFloat = 12
     private(set) var isShown = false
     private var transitionID = 0
+    // Hidden hosting controllers still observe every metric/typing change.
+    // Recreate the presentation from the live stores only when it is opened.
+    var makeContentViewController: (() -> NSViewController?)?
 
     var dashboardContentSize: NSSize {
         get {
@@ -47,6 +50,12 @@ final class DashboardPanel: NSPanel {
     func present(relativeTo rect: NSRect, of view: NSView, preferredEdge: NSRectEdge) {
         guard let hostWindow = view.window,
               let screen = hostWindow.screen ?? NSScreen.main else { return }
+
+        if contentViewController == nil {
+            let size = dashboardContentSize
+            contentViewController = makeContentViewController?()
+            setContentSize(size)
+        }
 
         let anchor = hostWindow.convertToScreen(view.convert(rect, to: nil))
         let visibleFrame = screen.visibleFrame.insetBy(dx: 8, dy: 8)
@@ -99,6 +108,9 @@ final class DashboardPanel: NSPanel {
                   self.transitionID == currentTransition,
                   !self.isShown else { return }
             self.orderOut(nil)
+            let size = self.dashboardContentSize
+            self.contentViewController = nil
+            self.setContentSize(size)
             self.alphaValue = 1
         })
     }

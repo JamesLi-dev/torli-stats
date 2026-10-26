@@ -80,41 +80,9 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
                 DashboardView.maximumPopoverHeight
             )
         )
-        let dashboardController = NSHostingController(
-            rootView: DashboardView(
-                store: store,
-                settings: settings,
-                codexUsageStore: codexUsageStore,
-                codexTokenActivityService: codexTokenActivityService,
-                wakaTimeUsageStore: wakaTimeUsageStore,
-                typingStats: typingStats,
-                onCodexDisplayCountChange: { [weak self] count in
-                    self?.updatePopoverSize(codexAccountCount: count)
-                },
-                onTypingDetails: { [weak self] in
-                    self?.showStatisticsDetails(initialTab: .typing)
-                },
-                onWakaTimeDetails: { [weak self] in
-                    self?.showStatisticsDetails(initialTab: .development)
-                },
-                onTypingPermission: { [weak self] in
-                    self?.typingStats.openInputMonitoringSettings()
-                },
-                onOpenSettings: { [weak self] category in
-                    SettingsNavigation.shared.selectedCategory = category
-                    self?.openSettings()
-                }
-            )
-        )
-        dashboardController.view.wantsLayer = true
-        dashboardController.view.layer?.cornerRadius = DashboardLayout.popoverCornerRadius
-        dashboardController.view.layer?.cornerCurve = .continuous
-        dashboardController.view.layer?.masksToBounds = true
-        dashboardPanel.contentViewController = dashboardController
-        dashboardPanel.contentView?.wantsLayer = true
-        dashboardPanel.contentView?.layer?.cornerRadius = DashboardLayout.popoverCornerRadius
-        dashboardPanel.contentView?.layer?.cornerCurve = .continuous
-        dashboardPanel.contentView?.layer?.masksToBounds = true
+        dashboardPanel.makeContentViewController = { [weak self] in
+            self?.makeDashboardController()
+        }
         updatePopoverSize()
 
         store.objectWillChange
@@ -235,6 +203,8 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
         observeSetting(settings.$privacyMode) { $0.updateStatusTitle($0.store.statusLine) }
         observeSetting(settings.$showStatusBarLogo) { $0.updateStatusBarLogo() }
         observeSetting(settings.$statusBarLogoAnimation) { $0.updateStatusBarLogo() }
+        observeSetting(settings.$statusBarLogoAnimated) { $0.updateStatusBarLogo() }
+        observeSetting(settings.$statusBarStaticLogo) { $0.updateStatusBarLogo() }
         observeSetting(settings.$statusBarRunner) { $0.updateStatusBarLogo() }
 
         observeSetting(settings.$wakaTimeEnabled) { app in
@@ -294,6 +264,40 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
         if !monitoringPauseController.isPaused {
             checkForUpdatesIfNeeded()
         }
+    }
+
+    private func makeDashboardController() -> NSViewController {
+        let dashboardController = NSHostingController(
+            rootView: DashboardView(
+                store: store,
+                settings: settings,
+                codexUsageStore: codexUsageStore,
+                codexTokenActivityService: codexTokenActivityService,
+                wakaTimeUsageStore: wakaTimeUsageStore,
+                typingStats: typingStats,
+                onCodexDisplayCountChange: { [weak self] count in
+                    self?.updatePopoverSize(codexAccountCount: count)
+                },
+                onTypingDetails: { [weak self] in
+                    self?.showStatisticsDetails(initialTab: .typing)
+                },
+                onWakaTimeDetails: { [weak self] in
+                    self?.showStatisticsDetails(initialTab: .development)
+                },
+                onTypingPermission: { [weak self] in
+                    self?.typingStats.openInputMonitoringSettings()
+                },
+                onOpenSettings: { [weak self] category in
+                    SettingsNavigation.shared.selectedCategory = category
+                    self?.openSettings()
+                }
+            )
+        )
+        dashboardController.view.wantsLayer = true
+        dashboardController.view.layer?.cornerRadius = DashboardLayout.popoverCornerRadius
+        dashboardController.view.layer?.cornerCurve = .continuous
+        dashboardController.view.layer?.masksToBounds = true
+        return dashboardController
     }
 
     @discardableResult

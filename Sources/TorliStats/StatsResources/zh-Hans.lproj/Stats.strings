@@ -536,3 +536,22 @@
 "activity.wakatime_history_error" = "年度记录暂不可用，展示已取得的近期数据。请检查网络或 WakaTime 历史访问权限。";
 "codex.settings.token_activity" = "显示本地 Token 活动热力图";
 "codex.settings.token_activity_help" = "读取已配置 Codex 目录的会话用量，每 5 分钟更新。汇总输入与输出 Token（缓存输入已包含），不保存对话内容；仅代表本机保留的记录。";
+
+"settings.dashboard.codex_token_activity" = "显示 Codex Token 活动";
+"settings.dashboard.codex_token_activity_help" = "控制 Codex 卡片内的 Token 活动热力图，不影响账号用量显示。";
+
+"status_bar.typing.tooltip" = "今日输入：%@ 键";
+
+"settings.status_bar.logo_mode" = "Logo 模式";
+"settings.status_bar.logo_static" = "静态";
+"settings.status_bar.logo_animated" = "动画";
+"settings.status_bar.static_hint" = "静态图标不播放动画，降低菜单栏刷新开销。";
+"static_logo.leaf" = "叶片";
+"static_logo.sparkles" = "星芒";
+"static_logo.pulse" = "脉冲";
+
+"static_logo.orbit" = "A · 环结";
+"static_logo.link" = "B · 联结";
+"static_logo.pinwheel" = "C · 旋叶";
+"static_logo.meters" = "E · 视窗";
+"static_logo.prism" = "F · 棱面";

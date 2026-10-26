@@ -129,6 +129,12 @@ final class AppSettings: ObservableObject {
     @Published var showStatusBarLogo: Bool {
         didSet { defaults.set(showStatusBarLogo, forKey: "showStatusBarLogo") }
     }
+    @Published var statusBarLogoAnimated: Bool {
+        didSet { defaults.set(statusBarLogoAnimated, forKey: "statusBarLogoAnimated") }
+    }
+    @Published var statusBarStaticLogo: StatusBarStaticLogo {
+        didSet { defaults.set(statusBarStaticLogo.rawValue, forKey: "statusBarStaticLogo") }
+    }
     @Published var statusBarLogoAnimation: Bool {
         didSet { defaults.set(statusBarLogoAnimation, forKey: "statusBarLogoAnimation") }
     }
@@ -289,6 +295,8 @@ final class AppSettings: ObservableObject {
         let savedNetworkRateDecimalPlaces = defaults.object(forKey: "networkRateDecimalPlaces") as? Int
         networkRateDecimalPlaces = savedNetworkRateDecimalPlaces.flatMap { [0, 1, 2].contains($0) ? $0 : nil } ?? 1
         showStatusBarLogo = defaults.object(forKey: "showStatusBarLogo") as? Bool ?? true
+        statusBarLogoAnimated = defaults.object(forKey: "statusBarLogoAnimated") as? Bool ?? true
+        statusBarStaticLogo = StatusBarStaticLogo(savedValue: defaults.string(forKey: "statusBarStaticLogo"))
         statusBarLogoAnimation = defaults.object(forKey: "statusBarLogoAnimation") as? Bool ?? true
         statusBarRunner = StatusBarRunner(rawValue: defaults.string(forKey: "statusBarRunner") ?? "") ?? .runCat
         privacyMode = defaults.object(forKey: "privacyMode") as? Bool ?? false

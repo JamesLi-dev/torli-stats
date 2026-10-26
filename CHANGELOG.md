@@ -4,7 +4,23 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
-### 2026-10-20
+## [1.9.0] - 2026-10-26
+
+### English
+
+- **Static menu-bar logos:** Choose Static or Animated explicitly. Static mode offers five new geometric marks plus Leaf, Sparkles, and Pulse, with no animation timer. Existing animation choices remain available.
+- **Compact, aligned metrics:** Tighten menu-bar spacing, align localized typing labels with numeric values, and keep both rows visible without tab-based layout. Typing counts use compact values with the exact daily count in the tooltip.
+- **Less background UI work:** Release the hidden dashboard view, skip unchanged typing-speed notifications and redundant status-title updates, and draw animated artwork separately from the title. Continuous animation still has a measurable CPU cost.
+- **Dashboard improvements:** Remove the bottom gradient that could obscure content and add a direct toggle for Codex token activity in dashboard settings.
+
+### 中文
+
+- **静态状态栏 Logo：** 明确区分静态与动画模式。静态模式提供五款新几何图标，以及叶片、星芒、脉冲，不启动动画计时器；原有动画样式继续保留。
+- **紧凑且对齐的指标：** 收紧状态栏间距，处理中文输入标签与数字的对齐，并避免制表位导致的双行内容裁切。输入计数使用紧凑显示，悬停可查看当天准确数量。
+- **减少后台界面刷新：** 面板隐藏后释放视图，跳过未变化的输入速度通知和重复标题更新，动画图像与文字分开绘制。持续播放动画仍有一定 CPU 开销。
+- **面板改进：** 移除可能遮挡内容的底部渐变，并在面板设置中增加 Codex Token 活动开关。
+
+## [1.8.1] - 2026-10-20
 
 ### English
 

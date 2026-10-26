@@ -2,6 +2,8 @@ import AppKit
 
 struct StatusBarLogoConfiguration: Equatable {
     let isVisible: Bool
+    let isAnimated: Bool
+    let staticLogo: StatusBarStaticLogo
     let runner: StatusBarRunner
     let acceleratesWithCPU: Bool
     let reduceMotion: Bool

@@ -110,25 +110,66 @@ extension SettingsView {
                     HStack(spacing: 14) {
                         Toggle(StatsL10n.text("settings.status_bar.show_logo"), isOn: $settings.showStatusBarLogo)
                             .fixedSize(horizontal: true, vertical: false)
-                        Toggle(StatsL10n.text("settings.status_bar.animate_with_cpu"), isOn: $settings.statusBarLogoAnimation)
-                            .toggleStyle(.switch)
-                            .fixedSize(horizontal: true, vertical: false)
-                            .disabled(!settings.showStatusBarLogo)
-                        SettingsFieldLabel(StatsL10n.text("settings.status_bar.animation_style"), width: 92)
-                        Picker("", selection: $settings.statusBarRunner) {
-                            ForEach(StatusBarRunner.allCases) { runner in
-                                Text(runner.title).tag(runner)
-                            }
+                        Picker(StatsL10n.text("settings.status_bar.logo_mode"), selection: $settings.statusBarLogoAnimated) {
+                            Text(StatsL10n.text("settings.status_bar.logo_static")).tag(false)
+                            Text(StatsL10n.text("settings.status_bar.logo_animated")).tag(true)
                         }
                         .labelsHidden()
-                        .pickerStyle(.menu)
-                        .frame(width: 130)
+                        .pickerStyle(.segmented)
+                        .frame(width: 180)
                         .disabled(!settings.showStatusBarLogo)
                     }
-                SettingsInlineHint(
-                    text: StatsL10n.text("settings.status_bar.animation_hint"),
-                    icon: "figure.run"
-                )
+                    if settings.statusBarLogoAnimated {
+                        HStack(spacing: 14) {
+                            Toggle(StatsL10n.text("settings.status_bar.animate_with_cpu"), isOn: $settings.statusBarLogoAnimation)
+                                .toggleStyle(.switch)
+                                .fixedSize(horizontal: true, vertical: false)
+                            SettingsFieldLabel(StatsL10n.text("settings.status_bar.animation_style"), width: 92)
+                            Picker("", selection: $settings.statusBarRunner) {
+                                ForEach(StatusBarRunner.allCases) { runner in
+                                    Text(runner.title).tag(runner)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(width: 130)
+                        }
+                        .disabled(!settings.showStatusBarLogo)
+                        SettingsInlineHint(text: StatsL10n.text("settings.status_bar.animation_hint"), icon: "figure.run")
+                    } else {
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 8) {
+                            ForEach(StatusBarStaticLogo.allCases) { logo in
+                                Button {
+                                    settings.statusBarStaticLogo = logo
+                                } label: {
+                                    VStack(spacing: 7) {
+                                        if let image = logo.makeImage() {
+                                            Image(nsImage: image)
+                                                .renderingMode(.template)
+                                                .resizable()
+                                                .scaledToFit()
+                                                .frame(width: 26, height: 26)
+                                                .frame(height: 28)
+                                        }
+                                        Text(logo.title).font(.caption)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .background(settings.statusBarStaticLogo == logo ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 9))
+                                    .overlay {
+                                        RoundedRectangle(cornerRadius: 9)
+                                            .stroke(settings.statusBarStaticLogo == logo ? Color.accentColor : Color.clear, lineWidth: 1.5)
+                                    }
+                                    .contentShape(RoundedRectangle(cornerRadius: 9))
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(logo.title)
+                                .accessibilityAddTraits(settings.statusBarStaticLogo == logo ? .isSelected : [])
+                            }
+                        }
+                        .disabled(!settings.showStatusBarLogo)
+                        SettingsInlineHint(text: StatsL10n.text("settings.status_bar.static_hint"), icon: "leaf")
+                    }
             }
         }
     }
