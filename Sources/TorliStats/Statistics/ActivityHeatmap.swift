@@ -1,14 +1,15 @@
 import SwiftUI
 
-struct ActivityDay: Identifiable, Codable, Equatable {
+public struct ActivityDay: Identifiable, Codable, Equatable {
     let dateID: String
     let value: Double
-    var id: String { dateID }
+    public init(dateID: String, value: Double) { self.dateID = dateID; self.value = value }
+    public var id: String { dateID }
 }
 
 /// Shared calendar layout. Missing observations stay distinct from measured zeroes.
-struct ActivityHeatmap: View {
-    enum Range {
+public struct ActivityHeatmap: View {
+    public enum Range {
         case sixMonths
         case year
     }
@@ -19,6 +20,10 @@ struct ActivityHeatmap: View {
     var compact = false
     var range: Range = .year
     var formatValue: (Double) -> String
+    public init(title: String, records: [ActivityDay], color: Color? = nil, compact: Bool = false, range: Range = .year, formatValue: @escaping (Double) -> String) {
+        self.title = title; self.records = records; self.color = color ?? DashboardPalette.activity
+        self.compact = compact; self.range = range; self.formatValue = formatValue
+    }
     @State private var mode = 0
     @State private var hoveredDay: String?
     @State private var hoveredColumn: Int?
@@ -94,7 +99,7 @@ struct ActivityHeatmap: View {
         }
     }
 
-    var body: some View {
+    public var body: some View {
         let dates = preparedDates
         let data = preparedValues
         let maximum = preparedMaximum

@@ -1,10 +1,10 @@
 import SwiftUI
 
-enum StatisticsDetailTab: String, CaseIterable, Identifiable {
+public enum StatisticsDetailTab: String, CaseIterable, Identifiable {
     case typing
     case development
 
-    var id: String { rawValue }
+    public var id: String { rawValue }
 
     var title: String {
         switch self {
@@ -46,9 +46,9 @@ struct StatisticsSettingsPage: View {
             Group {
                 switch selectedTab {
                 case .typing:
-                    TypingStatisticsDetailContent(typingStats: typingStats)
+                    StatisticsContent(tab: .typing, typing: typingStats, development: wakaTimeUsageStore)
                 case .development:
-                    DevelopmentStatisticsDetailContent(store: wakaTimeUsageStore)
+                    StatisticsContent(tab: .development, typing: typingStats, development: wakaTimeUsageStore)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -103,9 +103,9 @@ struct StatisticsDetailView: View {
                     Group {
                         switch selectedTab {
                         case .typing:
-                            TypingStatisticsDetailContent(typingStats: typingStats)
+                            StatisticsContent(tab: .typing, typing: typingStats, development: wakaTimeUsageStore)
                         case .development:
-                            DevelopmentStatisticsDetailContent(store: wakaTimeUsageStore)
+                            StatisticsContent(tab: .development, typing: typingStats, development: wakaTimeUsageStore)
                         }
                     }
                     .padding(.bottom, 4)
@@ -117,5 +117,37 @@ struct StatisticsDetailView: View {
         }
         .frame(width: 780, height: 640, alignment: .topLeading)
         .background(.clear)
+    }
+}
+
+private struct StatisticsContent: View {
+    let tab: StatisticsDetailTab
+    @ObservedObject var typing: TypingStatsService
+    @ObservedObject var development: WakaTimeUsageStore
+    var body: some View {
+        if let provider = FeatureRegistry.shared.statistics {
+            provider.details(tab: tab, typing: typing, development: development)
+        } else {
+            VStack(alignment: .leading, spacing: 16) {
+                if tab == .typing {
+                    DetailSection(title: StatsL10n.text("statistics.today_input"), subtitle: typing.permissionStatus.description) {
+                        DetailMetricGrid(items: [
+                            (StatsL10n.text("statistics.typing.key_count"), StatisticsFormatting.compactNumber(typing.todayKeyCount)),
+                            (StatsL10n.text("statistics.active_time"), StatisticsFormatting.compactDuration(typing.activeSeconds)),
+                            ("KPM", String(typing.keysPerMinute))
+                        ])
+                        Text(StatsL10n.text("statistics.typing.privacy")).font(.caption).foregroundStyle(.secondary)
+                    }
+                } else {
+                    DetailSection(title: StatsL10n.text("statistics.today_development"), subtitle: development.state.statusText) {
+                        Text(development.todayPeriod.map { StatisticsFormatting.compactDuration($0.totalSeconds) } ?? "—")
+                            .font(.title.bold())
+                        Button(StatsL10n.text("wakatime.refresh")) { development.refresh() }
+                    }
+                }
+                Text(StatsL10n.text("statistics.pro_history_hint"))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
     }
 }

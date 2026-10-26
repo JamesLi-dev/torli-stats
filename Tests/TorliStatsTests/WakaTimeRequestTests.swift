@@ -13,13 +13,54 @@ final class WakaTimeRequestTests: XCTestCase {
         }
     }
 
+    func testCommunityRequestsOnlyTodayAndAllowsManualRefreshWhilePaused() async throws {
+        let cache = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: cache) }
+        var daily: [(Result<WakaTimeUsageClient.DailyData, Error>) -> Void] = []
+        let requests = WakaTimeUsageStore.Requests(
+            snapshot: { _, _, _ in XCTFail("Community must not request historical snapshots") },
+            today: { _, _, completion in daily.append(completion) },
+            period: { _, _, _, _ in XCTFail("Community must not request historical periods") }
+        )
+        let store = WakaTimeUsageStore(apiKeyProvider: { "test" }, rangeProvider: { .last30Days }, cacheDirectory: cache, requests: requests)
+        store.synchronize(isEnabled: true)
+        XCTAssertEqual(daily.count, 1)
+        let data = WakaTimeUsageClient.DailyData(
+            period: WakaTimePeriod(totalSeconds: 3600, activeDayCount: 1, dailyRecords: []),
+            snapshot: snapshot(3600)
+        )
+        daily[0](.success(data))
+        await settle()
+        XCTAssertEqual(store.state.snapshot?.totalSeconds, 3600)
+        XCTAssertEqual(store.todayPeriod?.totalSeconds, 3600)
+        store.loadActivity(force: true)
+        store.loadSnapshotIfNeeded(for: .last7Days)
+        XCTAssertEqual(daily.count, 1)
+        store.setAutomaticRefreshPaused(true)
+        store.refresh()
+        XCTAssertEqual(daily.count, 2)
+        daily[1](.success(data))
+        await settle()
+        store.synchronize(isEnabled: false)
+
+        // Yesterday's cached total must not be labelled as today's usage.
+        let cacheFiles = try FileManager.default.contentsOfDirectory(at: cache, includingPropertiesForKeys: nil)
+        let cacheFile = try XCTUnwrap(cacheFiles.first { $0.pathExtension == "json" })
+        var payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: cacheFile)) as? [String: Any])
+        payload["dateID"] = "2000-01-01"
+        try JSONSerialization.data(withJSONObject: payload).write(to: cacheFile)
+        let restored = WakaTimeUsageStore(apiKeyProvider: { "test" }, rangeProvider: { .last30Days }, cacheDirectory: cache, requests: requests)
+        XCTAssertNil(restored.todayPeriod)
+        XCTAssertNil(restored.todaySnapshot)
+    }
+
     func testSnapshotCompletionDrainsPendingRangeAndRejectsPreviousGeneration() async throws {
         let cache = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: cache) }
         var key = "a"
         var calls: [(String, WakaTimeRange, (Result<WakaTimeSnapshot, Error>) -> Void)] = []
         let requests = WakaTimeUsageStore.Requests(snapshot: { calls.append(($0, $1, $2)) }, today: { _, _, _ in XCTFail("Unexpected request") }, period: { _, _, _, _ in XCTFail("Unexpected request") })
-        let store = WakaTimeUsageStore(apiKeyProvider: { key }, rangeProvider: { .last30Days }, cacheDirectory: cache, requests: requests)
+        let store = WakaTimeUsageStore(apiKeyProvider: { key }, rangeProvider: { .last30Days }, cacheDirectory: cache, requests: requests, historyEnabled: true)
         store.setAutomaticRefreshPaused(true)
         store.synchronize(isEnabled: true)
         store.loadSnapshotIfNeeded(for: .last30Days)
@@ -52,7 +93,7 @@ final class WakaTimeRequestTests: XCTestCase {
         let data = WakaTimeUsageClient.DailyData(period: period, snapshot: snapshot(1))
         let value = snapshot(30)
         let requests = WakaTimeUsageStore.Requests(snapshot: { _, range, completion in ranges.append(range); completion(.success(value)) }, today: { _, _, completion in daily.append(completion) }, period: { _, _, _, completion in completion(.success(period)) })
-        let store = WakaTimeUsageStore(apiKeyProvider: { key }, rangeProvider: { .last30Days }, cacheDirectory: cache, requests: requests)
+        let store = WakaTimeUsageStore(apiKeyProvider: { key }, rangeProvider: { .last30Days }, cacheDirectory: cache, requests: requests, historyEnabled: true)
         store.synchronize(isEnabled: true)
         daily[0](.success(data))
         await settle()

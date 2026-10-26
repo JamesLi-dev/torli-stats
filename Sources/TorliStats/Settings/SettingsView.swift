@@ -27,6 +27,7 @@ struct SettingsView: View {
     @State var wakaTimeMessage: String?
     @State var languageRestartRequired = false
     @State var initialLanguage: AppLanguage
+    @ObservedObject var features = FeatureRegistry.shared
     @ObservedObject private var navigation = SettingsNavigation.shared
     @StateObject private var notesSettings = SettingsModel()
     let onCodexRefresh: () -> Void
@@ -84,6 +85,7 @@ struct SettingsView: View {
             case .power: return settings.showPowerCard
             case .codex: return settings.showCodexCard && codexUsageStore.accounts.contains(where: \.isDashboardVisible)
             case .wakatime: return settings.showWakaTimeCard && settings.wakaTimeEnabled
+            case .feature(let id): return features.feature(id)?.isEnabled ?? false
             case .processes: return settings.showProcessesCard
             }
         }
@@ -198,6 +200,10 @@ struct SettingsView: View {
             settingsPage {
                 NotesSettingsView(model: notesSettings)
             }
+        case .feature(let id):
+            if let feature = features.feature(id) {
+                settingsPage { feature.settingsView() }
+            }
         case .system:
             settingsPage { systemSection }
         }
@@ -211,7 +217,7 @@ struct SettingsView: View {
 
 }
 
-enum SettingsCategory: CaseIterable, Identifiable {
+enum SettingsCategory: Hashable, CaseIterable, Identifiable {
     case appearance
     case statusBar
     case dashboard
@@ -219,8 +225,13 @@ enum SettingsCategory: CaseIterable, Identifiable {
     case development
     case statistics
     case notes
+    case feature(String)
     case system
 
+    static var allCases: [SettingsCategory] {
+        [.appearance, .statusBar, .dashboard, .monitoring, .development, .statistics, .notes]
+            + FeatureRegistry.shared.features.map { .feature($0.id) } + [.system]
+    }
     var id: Self { self }
 
     var title: String {
@@ -231,6 +242,7 @@ enum SettingsCategory: CaseIterable, Identifiable {
         case .monitoring: return StatsL10n.text("settings.category.monitoring")
         case .development: return StatsL10n.text("settings.category.development")
         case .statistics: return StatsL10n.text("settings.category.statistics")
+        case .feature(let id): return FeatureRegistry.shared.feature(id)?.title ?? id
         case .notes: return StatsL10n.text("settings.category.notes")
         case .system: return StatsL10n.text("settings.category.system")
         }
@@ -244,6 +256,7 @@ enum SettingsCategory: CaseIterable, Identifiable {
         case .monitoring: return "waveform.path.ecg"
         case .development: return "chevron.left.forwardslash.chevron.right"
         case .statistics: return "chart.bar.xaxis"
+        case .feature(let id): return FeatureRegistry.shared.feature(id)?.systemImage ?? "puzzlepiece.extension"
         case .notes: return "note.text"
         case .system: return "gearshape"
         }

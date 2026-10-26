@@ -3,13 +3,13 @@ import Foundation
 import Security
 import CryptoKit
 
-enum WakaTimeRange: String, CaseIterable, Identifiable {
+public enum WakaTimeRange: String, CaseIterable, Identifiable {
     case last7Days = "last_7_days"
     case last30Days = "last_30_days"
 
-    var id: String { rawValue }
+    public var id: String { rawValue }
 
-    var title: String {
+    public var title: String {
         switch self {
         case .last7Days: return StatsL10n.text("wakatime.last_7_days")
         case .last30Days: return StatsL10n.text("wakatime.last_30_days")
@@ -17,13 +17,13 @@ enum WakaTimeRange: String, CaseIterable, Identifiable {
     }
 }
 
-struct WakaTimeBreakdown: Codable, Identifiable, Equatable {
-    let name: String
-    let totalSeconds: Double
-    let percent: Double
-    let text: String
+public struct WakaTimeBreakdown: Codable, Identifiable, Equatable {
+    public let name: String
+    public let totalSeconds: Double
+    public let percent: Double
+    public let text: String
 
-    var id: String { name }
+    public var id: String { name }
 
     private enum CodingKeys: String, CodingKey {
         case name
@@ -40,12 +40,12 @@ struct WakaTimeBreakdown: Codable, Identifiable, Equatable {
     }
 }
 
-struct WakaTimeAIModel: Codable, Identifiable, Equatable {
-    let name: String
-    let lines: Int
-    let cost: Double
+public struct WakaTimeAIModel: Codable, Identifiable, Equatable {
+    public let name: String
+    public let lines: Int
+    public let cost: Double
 
-    var id: String { name }
+    public var id: String { name }
 
     init(name: String, lines: Int, cost: Double) {
         self.name = name
@@ -54,37 +54,37 @@ struct WakaTimeAIModel: Codable, Identifiable, Equatable {
     }
 }
 
-struct WakaTimeDailyRecord: Codable, Identifiable, Equatable {
-    let dateID: String
-    let totalSeconds: Double
-    var aiTokens: Double? = nil
+public struct WakaTimeDailyRecord: Codable, Identifiable, Equatable {
+    public let dateID: String
+    public let totalSeconds: Double
+    public var aiTokens: Double? = nil
 
-    var id: String { dateID }
+    public var id: String { dateID }
 }
 
-struct WakaTimePeriod: Codable, Equatable {
-    let totalSeconds: Double
-    let activeDayCount: Int
-    let dailyRecords: [WakaTimeDailyRecord]
+public struct WakaTimePeriod: Codable, Equatable {
+    public let totalSeconds: Double
+    public let activeDayCount: Int
+    public let dailyRecords: [WakaTimeDailyRecord]
 
-    var averageActiveDaySeconds: Double {
+    public var averageActiveDaySeconds: Double {
         guard activeDayCount > 0 else { return 0 }
         return totalSeconds / Double(activeDayCount)
     }
 }
 
-struct WakaTimeSnapshot: Codable, Equatable {
-    let totalSeconds: Double
-    let humanReadableTotal: String
-    let languages: [WakaTimeBreakdown]
-    let editors: [WakaTimeBreakdown]
-    let categories: [WakaTimeBreakdown]
-    let operatingSystems: [WakaTimeBreakdown]
-    let aiInputTokens: Double
-    let aiCachedInputTokens: Double
-    let aiOutputTokens: Double
-    let aiModelTotalCost: Double
-    let aiModelBreakdown: [WakaTimeAIModel]
+public struct WakaTimeSnapshot: Codable, Equatable {
+    public let totalSeconds: Double
+    public let humanReadableTotal: String
+    public let languages: [WakaTimeBreakdown]
+    public let editors: [WakaTimeBreakdown]
+    public let categories: [WakaTimeBreakdown]
+    public let operatingSystems: [WakaTimeBreakdown]
+    public let aiInputTokens: Double
+    public let aiCachedInputTokens: Double
+    public let aiOutputTokens: Double
+    public let aiModelTotalCost: Double
+    public let aiModelBreakdown: [WakaTimeAIModel]
 
     private enum CodingKeys: String, CodingKey {
         case totalSeconds = "total_seconds"
@@ -126,7 +126,7 @@ struct WakaTimeSnapshot: Codable, Equatable {
         self.aiModelBreakdown = aiModelBreakdown
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         totalSeconds = try container.decode(Double.self, forKey: .totalSeconds)
         humanReadableTotal = try container.decode(String.self, forKey: .humanReadableTotal)
@@ -156,13 +156,13 @@ private struct WakaTimeCachePayload: Codable {
     let todaySnapshot: WakaTimeSnapshot?
 }
 
-enum WakaTimeUsageState: Equatable {
+public enum WakaTimeUsageState: Equatable {
     case notConfigured
     case loading(WakaTimeSnapshot?)
     case available(WakaTimeSnapshot, refreshedAt: Date)
     case unavailable(String, WakaTimeSnapshot?)
 
-    var snapshot: WakaTimeSnapshot? {
+    public var snapshot: WakaTimeSnapshot? {
         switch self {
         case .available(let snapshot, _): return snapshot
         case .loading(let snapshot), .unavailable(_, let snapshot): return snapshot
@@ -170,7 +170,7 @@ enum WakaTimeUsageState: Equatable {
         }
     }
 
-    var statusText: String {
+    public var statusText: String {
         switch self {
         case .notConfigured: return StatsL10n.text("wakatime.status.not_configured")
         case .loading: return StatsL10n.text("wakatime.status.syncing")
@@ -180,16 +180,16 @@ enum WakaTimeUsageState: Equatable {
     }
 }
 
-final class WakaTimeUsageStore: ObservableObject {
-    let objectWillChange = ObservableObjectPublisher()
-    private(set) var state: WakaTimeUsageState = .notConfigured
-    private(set) var snapshots: [WakaTimeRange: WakaTimeSnapshot] = [:]
-    private(set) var todayPeriod: WakaTimePeriod?
-    private(set) var lastSevenDaysPeriod: WakaTimePeriod?
-    private(set) var lastThirtyDaysPeriod: WakaTimePeriod?
-    private(set) var activityPeriod: WakaTimePeriod?
-    private(set) var activityLoading = false
-    private(set) var activityError: String?
+public final class WakaTimeUsageStore: ObservableObject {
+    public let objectWillChange = ObservableObjectPublisher()
+    public private(set) var state: WakaTimeUsageState = .notConfigured
+    public private(set) var snapshots: [WakaTimeRange: WakaTimeSnapshot] = [:]
+    public private(set) var todayPeriod: WakaTimePeriod?
+    public private(set) var lastSevenDaysPeriod: WakaTimePeriod?
+    public private(set) var lastThirtyDaysPeriod: WakaTimePeriod?
+    public private(set) var activityPeriod: WakaTimePeriod?
+    public private(set) var activityLoading = false
+    public private(set) var activityError: String?
     private var activityRefreshedAt: Date?
     private var activityFullRefreshedAt: Date?
     private var activityIdentity: String?
@@ -198,7 +198,7 @@ final class WakaTimeUsageStore: ObservableObject {
     private var cacheDateID: String?
     private var cacheSavedAt: Date?
     private var pendingActivityRefresh = false
-    private var todaySnapshot: WakaTimeSnapshot?
+    public private(set) var todaySnapshot: WakaTimeSnapshot?
 
     var dailyRecords: [WakaTimeDailyRecord] {
         switch rangeProvider() {
@@ -212,6 +212,7 @@ final class WakaTimeUsageStore: ObservableObject {
         var today: (String, Date, @escaping (Result<WakaTimeUsageClient.DailyData, Error>) -> Void) -> Void = WakaTimeUsageClient.fetchCurrentDay
         var period: (String, Date, Date, @escaping (Result<WakaTimePeriod, Error>) -> Void) -> Void = WakaTimeUsageClient.fetchPeriod
     }
+    private let historyEnabled: Bool
     private let requests: Requests
 
     private let apiKeyProvider: () -> String?
@@ -224,7 +225,8 @@ final class WakaTimeUsageStore: ObservableObject {
     private var isEnabled = false
     private var automaticRefreshPaused = false
 
-    init(apiKeyProvider: @escaping () -> String?, rangeProvider: @escaping () -> WakaTimeRange, cacheDirectory: URL? = nil, requests: Requests = Requests()) {
+    init(apiKeyProvider: @escaping () -> String?, rangeProvider: @escaping () -> WakaTimeRange, cacheDirectory: URL? = nil, requests: Requests = Requests(), historyEnabled: Bool = false) {
+        self.historyEnabled = historyEnabled
         self.requests = requests
         self.apiKeyProvider = apiKeyProvider
         self.rangeProvider = rangeProvider
@@ -298,7 +300,7 @@ final class WakaTimeUsageStore: ObservableObject {
         }
     }
 
-    func period(for range: WakaTimeRange) -> WakaTimePeriod? {
+    public func period(for range: WakaTimeRange) -> WakaTimePeriod? {
         switch range {
         case .last7Days: return lastSevenDaysPeriod
         case .last30Days: return lastThirtyDaysPeriod
@@ -306,7 +308,8 @@ final class WakaTimeUsageStore: ObservableObject {
     }
 
     /// Fetch a year only when the development statistics view needs it.
-    func loadActivity(force: Bool = false) {
+    public func loadActivity(force: Bool = false) {
+        guard historyEnabled else { return }
         guard isEnabled, !activityLoading, let apiKey = apiKeyProvider(), !apiKey.isEmpty else { return }
         if activityIdentity != apiKey {
             activityPeriod = nil
@@ -354,8 +357,9 @@ final class WakaTimeUsageStore: ObservableObject {
 
     /// User-initiated refreshes fetch the selected range and historical periods.
     /// Automatic refreshes use `refreshCurrentDay()` once this cache is warm.
-    func refresh() {
+    public func refresh() {
         dispatchPrecondition(condition: .onQueue(.main))
+        guard historyEnabled else { refreshCurrentDay(force: true); return }
         guard isEnabled else { return }
         guard !refreshInFlight else {
             // A range change while the regular refresh is running should still
@@ -454,7 +458,8 @@ final class WakaTimeUsageStore: ObservableObject {
     /// Loads a breakdown on demand for the detailed-statistics range picker.
     /// Daily periods are already derived from the regular refresh and do not
     /// require another request here.
-    func loadSnapshotIfNeeded(for range: WakaTimeRange) {
+    public func loadSnapshotIfNeeded(for range: WakaTimeRange) {
+        guard historyEnabled else { return }
         dispatchPrecondition(condition: .onQueue(.main))
         guard isEnabled, snapshots[range] == nil,
               let apiKey = apiKeyProvider(), !apiKey.isEmpty else { return }
@@ -531,14 +536,12 @@ final class WakaTimeUsageStore: ObservableObject {
         !snapshots.isEmpty || todayPeriod != nil || lastThirtyDaysPeriod != nil || activityPeriod != nil
     }
 
-    private func refreshCurrentDay() {
-        guard isEnabled, !automaticRefreshPaused, !refreshInFlight,
+    private func refreshCurrentDay(force: Bool = false) {
+        guard isEnabled, (force || !automaticRefreshPaused), !refreshInFlight,
               let apiKey = apiKeyProvider(), !apiKey.isEmpty else { return }
         refreshInFlight = true
         let generation = requestGeneration
-        if let snapshot = snapshots[rangeProvider()] {
-            update(.loading(snapshot))
-        }
+        update(.loading(historyEnabled ? snapshots[rangeProvider()] : todaySnapshot))
         let today = Calendar.autoupdatingCurrent.startOfDay(for: Date())
         let todayID = Self.dateID(for: today)
         requests.today(apiKey, today) { [weak self] result in
@@ -559,7 +562,7 @@ final class WakaTimeUsageStore: ObservableObject {
                     self.todaySnapshot = data.snapshot
                     self.cacheDateID = todayID
                     self.persistCache()
-                    if let snapshot = self.snapshots[self.rangeProvider()] {
+                    if let snapshot = self.historyEnabled ? self.snapshots[self.rangeProvider()] : self.todaySnapshot {
                         self.update(.available(snapshot, refreshedAt: Date()))
                     }
                 case .failure(let error):
@@ -731,15 +734,15 @@ final class WakaTimeUsageStore: ObservableObject {
             guard let range = WakaTimeRange(rawValue: key) else { return nil }
             return (range, value)
         })
-        todayPeriod = payload.todayPeriod
+        todayPeriod = payload.dateID == Self.dateID(for: Date()) ? payload.todayPeriod : nil
         lastSevenDaysPeriod = payload.lastSevenDaysPeriod
         lastThirtyDaysPeriod = payload.lastThirtyDaysPeriod
         activityPeriod = payload.activityPeriod
         activityRefreshedAt = payload.activityRefreshedAt
         activityFullRefreshedAt = payload.activityFullRefreshedAt
-        todaySnapshot = payload.todaySnapshot
+        todaySnapshot = payload.dateID == Self.dateID(for: Date()) ? payload.todaySnapshot : nil
         activityIdentity = apiKey
-        if let snapshot = snapshots[rangeProvider()] {
+        if let snapshot = historyEnabled ? snapshots[rangeProvider()] : todaySnapshot {
             state = .available(snapshot, refreshedAt: payload.savedAt)
         }
     }

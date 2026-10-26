@@ -155,7 +155,7 @@ enum DashboardDensity: String, CaseIterable, Identifiable {
     }
 }
 
-enum DashboardModule: String, CaseIterable, Codable, Identifiable {
+enum DashboardModule: Hashable, RawRepresentable, CaseIterable, Codable, Identifiable {
     case cpu
     case gpu
     case memory
@@ -167,7 +167,61 @@ enum DashboardModule: String, CaseIterable, Codable, Identifiable {
     case power
     case codex
     case wakatime
+    case feature(String)
     case processes
+
+    static var allCases: [DashboardModule] {
+        [.cpu, .gpu, .memory, .disk, .network, .networkApplications, .fan, .typing, .power, .codex, .wakatime, .processes] + FeatureRegistry.shared.features.map { .feature($0.id) }
+    }
+    var rawValue: String {
+        switch self {
+        case .cpu: return "cpu"
+        case .gpu: return "gpu"
+        case .memory: return "memory"
+        case .disk: return "disk"
+        case .network: return "network"
+        case .networkApplications: return "networkApplications"
+        case .fan: return "fan"
+        case .typing: return "typing"
+        case .power: return "power"
+        case .codex: return "codex"
+        case .wakatime: return "wakatime"
+        case .processes: return "processes"
+        case .feature(let id): return "feature:" + id
+        }
+    }
+    init?(rawValue: String) {
+        switch rawValue {
+        case "cpu": self = .cpu
+        case "gpu": self = .gpu
+        case "memory": self = .memory
+        case "disk": self = .disk
+        case "network": self = .network
+        case "networkApplications": self = .networkApplications
+        case "fan": self = .fan
+        case "typing": self = .typing
+        case "power": self = .power
+        case "codex": self = .codex
+        case "wakatime": self = .wakatime
+        case "processes": self = .processes
+        default:
+            let id = rawValue.hasPrefix("feature:") ? String(rawValue.dropFirst(8)) : rawValue
+            guard FeatureRegistry.shared.feature(id) != nil else { return nil }
+            self = .feature(id)
+        }
+    }
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let value = try container.decode(String.self)
+        guard let module = Self(rawValue: value) else {
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unknown dashboard module")
+        }
+        self = module
+    }
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 
     var id: String { rawValue }
 
@@ -184,6 +238,7 @@ enum DashboardModule: String, CaseIterable, Codable, Identifiable {
         case .power: return StatsL10n.text("module.power")
         case .codex: return "Codex"
         case .wakatime: return "WakaTime"
+        case .feature(let id): return FeatureRegistry.shared.feature(id)?.title ?? id
         case .processes: return StatsL10n.text("module.processes")
         }
     }
@@ -191,7 +246,7 @@ enum DashboardModule: String, CaseIterable, Codable, Identifiable {
     var isMetric: Bool {
         switch self {
         case .cpu, .gpu, .memory, .disk, .network, .fan, .typing: return true
-        case .power, .codex, .wakatime, .processes, .networkApplications: return false
+        case .power, .codex, .wakatime, .feature, .processes, .networkApplications: return false
         }
     }
 }

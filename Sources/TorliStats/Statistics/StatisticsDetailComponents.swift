@@ -1,13 +1,13 @@
 import SwiftUI
 import AppKit
 
-struct DetailSection<Content: View>: View {
+public struct DetailSection<Content: View>: View {
     let title: String
     var subtitle: String? = nil
     let headerAccessory: AnyView
     @ViewBuilder let content: Content
 
-    init(
+    public init(
         title: String,
         subtitle: String? = nil,
         headerAccessory: AnyView = AnyView(EmptyView()),
@@ -19,7 +19,7 @@ struct DetailSection<Content: View>: View {
         self.content = content()
     }
 
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading, spacing: AppMetrics.sectionSpacing) {
             HStack(alignment: .center, spacing: AppMetrics.contentPadding) {
                 Text(title)
@@ -43,10 +43,11 @@ struct DetailSection<Content: View>: View {
     }
 }
 
-struct DetailMetricGrid: View {
+public struct DetailMetricGrid: View {
     let items: [(String, String)]
+    public init(items: [(String, String)]) { self.items = items }
 
-    var body: some View {
+    public var body: some View {
         HStack(spacing: 8) {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 VStack(alignment: .leading, spacing: 3) {
@@ -64,11 +65,12 @@ struct DetailMetricGrid: View {
     }
 }
 
-struct BreakdownList: View {
+public struct BreakdownList: View {
     let values: [WakaTimeBreakdown]
     let color: Color
+    public init(values: [WakaTimeBreakdown], color: Color) { self.values = values; self.color = color }
 
-    var body: some View {
+    public var body: some View {
         VStack(spacing: 8) {
             ForEach(values) { value in
                 HStack(spacing: 9) {

@@ -51,6 +51,7 @@ extension TorliAppDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        FeatureRegistry.shared.shutdown()
         HotKeys.shared.unregisterAll()
     }
 

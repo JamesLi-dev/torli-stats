@@ -1,0 +1,3 @@
+import TorliStats
+
+TorliApplication.run()

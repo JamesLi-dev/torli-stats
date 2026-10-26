@@ -24,6 +24,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Verify community boundary and tests
+        run: |
+          python3 scripts/check-community-boundary.py
+          swift test
+
       - name: Verify release architecture
         run: |
           ARCH="$(uname -m)"
