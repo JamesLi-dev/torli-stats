@@ -35,11 +35,7 @@ struct CodexUsageView: View {
     }
 
     private var collapsedLimit: Int {
-        switch density {
-        case .compact: return 1
-        case .standard: return Self.collapsedAccountLimit
-        case .detailed: return 2
-        }
+        Self.collapsedAccountLimit
     }
 
     private var displayedAccounts: [CodexAccountConfiguration] {
@@ -86,16 +82,15 @@ struct CodexUsageView: View {
                     actionHelp: StatsL10n.text("codex.settings.title")
                 )
             } else {
-                ForEach(displayedAccounts) { account in
-                    CodexAccountUsageRow(
-                        account: account,
-                        state: store.state(for: account.id),
-                        displayName: isPrivacyMode ? privateLabel(for: account) : account.resolvedDisplayName,
-                        density: density,
-                        onRefresh: { store.refresh(accountID: account.id) }
-                    )
-                    if account.id != displayedAccounts.last?.id {
-                        Divider()
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 8) {
+                    ForEach(displayedAccounts) { account in
+                        CodexAccountUsageRow(
+                            account: account,
+                            state: store.state(for: account.id),
+                            displayName: isPrivacyMode ? privateLabel(for: account) : account.resolvedDisplayName,
+                            density: density,
+                            onRefresh: { store.refresh(accountID: account.id) }
+                        )
                     }
                 }
 
@@ -170,84 +165,70 @@ private struct CodexAccountUsageRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 7) {
-                Text(displayName)
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.55)
-                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                DashboardChip(
-                    text: account.id == CodexAccountConfiguration.defaultAccountID
-                        ? StatsL10n.text("codex.usage.default")
-                        : StatsL10n.text("codex.usage.configured"),
-                    tint: accountAccent,
-                    fontSize: 8,
-                    weight: .semibold,
-                    cornerRadius: 5
-                )
-                if let planType = state.snapshot?.account.planType, !planType.isEmpty {
-                    DashboardChip(
-                        text: planType.capitalized,
-                        tint: .secondary,
-                        fontSize: 8,
-                        weight: .semibold,
-                        cornerRadius: 5
-                    )
-                }
-                Spacer(minLength: 0)
-                if density == .detailed, let snapshot = state.snapshot {
-                    Text(StatsL10n.format("codex.usage.updated", snapshot.fetchedAt.formatted(date: .omitted, time: .shortened)))
-                        .font(.system(size: 8, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.65)
-                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .trailing)
-                }
-                Button(action: onRefresh) {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .buttonStyle(DashboardIconButtonStyle())
-                .foregroundStyle(.secondary)
-                .help(StatsL10n.format("codex.usage.refresh_account", displayName))
+        HStack(spacing: 7) {
+            if let primary = state.snapshot?.primary {
+                quotaRing(primary)
             }
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 7) {
+                    Text(displayName)
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.55)
+                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                        .help(accountHelp)
+                    Button(action: onRefresh) {
+                        if case .loading = state {
+                            ProgressView().controlSize(.mini)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10))
+                    .frame(width: 14, height: 14)
+                    .foregroundStyle(.secondary)
+                    .help(StatsL10n.format("codex.usage.refresh_account", displayName))
+                }
 
-            switch state {
-            case .idle:
-                loadingContent
-            case let .loading(snapshot):
-                if let snapshot {
-                    snapshotContent(snapshot, isRefreshing: true)
-                } else {
+                switch state {
+                case .idle:
                     loadingContent
-                }
-            case let .retrying(error, snapshot, attempt, retryAt):
-                if let snapshot {
-                    snapshotContent(snapshot, isRefreshing: false)
-                }
-                Text(StatsL10n.format("codex.usage.retrying", error.localizedDescription, retryAt.formatted(.relative(presentation: .named)), attempt))
-                    .font(.system(size: 9, weight: .medium, design: .rounded))
-                    .foregroundStyle(.orange)
-            case let .available(snapshot):
-                snapshotContent(snapshot, isRefreshing: false)
-            case let .unavailable(error, snapshot):
-                if let snapshot {
-                    snapshotContent(snapshot, isRefreshing: false)
-                    Text(StatsL10n.format("codex.usage.last_update_failed", error.localizedDescription))
+                case let .loading(snapshot):
+                    if let snapshot {
+                        snapshotContent(snapshot, isRefreshing: true)
+                    } else {
+                        loadingContent
+                    }
+                case let .retrying(error, snapshot, attempt, retryAt):
+                    if let snapshot {
+                        snapshotContent(snapshot, isRefreshing: false)
+                    }
+                    Text(StatsL10n.format("codex.usage.retrying", error.localizedDescription, retryAt.formatted(.relative(presentation: .named)), attempt))
                         .font(.system(size: 9, weight: .medium, design: .rounded))
                         .foregroundStyle(.orange)
-                } else {
-                    DashboardStatusSurface {
-                        Text(error.localizedDescription)
-                            .font(.system(size: 10, weight: .medium, design: .rounded))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
+                case let .available(snapshot):
+                    snapshotContent(snapshot, isRefreshing: false)
+                case let .unavailable(error, snapshot):
+                    if let snapshot {
+                        snapshotContent(snapshot, isRefreshing: false)
+                        Text(StatsL10n.format("codex.usage.last_update_failed", error.localizedDescription))
+                            .font(.system(size: 9, weight: .medium, design: .rounded))
+                            .foregroundStyle(.orange)
+                    } else {
+                        DashboardStatusSurface {
+                            Text(error.localizedDescription)
+                                .font(.system(size: 10, weight: .medium, design: .rounded))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
                     }
                 }
             }
         }
+        .frame(maxWidth: .infinity, minHeight: 38, alignment: .top)
         .padding(.horizontal, 7)
-        .padding(.vertical, density == .compact ? 5 : 8)
+        .padding(.vertical, 5)
         .background {
             RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .fill(Color.primary.opacity(0.026))
@@ -269,6 +250,35 @@ private struct CodexAccountUsageRow: View {
                     lineWidth: 0.75
                 )
         }
+    }
+
+    private func quotaRing(_ primary: CodexUsageWindow) -> some View {
+        let remaining = 100 - percentage(primary.usedPercent)
+        return ZStack {
+            Circle().stroke(Color.primary.opacity(0.09), lineWidth: 3)
+            Circle()
+                .trim(from: 0, to: CGFloat(min(100, max(0, 100 - primary.usedPercent)) / 100))
+                .stroke(quotaColor(forRemaining: 100 - primary.usedPercent), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            Text("\(remaining)%")
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+        }
+        .frame(width: 34, height: 34)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(StatsL10n.format("codex.usage.remaining_percent", remaining))
+        .help(StatsL10n.format("codex.usage.remaining_percent", remaining))
+    }
+
+    private var accountHelp: String {
+        var lines = [displayName, StatsL10n.text(account.id == CodexAccountConfiguration.defaultAccountID
+            ? "codex.usage.default" : "codex.usage.configured")]
+        if let snapshot = state.snapshot {
+            if let plan = snapshot.account.planType, !plan.isEmpty { lines.append(plan) }
+            lines.append(StatsL10n.format("codex.usage.updated", snapshot.fetchedAt.formatted(date: .omitted, time: .shortened)))
+            if let credits = creditsText(for: snapshot.credits) { lines.append(credits) }
+        }
+        return lines.joined(separator: "\n")
     }
 
     private var loadingContent: some View {
@@ -300,54 +310,23 @@ private struct CodexAccountUsageRow: View {
                 .foregroundStyle(.orange)
             }
             if let primary = snapshot.primary {
-                let used = percentage(primary.usedPercent)
-                HStack(alignment: .firstTextBaseline, spacing: 7) {
-                    Text(StatsL10n.format("codex.usage.used_percent", used))
-                        .font(.system(size: 9, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .fixedSize()
-                    Text(StatsL10n.format("codex.usage.remaining_percent", 100 - used))
-                        .font(.system(size: 9, weight: .medium, design: .monospaced))
-                        .foregroundStyle(quotaColor(forRemaining: 100 - primary.usedPercent))
-                        .fixedSize()
-                    Spacer(minLength: 4)
+                VStack(alignment: .leading, spacing: 2) {
                     if let resetsAt = primary.resetsAt {
                         Text(StatsL10n.format("codex.usage.reset", resetsAt.formatted(.relative(presentation: .named))))
-                            .font(.system(size: 9, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
                     }
-                    if isRefreshing {
-                        ProgressView()
-                            .controlSize(.small)
+                    if let secondary = snapshot.secondary {
+                        Text(StatsL10n.format("codex.usage.weekly_remaining_percent", 100 - percentage(secondary.usedPercent)))
+                            .help(secondary.resetsAt.map {
+                                StatsL10n.format("codex.usage.weekly_reset", $0.formatted(.relative(presentation: .named)))
+                            } ?? "")
                     }
                 }
+                .font(.system(size: 9, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-                DashboardProgressBar(
-                    value: min(100, max(0, 100 - primary.usedPercent)) / 100,
-                    tint: quotaColor(forRemaining: 100 - primary.usedPercent),
-                    height: DashboardLayout.codexProgressBarHeight
-                )
-
-                if density != .compact, let creditsText = creditsText(for: snapshot.credits) {
-                    Text(creditsText)
-                        .font(.system(size: 9, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                }
-
-                if density != .compact, let secondary = snapshot.secondary {
-                    HStack(spacing: 8) {
-                        Text(StatsL10n.format("codex.usage.weekly_used_percent", percentage(secondary.usedPercent)))
-                        if let resetsAt = secondary.resetsAt {
-                            Text(StatsL10n.format("codex.usage.weekly_reset", resetsAt.formatted(.relative(presentation: .named))))
-                        }
-                    }
-                    .font(.system(size: 9, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                }
             } else {
                 Text(StatsL10n.text("codex.usage.no_quota"))
                     .font(.system(size: 10, weight: .medium, design: .rounded))
