@@ -1,5 +1,89 @@
 import AppKit
 
+enum StatusBarStaticLogo: String, CaseIterable, Identifiable {
+    case orbit, link, pinwheel, meters, prism
+    case leaf, sparkles, pulse
+
+    var id: String { rawValue }
+    var title: String { StatsL10n.text("static_logo.\(rawValue)") }
+
+    init(savedValue: String?) {
+        // Map replaced artwork without losing the user's static-mode choice.
+        switch savedValue {
+        case "torli": self = .orbit
+        case "cat": self = .link
+        case "mountain": self = .prism
+        default: self = Self(rawValue: savedValue ?? "") ?? .orbit
+        }
+    }
+
+    private var atlasIndex: Int? {
+        switch self {
+        case .orbit: return 0
+        case .link: return 1
+        case .pinwheel: return 2
+        case .meters: return 3
+        case .prism: return 4
+        default: return nil
+        }
+    }
+
+    private static let atlas: CGImage? = {
+        let url = Bundle.main.url(forResource: "static-logo-atlas", withExtension: "png")
+            ?? Bundle.module.url(forResource: "static-logo-atlas", withExtension: "png")
+        guard let url, let data = try? Data(contentsOf: url) else { return nil }
+        return NSBitmapImageRep(data: data)?.cgImage
+    }()
+
+    private static let images: [Self: NSImage] = Dictionary(uniqueKeysWithValues:
+        allCases.compactMap { logo in logo.renderImage().map { (logo, $0) } }
+    )
+
+    func makeImage() -> NSImage? { Self.images[self] }
+
+    private func renderImage() -> NSImage? {
+        if let index = atlasIndex {
+            guard let atlas = Self.atlas else { return nil }
+            let cellWidth = atlas.width / 3
+            let cellHeight = atlas.height / 2
+            guard let cell = atlas.cropping(to: CGRect(
+                x: (index % 3) * cellWidth, y: (index / 3) * cellHeight,
+                width: cellWidth, height: cellHeight
+            )) else { return nil }
+            // Normalize transparent atlas padding once, keeping every mark's
+            // aspect ratio and crisp negative space at menu-bar scale.
+            let bitmap = NSBitmapImageRep(cgImage: cell)
+            var left = cell.width, top = cell.height, right = -1, bottom = -1
+            for y in 0..<cell.height {
+                for x in 0..<cell.width {
+                    guard (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.05 else { continue }
+                    left = min(left, x); right = max(right, x)
+                    top = min(top, y); bottom = max(bottom, y)
+                }
+            }
+            guard right >= left, bottom >= top,
+                  let cropped = cell.cropping(to: CGRect(x: left, y: top, width: right - left + 1, height: bottom - top + 1)) else { return nil }
+            let side = CGFloat(max(cropped.width, cropped.height))
+            let size = NSSize(width: 18 * CGFloat(cropped.width) / side, height: 18 * CGFloat(cropped.height) / side)
+            let image = NSImage(cgImage: cropped, size: size)
+            image.isTemplate = true
+            image.accessibilityDescription = title
+            return image
+        }
+        let symbol: String
+        switch self {
+        case .leaf: symbol = "leaf.fill"
+        case .sparkles: symbol = "sparkles"
+        case .pulse: symbol = "waveform.path.ecg"
+        default: return nil
+        }
+        guard let image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)?
+            .withSymbolConfiguration(.init(pointSize: 17, weight: .medium)) else { return nil }
+        image.isTemplate = true
+        return image
+    }
+}
+
 enum StatusBarRunner: String, CaseIterable, Identifiable {
     case runCat
     case beagle

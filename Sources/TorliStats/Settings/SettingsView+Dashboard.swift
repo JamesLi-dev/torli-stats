@@ -46,6 +46,10 @@ extension SettingsView {
                     Toggle("WakaTime", isOn: $settings.showWakaTimeCard)
                 }
 
+                Toggle(StatsL10n.text("settings.dashboard.codex_token_activity"), isOn: $settings.codexTokenActivityEnabled)
+                    .help(StatsL10n.text("settings.dashboard.codex_token_activity_help"))
+                    .font(.caption)
+
                 Divider()
 
                 VStack(alignment: .leading, spacing: 7) {

@@ -240,7 +240,8 @@ final class TypingStatsService: ObservableObject {
 
     private func updateSpeed(now: Date) {
         speedTimestamps.removeAll { now.timeIntervalSince($0) > Self.speedWindow }
-        keysPerMinute = speedTimestamps.count
+        let speed = speedTimestamps.count
+        if keysPerMinute != speed { keysPerMinute = speed }
     }
 
     private func installSpeedTimer() {

@@ -91,9 +91,6 @@ struct DashboardView: View {
             .frame(width: Self.panelWidth, alignment: .top)
         }
         .frame(width: Self.panelWidth)
-        .overlay(alignment: .bottom) {
-            scrollHint
-        }
         .background(panelSurface)
         .clipShape(DashboardLayout.popoverShape)
         .preferredColorScheme(settings.theme.colorScheme)
@@ -105,30 +102,6 @@ struct DashboardView: View {
 
     private var monitoringStatusColor: Color {
         store.isMonitoringPaused ? DashboardPalette.quotaWarning : DashboardPalette.quotaSuccess
-    }
-
-    private var needsScrollHint: Bool {
-        Self.preferredHeight(
-            for: settings,
-            codexAccountCount: codexUsageStore.accounts.filter(\.isDashboardVisible).count
-        ) > Self.maximumPopoverHeight
-    }
-
-    @ViewBuilder
-    private var scrollHint: some View {
-        if needsScrollHint {
-            LinearGradient(
-                colors: [
-                    Color.clear,
-                    (usesDarkGlass ? Color.black : Color.white).opacity(0.42)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 20)
-            .clipShape(DashboardLayout.popoverShape)
-            .allowsHitTesting(false)
-        }
     }
 
     @ViewBuilder
