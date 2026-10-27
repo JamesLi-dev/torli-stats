@@ -19,6 +19,7 @@ struct DashboardView: View {
     static let maximumPopoverHeight: CGFloat = 820
 
     @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject private var features = FeatureRegistry.shared
     @ObservedObject var store: MetricsStore
     @ObservedObject var settings: AppSettings
     @ObservedObject var codexUsageStore: CodexAccountsUsageStore
@@ -195,6 +196,7 @@ struct DashboardView: View {
             return settings.showCodexCard && codexUsageStore.accounts.contains(where: \.isDashboardVisible)
         case .wakatime:
             return settings.showWakaTimeCard && settings.wakaTimeEnabled
+        case .feature(let id): return features.feature(id)?.isEnabled ?? false
         case .processes: return settings.showProcessesCard
         }
     }
@@ -341,7 +343,12 @@ struct DashboardView: View {
             ) {
                 if settings.dashboardDensity == .standard || settings.dashboardDensity == .detailed {
                     if typingStats.permissionStatus == .monitoring {
-                        TypingTrendSparkline(records: typingStats.records(forLastDays: 14))
+                        if let statistics = FeatureRegistry.shared.statistics {
+                            statistics.typingTrend(records: typingStats.records(forLastDays: 14))
+                        } else {
+                            Text(StatisticsFormatting.compactDuration(typingStats.activeSeconds))
+                                .font(.title3.bold()).foregroundStyle(.secondary)
+                        }
                     } else {
                         DashboardEmptyState(
                             icon: "keyboard",
@@ -357,7 +364,7 @@ struct DashboardView: View {
             } footer: {
                 HStack(spacing: 4) {
                     Text(typingStats.permissionStatus == .monitoring
-                        ? StatsL10n.format("dashboard.typing_summary", compactNumber(typingStats.totalKeyCount), formatTypingDuration(typingStats.activeSeconds))
+                        ? StatsL10n.format("dashboard.typing_summary", compactNumber(typingStats.todayKeyCount), formatTypingDuration(typingStats.activeSeconds))
                         : typingStats.permissionStatus.description)
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.right")
@@ -367,7 +374,7 @@ struct DashboardView: View {
             .contentShape(DashboardLayout.cardShape)
             .onTapGesture(perform: onTypingDetails)
             .help(StatsL10n.text("dashboard.typing_details"))
-        case .power, .codex, .wakatime, .processes, .networkApplications:
+        case .power, .codex, .wakatime, .feature, .processes, .networkApplications:
             EmptyView()
         }
     }
@@ -399,6 +406,10 @@ struct DashboardView: View {
                 density: settings.dashboardDensity,
                 onDetails: onWakaTimeDetails
             )
+        case .feature(let id):
+            if let feature = features.feature(id) {
+                feature.dashboardView(privacyMode: settings.privacyMode) { onOpenSettings(.feature(id)) }
+            }
         case .processes:
             ProcessListView(
                 processes: store.processes,
@@ -438,15 +449,15 @@ struct DashboardView: View {
         switch settings.dashboardDensity {
         case .compact:
             powerHeight = 68
-            codexBaseHeight = 76
+            codexBaseHeight = 84
             processRowCount = min(settings.processLimit, 3)
         case .standard:
             powerHeight = 92
-            codexBaseHeight = 112
+            codexBaseHeight = 88
             processRowCount = settings.processLimit
         case .detailed:
             powerHeight = 102
-            codexBaseHeight = 122
+            codexBaseHeight = 88
             processRowCount = settings.processLimit
         }
 
@@ -460,15 +471,19 @@ struct DashboardView: View {
         }
         if settings.showPowerCard { blockHeights.append(powerHeight) }
         if codexAccountCount > 0 {
-            var codexHeight = codexBaseHeight + CGFloat(max(0, codexAccountCount - 1)) * 88
+            var codexHeight = codexBaseHeight + CGFloat(max(0, (codexAccountCount + 1) / 2 - 1)) * 56
             if settings.codexTokenActivityEnabled { codexHeight += 175 }
             blockHeights.append(codexHeight)
         }
         if settings.showWakaTimeCard && settings.wakaTimeEnabled {
+            if FeatureRegistry.shared.statistics == nil {
+                blockHeights.append(95)
+            } else {
             switch settings.dashboardDensity {
             case .compact: blockHeights.append(95)
             case .standard: blockHeights.append(210)
             case .detailed: blockHeights.append(280)
+            }
             }
         }
         if settings.showProcessesCard {
@@ -483,10 +498,13 @@ struct DashboardView: View {
 
         let padding = settings.dashboardDensity == .compact ? AppMetrics.compactPadding : AppMetrics.contentPadding
         let spacing = CGFloat(max(0, blockHeights.count - 1)) * DashboardLayout.moduleSpacing(for: settings.dashboardDensity)
-        let height = CGFloat(padding * 2) + blockHeights.reduce(0, +) + spacing
+        var height = CGFloat(padding * 2) + blockHeights.reduce(0, +) + spacing
 
         // The popover height follows the enabled modules and process count;
         // only the minimum keeps an empty or partially loaded panel usable.
+        for feature in FeatureRegistry.shared.features where feature.isEnabled {
+            height += feature.estimatedHeight + DashboardLayout.moduleSpacing(for: settings.dashboardDensity)
+        }
         return max(height, 160)
     }
 
@@ -727,7 +745,7 @@ private struct DashboardCardSurfaceModifier: ViewModifier {
 }
 
 extension View {
-    func dashboardCardSurface(interactive: Bool = false) -> some View {
+    public func dashboardCardSurface(interactive: Bool = false) -> some View {
         modifier(DashboardCardSurfaceModifier(isInteractive: interactive))
     }
 }

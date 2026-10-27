@@ -59,36 +59,6 @@ struct Sparkline: View {
     }
 }
 
-struct TypingTrendSparkline: View {
-    let records: [TypingDailyRecord]
-
-    var body: some View {
-        GeometryReader { geometry in
-            let maximum = max(records.map(\.keyCount).max() ?? 0, 1)
-            let spacing: CGFloat = records.count > 10 ? 2 : 3
-            let width = max(2, (geometry.size.width - spacing * CGFloat(max(records.count - 1, 0))) / CGFloat(max(records.count, 1)))
-
-            ZStack(alignment: .bottom) {
-                Capsule()
-                    .fill(Color.primary.opacity(0.08))
-                    .frame(height: 1)
-
-                HStack(alignment: .bottom, spacing: spacing) {
-                    ForEach(records) { record in
-                        RoundedRectangle(cornerRadius: min(2, width / 2))
-                            .fill(record.keyCount == 0 ? AnyShapeStyle(Color.secondary.opacity(0.16)) : AnyShapeStyle(DashboardPalette.inputBars))
-                            .frame(width: width, height: max(2, geometry.size.height * CGFloat(record.keyCount) / CGFloat(maximum)))
-                            .animation(.easeOut(duration: 0.28), value: record.keyCount)
-                            .accessibilityLabel(record.dateID)
-                            .accessibilityValue(StatsL10n.format("statistics.keys_count", record.keyCount))
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-            }
-        }
-    }
-}
-
 struct NetworkChart: View {
     let download: [Double]
     let upload: [Double]

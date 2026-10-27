@@ -44,6 +44,10 @@ extension SettingsView {
                     Toggle(StatsL10n.text("module.processes"), isOn: $settings.showProcessesCard)
                     Toggle("Codex", isOn: $settings.showCodexCard)
                     Toggle("WakaTime", isOn: $settings.showWakaTimeCard)
+                    ForEach(features.features, id: \.id) { feature in
+                        Toggle(feature.title, isOn: Binding(get: { feature.isEnabled }, set: feature.setEnabled))
+                            .disabled(!feature.canEnable)
+                    }
                 }
 
                 Toggle(StatsL10n.text("settings.dashboard.codex_token_activity"), isOn: $settings.codexTokenActivityEnabled)

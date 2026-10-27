@@ -2,28 +2,39 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-APP="$ROOT/TorliStats.app"
-VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION")"
-BUILD_NUMBER="${BUILD_NUMBER:-$(git -C "$ROOT" rev-list --count HEAD)}"
+PACKAGE_ROOT="${TORLI_PACKAGE_ROOT:-$ROOT}"
+PRODUCT="${TORLI_PRODUCT:-TorliStats}"
+APP_NAME="${TORLI_APP_NAME:-TorliStats}"
+[[ "$PRODUCT" =~ ^[A-Za-z0-9]+$ && "$APP_NAME" =~ ^[A-Za-z0-9]+$ ]] || exit 1
+APP="$PACKAGE_ROOT/$APP_NAME.app"
+VERSION="$(tr -d '[:space:]' < "$PACKAGE_ROOT/VERSION")"
+BUILD_NUMBER="${BUILD_NUMBER:-$(git -C "$PACKAGE_ROOT" rev-list --count HEAD)}"
 
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "VERSION must use MAJOR.MINOR.PATCH (found: $VERSION)" >&2
   exit 1
 fi
 
-swift build -c release
-BIN_DIR="$(swift build -c release --show-bin-path)"
+swift build --package-path "$PACKAGE_ROOT" -c release --product "$PRODUCT"
+BIN_DIR="$(swift build --package-path "$PACKAGE_ROOT" -c release --show-bin-path)"
+swift build --package-path "$ROOT" -c release --product TorliStatsHelper
+HELPER_BIN_DIR="$(swift build --package-path "$ROOT" -c release --show-bin-path)"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/Licenses" \
   "$APP/Contents/Library/LaunchDaemons" \
   "$APP/Contents/Library/LaunchServices"
-cp "$BIN_DIR/TorliStats" "$APP/Contents/MacOS/TorliStats"
-cp "$BIN_DIR/TorliStatsHelper" \
+cp "$BIN_DIR/$PRODUCT" "$APP/Contents/MacOS/$PRODUCT"
+cp "$HELPER_BIN_DIR/TorliStatsHelper" \
   "$APP/Contents/Library/LaunchServices/TorliStatsHelper"
-cp "$ROOT/Info.plist" "$APP/Contents/Info.plist"
+cp "$PACKAGE_ROOT/Info.plist" "$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP/Contents/Info.plist"
 cp "$ROOT/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
+# SwiftPM library resources must travel with either application entry point.
+for resource_bundle in "$BIN_DIR"/*.bundle; do
+  [[ -d "$resource_bundle" ]] || continue
+  ditto "$resource_bundle" "$APP/Contents/Resources/$(basename "$resource_bundle")"
+done
 for runner_asset in "$ROOT"/Resources/runner-*.png; do
   cp "$runner_asset" "$APP/Contents/Resources/$(basename "$runner_asset")"
 done

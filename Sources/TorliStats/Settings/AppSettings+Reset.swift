@@ -3,6 +3,7 @@ import AppKit
 
 extension AppSettings {
     func resetToDefaults() {
+        FeatureRegistry.shared.reset()
         if launchAtLogin {
             setLaunchAtLogin(false)
         }

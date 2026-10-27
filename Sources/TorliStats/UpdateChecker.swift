@@ -9,6 +9,7 @@ struct AppUpdateRelease: Equatable {
 
 enum AppUpdateCheckStatus: Equatable {
     case idle
+    case unavailable
     case checking
     case upToDate(Date)
     case available(AppUpdateRelease)
@@ -16,6 +17,7 @@ enum AppUpdateCheckStatus: Equatable {
 
     var description: String {
         switch self {
+        case .unavailable: return StatsL10n.text("update.unavailable")
         case .idle: return StatsL10n.text("update.idle")
         case .checking: return StatsL10n.text("update.checking")
         case let .upToDate(date): return StatsL10n.format("update.up_to_date", date.formatted(date: .abbreviated, time: .shortened))
@@ -39,16 +41,22 @@ final class AppUpdateChecker: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        if !checksAvailable { status = .unavailable }
     }
 
     func checkIfNeeded(isEnabled: Bool, completion: ((AppUpdateRelease?) -> Void)? = nil) {
-        guard isEnabled else { return }
+        guard isEnabled, checksAvailable else { return }
         let lastCheck = defaults.object(forKey: Self.lastCheckKey) as? Date
         guard lastCheck.map({ Date().timeIntervalSince($0) >= Self.checkInterval }) ?? true else { return }
         check(completion: completion)
     }
 
     func check(completion: ((AppUpdateRelease?) -> Void)? = nil) {
+        guard checksAvailable else {
+            status = .unavailable
+            completion?(nil)
+            return
+        }
         guard task == nil else { return }
         status = .checking
 
@@ -85,6 +93,10 @@ final class AppUpdateChecker: ObservableObject {
             }
         }
         task?.resume()
+    }
+
+    var checksAvailable: Bool {
+        Bundle.main.object(forInfoDictionaryKey: "TorliUpdateChecksDisabled") as? Bool != true
     }
 
     private var currentVersion: String {

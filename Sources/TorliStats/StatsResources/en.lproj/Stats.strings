@@ -76,7 +76,7 @@
 "fan.control.mode_applied" = "Fan speed mode applied.";
 "fan.control.transitioning" = "Starting…";
 "dashboard.typing" = "Typing";
-"dashboard.typing_summary" = "Total %@ · Active %@";
+"dashboard.typing_summary" = "Today %@ · Active %@";
 "dashboard.typing_details" = "View typing trends";
 "dashboard.this_mac" = "This Mac";
 "dashboard.memory_tag" = "Memory  %@";
@@ -555,3 +555,13 @@
 "static_logo.pinwheel" = "C · Pinwheel";
 "static_logo.meters" = "E · Monitor";
 "static_logo.prism" = "F · Prism";
+
+"codex.usage.remaining" = "Left";
+"codex.usage.weekly_remaining_percent" = "Weekly left %lld%%";
+
+"update.unavailable" = "Updates are not configured for this edition. Use your original download channel.";
+
+"statistics.today_input" = "Today’s typing";
+"statistics.active_time" = "Active time";
+"statistics.today_development" = "Today’s coding time";
+"statistics.pro_history_hint" = "Community includes today’s overview. History, heatmaps, and detailed analysis are available in Pro.";

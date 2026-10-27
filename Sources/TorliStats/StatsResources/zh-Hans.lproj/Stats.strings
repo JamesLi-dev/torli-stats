@@ -76,7 +76,7 @@
 "fan.control.mode_applied" = "已应用风扇转速档位。";
 "fan.control.transitioning" = "启动中";
 "dashboard.typing" = "输入";
-"dashboard.typing_summary" = "累计 %@ · 活跃 %@";
+"dashboard.typing_summary" = "今日 %@ · 活跃 %@";
 "dashboard.typing_details" = "查看输入统计趋势";
 "dashboard.this_mac" = "此 Mac";
 "dashboard.memory_tag" = "内存  %@";
@@ -555,3 +555,13 @@
 "static_logo.pinwheel" = "C · 旋叶";
 "static_logo.meters" = "E · 视窗";
 "static_logo.prism" = "F · 棱面";
+
+"codex.usage.remaining" = "剩余";
+"codex.usage.weekly_remaining_percent" = "周剩余 %lld%%";
+
+"update.unavailable" = "此版本暂未配置更新通道，请从原下载渠道获取更新。";
+
+"statistics.today_input" = "今日输入";
+"statistics.active_time" = "活跃时长";
+"statistics.today_development" = "今日开发时长";
+"statistics.pro_history_hint" = "社区版提供今日概览；历史趋势、热力图和详细分析由 Pro 提供。";

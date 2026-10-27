@@ -60,7 +60,7 @@ SKIP_INSTALL=1 ./build-app.sh
 - 当天按键数量
 - 活跃输入时间
 - 最近一分钟的 KPM
-- 最近 365 天的每日统计
+- 本地保留最近 365 天的每日计数；社区版展示今日数据，历史分析在 Pro 中查看
 
 应用不读取或保存输入的文字内容，不保存字符、剪贴板内容或按键对应的文本。实现只记录符合条件的 `keyDown` 事件计数；Command、Control、导航、功能和删除等按键不会作为文本输入计入统计。统计结果以每日数量和秒数的形式保存在本机。
 
@@ -119,6 +119,7 @@ macOS Keychain 可能将某个项目的访问权限与应用的代码签名要�
 3. 重新粘贴 API Key 并点击 **Save & Connect**。
 
 要避免在开发过程中反复遇到这个问题，应使用稳定的 Developer ID 签名，不要在同一个安装位置混用 ad-hoc 构建和发布构建。
+
 
 ### 6. 风扇和温度传感器
 
@@ -289,7 +290,7 @@ When typing statistics are enabled, Torli Stats uses macOS’s listen-only `CGEv
 - Today’s key count
 - Active typing time
 - Recent one-minute KPM
-- Daily statistics for the most recent 365 days
+- Local daily counts retained for 365 days; Community shows today, while Pro provides historical analysis
 
 The app does not read or save typed text, characters, clipboard contents, or the text represented by a key. The implementation only counts eligible `keyDown` events; Command, Control, navigation, function, and deletion keys are excluded from the typing count. The resulting daily counts and durations are stored locally.
 

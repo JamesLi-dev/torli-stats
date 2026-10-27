@@ -3,22 +3,22 @@ import Combine
 import CoreGraphics
 import Foundation
 
-struct TypingDailyRecord: Codable, Identifiable, Equatable {
-    let dateID: String
-    var keyCount: Int
-    var activeSeconds: TimeInterval
+public struct TypingDailyRecord: Codable, Identifiable, Equatable {
+    public let dateID: String
+    public var keyCount: Int
+    public var activeSeconds: TimeInterval
 
-    var id: String { dateID }
+    public var id: String { dateID }
 }
 
-enum TypingStatsPermissionStatus: Equatable {
+public enum TypingStatsPermissionStatus: Equatable {
     case disabled
     case needsPermission
     case monitoring
     case paused
     case unavailable
 
-    var description: String {
+    public var description: String {
         switch self {
         case .disabled: return StatsL10n.text("typing.status.disabled")
         case .needsPermission: return StatsL10n.text("typing.status.needs_permission")
@@ -29,18 +29,18 @@ enum TypingStatsPermissionStatus: Equatable {
     }
 }
 
-final class TypingStatsService: ObservableObject {
+public final class TypingStatsService: ObservableObject {
     private static let recordsKey = "typingStatsDailyRecords"
     private static let retentionDays = 365
     private static let activeGap: TimeInterval = 30
     private static let speedWindow: TimeInterval = 60
 
-    @Published private(set) var permissionStatus: TypingStatsPermissionStatus = .disabled
-    @Published private(set) var todayKeyCount = 0
-    @Published private(set) var totalKeyCount = 0
-    @Published private(set) var activeSeconds: TimeInterval = 0
-    @Published private(set) var keysPerMinute = 0
-    @Published private(set) var dailyRecords: [TypingDailyRecord] = []
+    @Published public private(set) var permissionStatus: TypingStatsPermissionStatus = .disabled
+    @Published public private(set) var todayKeyCount = 0
+    @Published public private(set) var totalKeyCount = 0
+    @Published public private(set) var activeSeconds: TimeInterval = 0
+    @Published public private(set) var keysPerMinute = 0
+    @Published public private(set) var dailyRecords: [TypingDailyRecord] = []
 
     private let defaults: UserDefaults
     private var eventTap: CFMachPort?
@@ -119,7 +119,7 @@ final class TypingStatsService: ObservableObject {
 
     /// Returns one aggregate record per calendar day, including zero-input days,
     /// so charts remain chronological instead of visually skipping quiet days.
-    func records(forLastDays dayCount: Int, endingAt date: Date = Date()) -> [TypingDailyRecord] {
+    public func records(forLastDays dayCount: Int, endingAt date: Date = Date()) -> [TypingDailyRecord] {
         guard dayCount > 0 else { return [] }
         let calendar = Calendar.current
         let countsByDay = dailyRecords.reduce(into: [String: TypingDailyRecord]()) { result, record in

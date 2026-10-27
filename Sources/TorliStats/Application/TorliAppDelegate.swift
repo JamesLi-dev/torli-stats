@@ -43,7 +43,8 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
         codexTokenActivityService = CodexTokenActivityService(homePaths: { [appSettings.codexHomePath] })
         wakaTimeUsageStore = WakaTimeUsageStore(
             apiKeyProvider: WakaTimeKeychain.readAPIKey,
-            rangeProvider: { appSettings.wakaTimeRange }
+            rangeProvider: { appSettings.wakaTimeRange },
+            historyEnabled: FeatureRegistry.shared.statistics != nil
         )
         super.init()
         store.setProcessLimit(settings.processLimit)
@@ -223,6 +224,14 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
             app.codexUsageStore.synchronize()
         }
 
+
+        FeatureRegistry.shared.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self, self.dashboardPanel.isShown else { return }
+                self.schedulePopoverSizeUpdate()
+            }
+            .store(in: &cancellables)
 
         wakaTimeUsageStore.objectWillChange
             .receive(on: RunLoop.main)

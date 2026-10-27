@@ -62,8 +62,9 @@ struct DashboardSortHeaderButtonStyle: ButtonStyle {
     }
 }
 
-struct DashboardIconButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
+public struct DashboardIconButtonStyle: ButtonStyle {
+    public init() {}
+    public func makeBody(configuration: Configuration) -> some View {
         DashboardIconButtonLabel(label: configuration.label, isPressed: configuration.isPressed)
     }
 }

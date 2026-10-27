@@ -18,7 +18,7 @@ A lightweight, local system monitor for the macOS menu bar. Torli Stats keeps th
 - Light, dark, and system appearance modes
 - Night monitoring pause, enabled by default from 23:30 to 07:00
 - Optional adaptive low-impact sampling after 25 minutes of idle time
-- Typing and developer activity statistics with daily detail charts
+- Today’s typing count, active time, and WakaTime coding time (historical analysis is available in Pro)
 - Integrated Torli Notes, including searchable all-notes and archive views
 - Automatic and manual GitHub Release update checks
 - Configurable refresh interval, process count, and sorting
@@ -89,3 +89,7 @@ Commit the resulting `VERSION`, `Info.plist`, and reviewed changelog changes, th
 ## Notes
 
 macOS does not provide a stable public GPU utilization API. Torli Stats reads the `Renderer Utilization %` and `Device Utilization %` fields from IORegistry when available and avoids interpreting memory values from the same row as GPU utilization.
+
+## 公共核心与扩展
+
+本仓库提供可独立构建的社区版及 `TorliStatsCore` Swift Package。扩展接口、本地构建和版本发布规则见 [ARCHITECTURE.md](ARCHITECTURE.md)。

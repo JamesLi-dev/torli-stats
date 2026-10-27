@@ -8,10 +8,12 @@ let package = Package(
         .macOS("15.0")
     ],
     products: [
-        .executable(name: "TorliStats", targets: ["TorliStats"]),
+        .executable(name: "TorliStats", targets: ["TorliStatsCommunity"]),
+        .library(name: "TorliStatsCore", targets: ["TorliStats"]),
         .executable(name: "TorliStatsHelper", targets: ["TorliStatsHelper"])
     ],
     targets: [
+        .executableTarget(name: "TorliStatsCommunity", dependencies: ["TorliStats"]),
         .testTarget(
             name: "TorliStatsTests",
             dependencies: ["TorliStats", "TorliStatsShared"]
@@ -20,7 +22,7 @@ let package = Package(
             name: "TorliStatsShared",
             path: "Sources/TorliStatsShared"
         ),
-        .executableTarget(
+        .target(
             name: "TorliStats",
             dependencies: ["TorliStatsShared"],
             path: "Sources/TorliStats",
