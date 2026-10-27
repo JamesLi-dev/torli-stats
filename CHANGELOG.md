@@ -4,6 +4,24 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-10-27
+
+### English
+
+- Separate the public community app from private Pro modules.
+- Keep today's typing count, active time, KPM, and WakaTime coding time free. Historical typing and WakaTime analysis are available in Pro.
+- Keep Codex quotas, multiple accounts, and Token activity in the community edition.
+- Preserve local statistics when switching editions. Community refreshes only today's WakaTime data.
+- Refine Codex account cards with compact quota rings.
+
+### 中文
+
+- 拆分公开社区版与私有 Pro 模块，社区版安装包不包含邮箱验证码及进阶统计页面。
+- 今日输入次数、活跃时长、KPM 和 WakaTime 开发时长继续免费；输入与 WakaTime 的历史分析调整到 Pro。
+- Codex 额度、多账号和 Token 活动继续保留在社区版。
+- 切换版本时保留本地统计记录；社区版仅请求 WakaTime 今日数据。
+- Codex 账号卡片采用紧凑布局和额度圆环。
+
 ## [1.9.0] - 2026-10-26
 
 ### English
