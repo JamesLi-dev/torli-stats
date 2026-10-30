@@ -55,7 +55,7 @@ Click the CPU/MEM values in the menu bar to open the dashboard. Click outside th
 
 The Settings window provides controls for appearance, menu bar metrics, refresh frequency, night monitoring pause, adaptive low-impact sampling, process display, dashboard modules, typing and developer statistics, sensor authorization, update checks, and launch at login. Settings are saved automatically.
 
-Metrics, typing statistics, and Notes stay on this Mac. WakaTime API keys are stored in the macOS Keychain.
+Metrics, typing statistics, and Notes stay on this Mac. WakaTime personal OAuth tokens are stored in the macOS Keychain.
 
 ## Sensor helper
 

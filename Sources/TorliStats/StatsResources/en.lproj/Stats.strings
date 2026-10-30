@@ -267,7 +267,7 @@
 "wakatime.status.updated_at" = "Updated %@";
 "wakatime.updated" = "Updated %@";
 "wakatime.error.no_data" = "WakaTime did not return statistics";
-"wakatime.error.invalid_api_key" = "The API key is invalid or expired";
+"wakatime.error.invalid_token" = "The OAuth token is invalid, expired, or revoked. Enter a new personal OAuth token.";
 "wakatime.error.rate_limited" = "Too many WakaTime requests. Please try again later.";
 "wakatime.error.http" = "WakaTime request failed (HTTP %lld)";
 "wakatime.duration_accessibility" = "%@ coding duration";
@@ -287,16 +287,16 @@
 "charts.cpu_core_accessibility" = "Core %lld";
 
 "settings.wakatime.title" = "WakaTime Developer Statistics";
-"settings.wakatime.help" = "WakaTime is requested only after you configure your API key. The key is stored only in the local Keychain; when enabled, data syncs automatically every 30 minutes.";
-"settings.wakatime.api_key_saved" = "API key saved (enter a new value to replace it)";
-"settings.wakatime.api_key" = "WakaTime API Key";
+"settings.wakatime.help" = "Enter your personal OAuth token with read_summaries permission. It is stored only in the local Keychain; when enabled, statistics sync every 30 minutes. Keep your editor plugin API key unchanged.";
+"settings.wakatime.token_saved" = "OAuth token saved (enter a new value to replace it)";
+"settings.wakatime.token" = "Personal OAuth Token";
 "settings.wakatime.save_connect" = "Save and Connect";
-"settings.wakatime.enter_api_key" = "Enter a WakaTime API key.";
-"settings.wakatime.save_failed" = "Unable to save the API key to Keychain.";
+"settings.wakatime.enter_token" = "Enter a personal OAuth token without spaces or line breaks.";
+"settings.wakatime.save_failed" = "Unable to save the OAuth token to Keychain.";
 "settings.wakatime.saved_connecting" = "Saved to Keychain. Connecting…";
 "settings.wakatime.enabled" = "Enable WakaTime statistics";
-"settings.wakatime.remove_api_key" = "Remove API Key";
-"settings.wakatime.removed_api_key" = "API key removed from Keychain.";
+"settings.wakatime.remove_token" = "Remove Credential";
+"settings.wakatime.removed_token" = "WakaTime credential removed from Keychain.";
 
 "dashboard.typing_today_badge" = "Today · %@";
 
@@ -565,3 +565,9 @@
 "statistics.active_time" = "Active time";
 "statistics.today_development" = "Today’s coding time";
 "statistics.pro_history_hint" = "Community includes today’s overview. History, heatmaps, and detailed analysis are available in Pro.";
+
+"wakatime.error.forbidden" = "Access denied. Use a personal OAuth token with read_summaries permission; plugin API keys cannot read statistics. Account history limits may also restrict access.";
+
+"settings.wakatime.get_token" = "Get Personal OAuth Token";
+
+"settings.wakatime.migrate_key" = "A legacy API key is saved. From November 1, 2026, statistics require an OAuth token. Get your personal token and save it here to reconnect; no conversion is automatic.";

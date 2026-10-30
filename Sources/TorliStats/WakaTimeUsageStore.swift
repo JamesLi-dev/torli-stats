@@ -794,6 +794,31 @@ public final class WakaTimeUsageStore: ObservableObject {
 }
 
 enum WakaTimeUsageClient {
+    /// Keep credentials out of query strings and use the same auth for all endpoints.
+    static func authenticatedRequest(url: URL, token: String) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        return request
+    }
+
+    static func responseData(_ data: Data?, response: URLResponse?) throws -> Data {
+        guard let response = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        guard (200...299).contains(response.statusCode) else {
+            let message: String
+            switch response.statusCode {
+            case 401: message = StatsL10n.text("wakatime.error.invalid_token")
+            case 403: message = StatsL10n.text("wakatime.error.forbidden")
+            case 429: message = StatsL10n.text("wakatime.error.rate_limited")
+            default: message = StatsL10n.format("wakatime.error.http", response.statusCode)
+            }
+            throw WakaTimeClientError(message: message)
+        }
+        guard let data else { throw URLError(.badServerResponse) }
+        return data
+    }
+
     struct DailyData {
         let period: WakaTimePeriod
         let snapshot: WakaTimeSnapshot
@@ -882,19 +907,14 @@ enum WakaTimeUsageClient {
             completion(.failure(URLError(.badURL)))
             return
         }
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 15
-        request.setValue("Basic \("\(apiKey):".data(using: .utf8)!.base64EncodedString())", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let request = authenticatedRequest(url: url, token: apiKey)
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error { completion(.failure(error)); return }
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode), let data else {
-                completion(.failure(URLError(.badServerResponse)))
-                return
-            }
+            let body: Data
+            do { body = try responseData(data, response: response) }
+            catch { completion(.failure(error)); return }
             do {
-                let days = try JSONDecoder().decode(PeriodResponse.self, from: data).data
+                let days = try JSONDecoder().decode(PeriodResponse.self, from: body).data
                 guard let day = days.first else {
                     let empty = WakaTimeSnapshot(totalSeconds: 0, humanReadableTotal: "0 mins", languages: [], editors: [], categories: [], operatingSystems: [], aiInputTokens: 0, aiCachedInputTokens: 0, aiOutputTokens: 0, aiModelTotalCost: 0, aiModelBreakdown: [])
                     completion(.success(DailyData(period: WakaTimePeriod(totalSeconds: 0, activeDayCount: 0, dailyRecords: []), snapshot: empty)))
@@ -949,21 +969,17 @@ enum WakaTimeUsageClient {
             return
         }
 
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 15
-        request.setValue("Basic \("\(apiKey):".data(using: .utf8)!.base64EncodedString())", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let request = authenticatedRequest(url: url, token: apiKey)
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error {
                 completion(.failure(error))
                 return
             }
-            guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode), let data else {
-                completion(.failure(URLError(.badServerResponse)))
-                return
-            }
+            let body: Data
+            do { body = try responseData(data, response: response) }
+            catch { completion(.failure(error)); return }
             do {
-                let days = try JSONDecoder().decode(PeriodResponse.self, from: data).data
+                let days = try JSONDecoder().decode(PeriodResponse.self, from: body).data
                 let totalSeconds = days.reduce(0) { $0 + $1.grandTotal.totalSeconds }
                 let dailyRecords = days.compactMap { day -> WakaTimeDailyRecord? in
                     guard let dateID = day.range?.date, !dateID.isEmpty else { return nil }
@@ -992,32 +1008,18 @@ enum WakaTimeUsageClient {
             return
         }
 
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 15
-        request.setValue("Basic \("\(apiKey):".data(using: .utf8)!.base64EncodedString())", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let request = authenticatedRequest(url: url, token: apiKey)
 
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error {
                 completion(.failure(error))
                 return
             }
-            guard let httpResponse = response as? HTTPURLResponse else {
-                completion(.failure(URLError(.badServerResponse)))
-                return
-            }
-            guard (200...299).contains(httpResponse.statusCode), let data else {
-                let message: String
-                switch httpResponse.statusCode {
-                case 401: message = StatsL10n.text("wakatime.error.invalid_api_key")
-                case 429: message = StatsL10n.text("wakatime.error.rate_limited")
-                default: message = StatsL10n.format("wakatime.error.http", httpResponse.statusCode)
-                }
-                completion(.failure(WakaTimeClientError(message: message)))
-                return
-            }
+            let body: Data
+            do { body = try responseData(data, response: response) }
+            catch { completion(.failure(error)); return }
             do {
-                completion(.success(try JSONDecoder().decode(Response.self, from: data).data))
+                completion(.success(try JSONDecoder().decode(Response.self, from: body).data))
             } catch {
                 completion(.failure(error))
             }
@@ -1032,9 +1034,26 @@ private struct WakaTimeClientError: LocalizedError {
 
 enum WakaTimeKeychain {
     private static let service = "local.torli.stats.wakatime"
-    private static let account = "api-key"
+    private static let account = "oauth-token"
+    private static let legacyAccount = "api-key"
 
-    static func readAPIKey() -> String? {
+    static func readOAuthToken() -> String? { read(account: account) }
+    /// Migration only needs to know that an old item exists, not read its secret.
+    /// Never interrupt rendering Settings with a legacy-key authorization prompt.
+    static var hasLegacyAPIKey: Bool {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: legacyAccount,
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecUseAuthenticationUI as String: kSecUseAuthenticationUIFail
+        ]
+        let status = SecItemCopyMatching(query as CFDictionary, nil)
+        return status == errSecSuccess || status == errSecInteractionNotAllowed
+    }
+
+    private static func read(account: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -1051,7 +1070,8 @@ enum WakaTimeKeychain {
     }
 
     @discardableResult
-    static func saveAPIKey(_ value: String) -> Bool {
+    static func saveOAuthToken(_ value: String) -> Bool {
+        guard !value.isEmpty, !value.contains(where: { $0.isWhitespace || $0.isNewline }) else { return false }
         let data = Data(value.utf8)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -1064,12 +1084,19 @@ enum WakaTimeKeychain {
             var item = query
             item[kSecValueData as String] = data
             item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-            return SecItemAdd(item as CFDictionary, nil) == errSecSuccess
-        }
-        return status == errSecSuccess
+            guard SecItemAdd(item as CFDictionary, nil) == errSecSuccess else { return false }
+        } else if status != errSecSuccess { return false }
+        // Remove the old credential only after the new one is safely stored.
+        delete(account: legacyAccount)
+        return true
     }
 
-    static func deleteAPIKey() {
+    static func deleteCredentials() {
+        delete(account: account)
+        delete(account: legacyAccount)
+    }
+
+    private static func delete(account: String) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

@@ -42,7 +42,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
         )
         codexTokenActivityService = CodexTokenActivityService(homePaths: { [appSettings.codexHomePath] })
         wakaTimeUsageStore = WakaTimeUsageStore(
-            apiKeyProvider: WakaTimeKeychain.readAPIKey,
+            apiKeyProvider: WakaTimeKeychain.readOAuthToken,
             rangeProvider: { appSettings.wakaTimeRange },
             historyEnabled: FeatureRegistry.shared.statistics != nil
         )
