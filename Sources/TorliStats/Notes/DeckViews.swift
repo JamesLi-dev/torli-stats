@@ -18,9 +18,9 @@ struct DeckRootView: View {
     /// An empty deck still draws one tab, so the stack is never zero-height.
     private var itemCount: Int { max(1, visible.count) }
 
-    /// Widest label currently on the deck — drives how tall each tab's strip is.
+    /// Longest vertical label currently on the deck — drives each tab's strip.
     private var longestLabel: CGFloat {
-        visible.map { DeckGeom.labelWidth($0.displayTitle) }.max() ?? 0
+        visible.map { DeckGeom.verticalLabelHeight($0.displayTitle) }.max() ?? 0
     }
 
     private func layout(_ panelHeight: CGFloat) -> DeckLayout {

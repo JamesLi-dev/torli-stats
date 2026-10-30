@@ -73,6 +73,10 @@ struct NoteTextView: NSViewRepresentable {
                          textDirection: textDirection)
         Self.applyTextDirection(textDirection, to: tv)
         context.coordinator.attach(to: tv)
+        let overlays = NoteImageOverlayManager()
+        overlays.attach(to: tv, scrollView: scroll)
+        tv.imageOverlays = overlays
+        overlays.refresh()
         if autofocus {
             DispatchQueue.main.async { tv.window?.makeFirstResponder(tv) }
         }
@@ -91,6 +95,9 @@ struct NoteTextView: NSViewRepresentable {
         guard let tv = scroll.documentView as? NSTextView else { return }
         tv.delegate = nil
         tv.textStorage?.delegate = nil
+        // See TaskTextView.viewDidMoveToWindow: pending undo groups must not
+        // outlive the text view they would be invoked against.
+        tv.undoManager?.removeAllActions()
     }
 
     static func applyTextDirection(_ direction: NoteTextDirection, to textView: NSTextView) {
@@ -185,6 +192,7 @@ struct NoteTextView: NSViewRepresentable {
             guard !edits.hasPendingEdits else { return }
 
             let line = activeLine(in: tv)
+
             guard parent.markdownEnabled else {
                 lastLine = line
                 return
@@ -237,6 +245,9 @@ struct NoteTextView: NSViewRepresentable {
                                      textDirection: parent.textDirection)
             isApplyingStyles = false
             lastLine = line
+            // The hidden-token set may have changed; overlays and reserved line
+            // heights are rebuilt from the freshly styled attributes.
+            (tv as? TaskTextView)?.imageOverlays?.refresh()
             if invalidateCursors { tv.window?.invalidateCursorRects(for: tv) }
         }
 
@@ -265,6 +276,7 @@ struct NoteTextView: NSViewRepresentable {
             lastLine = line
             needsFullPass = false
             rememberConfiguration()
+            (tv as? TaskTextView)?.imageOverlays?.refresh()
             tv.window?.invalidateCursorRects(for: tv)
         }
 
@@ -294,27 +306,5 @@ struct NoteTextView: NSViewRepresentable {
                            length: min(selection.length, length - location))
         }
 
-        /// Return on a task line starts the next task; on an empty one, ends the list.
-        func textView(_ tv: NSTextView, shouldChangeTextIn range: NSRange,
-                      replacementString replacement: String?) -> Bool {
-            guard replacement == "\n" else { return true }
-            let ns = tv.string as NSString
-            guard range.location <= ns.length else { return true }
-            let line = ns.lineRange(for: NSRange(location: range.location, length: 0))
-            let text = ns.substring(with: line)
-            guard Tasks.isTask(text) else { return true }
-
-            if Tasks.stripped(text.trimmingCharacters(in: .newlines)).isEmpty {
-                let clear = NSRange(location: line.location,
-                                    length: min(line.length, ns.length - line.location))
-                if tv.shouldChangeText(in: clear, replacementString: "") {
-                    tv.textStorage?.replaceCharacters(in: clear, with: "")
-                    tv.didChangeText()
-                }
-                return false
-            }
-            tv.insertText("\n" + Tasks.openPrefix, replacementRange: range)
-            return false
-        }
     }
 }

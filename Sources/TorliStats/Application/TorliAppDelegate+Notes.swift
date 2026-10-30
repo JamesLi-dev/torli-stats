@@ -50,6 +50,10 @@ extension TorliAppDelegate {
         }
     }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        NoteStore.shared.flushAll() ? .terminateNow : .terminateCancel
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         FeatureRegistry.shared.shutdown()
         HotKeys.shared.unregisterAll()

@@ -106,6 +106,7 @@
 "menu.export" = "Export";
 "menu.hide" = "Hide Torli Notes";
 "menu.import" = "Import…";
+"menu.insert_image" = "Insert Image…";
 "menu.keep_deck_open" = "Keep deck open";
 "menu.launch_at_login" = "Launch at login";
 "menu.new_note" = "New Note";
@@ -151,6 +152,8 @@
 "settings.deck.position.bottom_left" = "Bottom Left";
 "settings.deck.position.top_right" = "Top Right";
 "settings.deck.position.bottom_right" = "Bottom Right";
+"settings.deck.one_space" = "Stay on one Space";
+"settings.deck.one_space_help" = "Notes and the deck stop following you to every Space — they stay where they are, like stickies on one desk.";
 "settings.deck.language" = "Language";
 "settings.deck.language_help" = "Torli Notes restarts automatically when you change the language.";
 "settings.deck.size" = "Size";
@@ -213,3 +216,41 @@
 "width.standard" = "Standard";
 "width.very_wide" = "Very wide";
 "width.wide" = "Wide";
+
+/* Storage recovery */
+"storage.invalid_key" = "The encryption key is invalid. It has not been replaced.";
+"storage.missing_key" = "The encryption key for your existing notes is missing. Restore the original note.key file before reopening Torli Stats.";
+"storage.corrupt_body" = "A note could not be decrypted. Editing is disabled to protect the original data.";
+"storage.invalid_color" = "The imported note has an invalid colour value.";
+"storage.error_title" = "Torli Stats could not read or save your notes";
+"storage.error_help" = "Your original data has been kept. Unsaved edits remain in this session. Resolve the storage problem and try again; Torli Stats will retry saving before quitting.";
+"storage.import_unsaved" = "Some imported notes could not be saved.";
+"import.invalid_archive" = "This archive is invalid or uses an unsupported version.";
+
+"image.crop" = "Crop";
+"image.width_menu" = "Width ▾";
+"image.width" = "Width";
+"image.copy" = "Copy Image";
+"image.ratio_menu" = "Ratio ▾";
+"image.ratio" = "Ratio";
+"image.full" = "Full";
+"image.cancel" = "Cancel";
+"image.done" = "Done";
+"image.free" = "Freeform";
+"image.square" = "1:1 (Square)";
+"image.landscape" = "4:3 (Landscape)";
+"image.wide" = "16:9 (Wide)";
+"image.portrait" = "3:4 (Portrait)";
+"image.tall" = "9:16 (Tall)";
+"image.full_width" = "100% (Full Width)";
+"image.missing" = "Missing Image";
+"image.free_crop" = "Freeform Crop";
+"image.crop_ratio" = "Crop Ratio";
+"image.width_ratio" = "Display Width";
+"image.error.invalid" = "Choose a valid PNG or JPEG image.";
+"image.error.size" = "Each image supports up to 20 MB and 40 megapixels; an archive supports up to 200 MB of images.";
+"image.error.missing" = "An image file is missing. The operation could not be completed.";
+"image.error.archive" = "The image archive is invalid or uses an unsupported version.";
+"image.error.path" = "Invalid image path. Keep the Markdown file and its image folder together.";
+"image.error.title" = "Unable to Process Image";
+"image.plain_placeholder" = "[Image]";

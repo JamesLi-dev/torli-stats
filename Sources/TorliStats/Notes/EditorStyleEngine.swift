@@ -38,7 +38,7 @@ enum EditorStyleEngine {
     typealias CompletedTaskPredicate = (String) -> Bool
 
     private static let heading = try! NSRegularExpression(
-        pattern: "^(#{1,6})[ \\t]+(.+)$", options: [.anchorsMatchLines])
+        pattern: "^(#{1,6}[ \\t]+)(.+)$", options: [.anchorsMatchLines])
     private static let bold = try! NSRegularExpression(
         pattern: "(\\*\\*|__)(?=\\S)(.+?)(?<=\\S)\\1")
     private static let italic = try! NSRegularExpression(
@@ -47,7 +47,7 @@ enum EditorStyleEngine {
     private static let struck = try! NSRegularExpression(
         pattern: "~~(?=\\S)(.+?)(?<=\\S)~~")
     private static let quote = try! NSRegularExpression(
-        pattern: "^>[ \\t]?(.*)$", options: [.anchorsMatchLines])
+        pattern: "^(>[ \\t]?)(.*)$", options: [.anchorsMatchLines])
     private static let bullet = try! NSRegularExpression(
         pattern: "^[ \\t]*([-*+])[ \\t]+", options: [.anchorsMatchLines])
     private static let link = try! NSRegularExpression(
@@ -107,7 +107,7 @@ enum EditorStyleEngine {
                       bodyFont: @escaping FontProvider,
                       isCompletedTask: @escaping CompletedTaskPredicate) -> [NSRange] {
         let font = bodyFont(size)
-        let paragraphStyle = textDirection.paragraphStyle
+        let paragraphStyle = adaptiveSpacing(for: font, base: textDirection.paragraphStyle)
         textView.typingAttributes = [.font: font, .foregroundColor: ink,
                                      .paragraphStyle: paragraphStyle]
 
@@ -131,7 +131,7 @@ enum EditorStyleEngine {
             storage.removeAttribute(.link, range: range)
             storage.addAttribute(.foregroundColor, value: ink, range: range)
             storage.addAttribute(.font, value: font, range: range)
-            applyParagraphStyles(to: storage, range: range, direction: textDirection)
+            applyParagraphStyles(to: storage, range: range, direction: textDirection, bodyFont: font)
 
             let fragment = storage.mutableString.substring(with: range)
             if markdownEnabled {
@@ -158,9 +158,11 @@ enum EditorStyleEngine {
     /// notes can contain both English and Arabic/Hebrew paragraphs naturally.
     private static func applyParagraphStyles(to storage: NSTextStorage,
                                              range: NSRange,
-                                             direction: NoteTextDirection) {
+                                             direction: NoteTextDirection,
+                                             bodyFont: NSFont) {
         guard direction == .automatic else {
-            storage.addAttribute(.paragraphStyle, value: direction.paragraphStyle, range: range)
+            let styled = adaptiveSpacing(for: bodyFont, base: direction.paragraphStyle)
+            storage.addAttribute(.paragraphStyle, value: styled, range: range)
             return
         }
 
@@ -172,11 +174,28 @@ enum EditorStyleEngine {
             let target = NSIntersectionRange(paragraph, range)
             guard target.length > 0 else { break }
             let contents = text.substring(with: paragraph)
+            let styled = adaptiveSpacing(for: bodyFont, base: direction.paragraphStyle(for: contents))
             storage.addAttribute(.paragraphStyle,
-                                 value: direction.paragraphStyle(for: contents),
+                                 value: styled,
                                  range: target)
             location = NSMaxRange(target)
         }
+    }
+
+    private static func adaptiveSpacing(for font: NSFont, base: NSParagraphStyle) -> NSParagraphStyle {
+        let style = (base.mutableCopy() as! NSMutableParagraphStyle)
+        // Proportional line spacing: gentle for standard Latin metrics,
+        // slightly more for tall fonts (CJK, high-ascender scripts).
+        let ratio = (font.ascender - font.descender) / font.pointSize
+        let spacing: CGFloat
+        if ratio > 1.3 {
+            // CJK and tall-metric fonts need more breathing room.
+            spacing = font.pointSize * 0.18
+        } else {
+            spacing = font.pointSize * 0.1
+        }
+        style.lineSpacing = spacing
+        return style
     }
 
     /// The only characters any of the expressions below can match on. A link
@@ -204,7 +223,7 @@ enum EditorStyleEngine {
         func dim(_ localRange: NSRange) {
             let range = global(localRange)
             if let activeLine,
-               NSIntersectionRange(range, activeLine).length > 0 || activeLine.location == range.location {
+               NSIntersectionRange(range, activeLine).length > 0 || (activeLine.location >= range.location && activeLine.location <= NSMaxRange(range)) {
                 storage.addAttribute(.foregroundColor, value: faint, range: range)
             } else {
                 storage.addAttribute(.notesHidden, value: true, range: range)
@@ -219,8 +238,20 @@ enum EditorStyleEngine {
             }
         }
 
+        // Image tokens NEVER reveal on the caret line — a note should read as
+        // a note, not as markup. They hide whole and are drawn as overlays by
+        // NoteImages; deleting at one removes the image outright. Styled first
+        // because `![image](torli-img://…)` also matches the link pattern below.
+        let imageTokens = ImageStore.tokens(in: fragment)
+        for token in imageTokens {
+            let range = global(token.range)
+            storage.addAttribute(.notesHidden, value: true, range: range)
+            storage.addAttribute(.foregroundColor, value: faint, range: range)
+        }
+
         each(heading) { match in
-            let level = match.range(at: 1).length
+            let rawLeader = local.substring(with: match.range(at: 1))
+            let level = rawLeader.filter { $0 == "#" }.count
             let bump = max(1.5, 7 - CGFloat(level) * 1.1)
             storage.addAttribute(.font, value: heavier(size + bump, bodyFont: bodyFont),
                                  range: global(match.range))
@@ -229,6 +260,10 @@ enum EditorStyleEngine {
         // [label](url) — the label is what stays; the brackets and the URL go the
         // way of every other marker.
         each(link) { match in
+            // Image tokens were claimed above; the link pattern matches them too.
+            guard !imageTokens.contains(where: {
+                NSIntersectionRange($0.range, match.range).length > 0
+            }) else { return }
             let label = match.range(at: 1)
             storage.addAttribute(.underlineStyle,
                                  value: NSUnderlineStyle.single.rawValue, range: global(label))
@@ -272,8 +307,8 @@ enum EditorStyleEngine {
             storage.addAttribute(.foregroundColor, value: ink.withAlphaComponent(0.62),
                                  range: global(match.range))
             storage.addAttribute(.obliqueness, value: 0.15,
-                                 range: global(match.range(at: 1)))
-            dim(NSRange(location: match.range.location, length: 1))
+                                 range: global(match.range(at: 2)))
+            dim(match.range(at: 1))
         }
         each(bullet) { match in
             storage.addAttribute(.foregroundColor, value: ink.withAlphaComponent(0.5),
