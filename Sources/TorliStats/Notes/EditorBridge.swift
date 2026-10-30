@@ -55,16 +55,32 @@ final class EditorBridge: ObservableObject {
         let line = ns.lineRange(for: NSRange(location: caret, length: 0))
         let text = ns.substring(with: line)
 
-        if Tasks.isTask(text) {
-            var length = 1
-            if line.length > 1, ns.character(at: line.location + 1) == 32 { length = 2 }
-            let range = NSRange(location: line.location, length: length)
-            guard tv.shouldChangeText(in: range, replacementString: "") else { return }
-            storage.replaceCharacters(in: range, with: "")
+        let indentRange = (text as NSString).range(of: "^[ \\t]*", options: .regularExpression)
+        let indent = indentRange.location != NSNotFound ? (text as NSString).substring(with: indentRange) : ""
+        let trimmed = String(text.dropFirst(indent.count))
+
+        if Tasks.isTask(trimmed) {
+            let marker = Tasks.marker(of: trimmed)!
+            if marker == Tasks.open {
+                // Toggle open -> done
+                let markerRange = NSRange(location: line.location + indent.count, length: 1)
+                guard tv.shouldChangeText(in: markerRange, replacementString: String(Tasks.done)) else { return }
+                storage.replaceCharacters(in: markerRange, with: String(Tasks.done))
+            } else {
+                // Toggle done -> plain text (remove marker + trailing space)
+                var length = 1
+                if trimmed.count > 1, trimmed[trimmed.index(after: trimmed.startIndex)] == " " {
+                    length = 2
+                }
+                let removeRange = NSRange(location: line.location + indent.count, length: length)
+                guard tv.shouldChangeText(in: removeRange, replacementString: "") else { return }
+                storage.replaceCharacters(in: removeRange, with: "")
+            }
         } else {
-            let range = NSRange(location: line.location, length: 0)
-            guard tv.shouldChangeText(in: range, replacementString: Tasks.openPrefix) else { return }
-            storage.replaceCharacters(in: range, with: Tasks.openPrefix)
+            // Plain text -> open task
+            let insertRange = NSRange(location: line.location + indent.count, length: 0)
+            guard tv.shouldChangeText(in: insertRange, replacementString: Tasks.openPrefix) else { return }
+            storage.replaceCharacters(in: insertRange, with: Tasks.openPrefix)
         }
         tv.didChangeText()
     }

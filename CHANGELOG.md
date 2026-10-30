@@ -4,6 +4,24 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-10-30
+
+### English
+
+- **Images in notes:** Insert PNG/JPEG files from the editor menu, paste screenshots, or drag files into a note. Resize images and crop freely or to preset aspect ratios, with undo/redo. Original image files remain intact when resizing or cropping.
+- **Portable image backups:** Store attachments locally under `TorliStats/Notes/Images`. Include images in `.stickies` backups and export Markdown with relative image files; importing restores attachments and display widths. Existing text-only backups remain supported.
+- **More reliable saving:** Debounce database writes while keeping open editors synchronized, retain failed changes for retry, and flush pending edits before quitting. Report storage failures instead of silently losing changes.
+- **Better editing and deck behavior:** Continue task, bullet, and numbered lists with Enter; indent and outdent with Tab and Shift-Tab. Improve edge-deck transitions and upright Chinese/emoji labels, and add an option to keep notes on one Space.
+- **Menu organization:** Group note actions separately in the menu-bar context menu.
+
+### 中文
+
+- **便签图片编辑：** 支持通过编辑器菜单插入 PNG/JPEG、粘贴截图和拖入图片；可缩放、自由裁剪或按预设比例裁剪，并支持撤销与重做。缩放和裁剪均保留原始图片文件。
+- **图片备份与迁移：** 附件保存在本地 `TorliStats/Notes/Images` 目录；`.stickies` 备份完整携带图片，Markdown 导出附带相对路径图片文件，重新导入可恢复附件及显示宽度。继续兼容旧版纯文字备份。
+- **保存可靠性：** 合并频繁的数据库写入，同时保持多个编辑窗口同步；写入失败时保留待保存内容并提示，退出前保存尚未落盘的修改。
+- **编辑与侧边便签改进：** 回车续写任务、无序和有序列表，Tab / Shift-Tab 调整缩进；改进侧边便签切换动画和中文、表情标签的直立显示，新增将便签限制在单个桌面空间的选项。
+- **菜单分组：** 菜单栏右键菜单中的便签操作独立分组。
+
 ## [1.10.0] - 2026-10-27
 
 ### English

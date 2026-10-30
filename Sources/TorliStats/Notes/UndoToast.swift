@@ -6,6 +6,12 @@ import Combine
 /// tracks NoteStore.pendingUndo.
 final class UndoToast {
     static let shared = UndoToast()
+
+    func refreshSpaceBehavior() {
+        panel?.collectionBehavior = NotesSettings.confineToSpace
+            ? [.fullScreenAuxiliary, .stationary, .ignoresCycle] : [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+    }
+
     private var panel: NSPanel?
     private var bag = Set<AnyCancellable>()
 
@@ -27,7 +33,9 @@ final class UndoToast {
         p.backgroundColor = .clear
         p.hasShadow = false
         p.level = .statusBar
-        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        p.collectionBehavior = NotesSettings.confineToSpace
+            ? [.fullScreenAuxiliary, .stationary, .ignoresCycle]
+            : [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         p.isReleasedWhenClosed = false
         p.contentView = NSHostingView(rootView: UndoToastView(pending: pending))
 

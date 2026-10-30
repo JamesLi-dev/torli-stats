@@ -4,10 +4,11 @@ import UniformTypeIdentifiers
 // MARK: - Archive format
 
 struct StickyArchive: Codable {
-    var version = 2
+    var version = 4
     var app = "Torli Stats"
     var exported = Date()
     var notes: [StickyNote]
+    var images: [String: String]? = nil
 }
 
 struct StickyNote: Codable {
@@ -21,6 +22,7 @@ struct StickyNote: Codable {
     var archived: Bool
     var order: Double
     var textDirection: NoteTextDirection?
+    var pinned: Bool?
 
     init(_ n: Note) {
         id = n.id; title = n.title; body = n.body
@@ -28,12 +30,13 @@ struct StickyNote: Codable {
         created = n.created; modified = n.modified
         archived = n.archived; order = n.order
         textDirection = n.textDirection
+        pinned = n.pinned
     }
 
     var note: Note {
-        Note(id: id, title: title.isEmpty ? Note.derivedTitle(from: body) : title,
+        Note(id: id, title: title,
              body: body, color: color, created: created, modified: modified,
-             archived: archived, textDirection: textDirection ?? .automatic,
+             archived: archived, pinned: pinned ?? false, textDirection: textDirection ?? .automatic,
              order: order)
     }
 }
@@ -49,10 +52,13 @@ enum Transfer {
             alert(NotesL10n.text("export.empty_title"), NotesL10n.text("export.empty_body"))
             return
         }
+        _ = NoteStore.shared.flushAll()
         NSApp.activate()
         switch format {
         case .markdown:  exportPerFile(notes, ext: "md",  render: markdownBody)
-        case .plainText: exportPerFile(notes, ext: "txt", render: { $0.body })
+        case .plainText: exportPerFile(notes, ext: "txt", render: { note in
+            NoteImageTransfer.replacingTokens(in: note.body) { _ in NotesL10n.text("image.plain_placeholder") }
+        })
         case .singleFile: exportSingle(notes)
         case .stickies:  exportArchive(notes)
         }
@@ -68,21 +74,18 @@ enum Transfer {
         panel.message = NotesL10n.plural("export.choose_folder", notes.count, ext.uppercased())
         guard panel.runModal() == .OK, let dir = panel.url else { return }
 
+        let assetFolder = "images-" + UUID().uuidString
         var used = Set<String>()
         var written = 0
         for n in notes {
-            var base = safeName(n)
-            var candidate = base
-            var i = 2
-            while used.contains(candidate.lowercased()) { candidate = "\(base)-\(i)"; i += 1 }
-            used.insert(candidate.lowercased())
-            base = candidate
-            let url = dir.appendingPathComponent("\(base).\(ext)")
             do {
-                try render(n).write(to: url, atomically: true, encoding: .utf8)
+                let source = render(n)
+                let text = ext == "md" ? try NoteImageTransfer.exportMarkdown(source, directory: dir, assetFolder: assetFolder) : source
+                _ = try writeUniqueFile(text, named: safeName(n), ext: ext,
+                                        directory: dir, used: &used)
                 written += 1
             } catch {
-                NSLog("Torli Stats notes export failed for \(url.lastPathComponent): \(error.localizedDescription)")
+                NSLog("Torli Notes export failed: \(error.localizedDescription)")
             }
         }
         reveal(dir)
@@ -117,7 +120,13 @@ enum Transfer {
 
         let header = "# \(NotesL10n.text("export.document_title"))\n\n"
             + "\(NotesL10n.plural("notes.count", notes.count)) · \(Fmt.stamp.string(from: Date()))\n\n---\n\n"
-        write(header + doc, to: url)
+        let assetFolder = "images-" + UUID().uuidString
+        do {
+            let portable = try NoteImageTransfer.exportMarkdown(header + doc, directory: url.deletingLastPathComponent(), assetFolder: assetFolder)
+            write(portable, to: url)
+        } catch {
+            alert(NotesL10n.text("export.failed_title"), error.localizedDescription)
+        }
     }
 
     private static func exportArchive(_ notes: [Note]) {
@@ -127,12 +136,8 @@ enum Transfer {
         panel.allowsOtherFileTypes = true
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
-        let archive = StickyArchive(notes: notes.map(StickyNote.init))
-        let enc = JSONEncoder()
-        enc.outputFormatting = [.prettyPrinted, .sortedKeys]
-        enc.dateEncodingStrategy = .iso8601
         do {
-            try enc.encode(archive).write(to: url, options: .atomic)
+            try NoteImageTransfer.encodeArchive(notes).write(to: url, options: .atomic)
             reveal(url)
         } catch {
             alert(NotesL10n.text("export.failed_title"), error.localizedDescription)
@@ -144,13 +149,17 @@ enum Transfer {
         let lines = source.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         let first = lines.first?.trimmingCharacters(in: .whitespaces) ?? ""
         // Promote a bare first line to an H1 so the file reads as a document.
-        if !first.isEmpty && !first.hasPrefix("#") && !first.hasPrefix("- [") {
+        if !first.isEmpty && !first.hasPrefix("#") && !first.hasPrefix("- [") && !Note.isImageTokenLine(first) {
             return (["# " + first] + lines.dropFirst()).joined(separator: "\n")
         }
         return source
     }
 
     // MARK: Import
+
+    static func decodeArchive(_ data: Data) throws -> [Note] {
+        try NoteImageTransfer.decodeArchive(data)
+    }
 
     static func importFiles() {
         NSApp.activate()
@@ -171,10 +180,8 @@ enum Transfer {
         for url in panel.urls {
             if url.pathExtension.lowercased() == "stickies" {
                 guard let data = try? Data(contentsOf: url) else { failed.append(url.lastPathComponent); continue }
-                let dec = JSONDecoder()
-                dec.dateDecodingStrategy = .iso8601
-                if let archive = try? dec.decode(StickyArchive.self, from: data) {
-                    incoming += archive.notes.map(\.note)
+                if let notes = try? decodeArchive(data) {
+                    incoming += notes
                 } else {
                     failed.append(url.lastPathComponent)
                 }
@@ -183,15 +190,22 @@ enum Transfer {
                     failed.append(url.lastPathComponent); continue
                 }
                 var n = Note()
-                n.body = Tasks.fromMarkdown(body)
-                n.title = Note.derivedTitle(from: body)
-                if n.title.isEmpty { n.title = url.deletingPathExtension().lastPathComponent }
-                n.color = abs(url.lastPathComponent.hashValue) % NoteColor.all.count
+                do {
+                    let source = ["md", "markdown"].contains(url.pathExtension.lowercased())
+                        ? try NoteImageTransfer.importMarkdown(body, relativeTo: url.deletingLastPathComponent()) : body
+                    n.body = Tasks.fromMarkdown(source)
+                } catch {
+                    failed.append(url.lastPathComponent + ": " + error.localizedDescription)
+                    continue
+                }
+                if Note.derivedTitle(from: n.body).isEmpty { n.title = url.deletingPathExtension().lastPathComponent }
+                n.color = Int(url.lastPathComponent.hashValue.magnitude % UInt(NoteColor.all.count))
                 incoming.append(n)
             }
         }
 
         let added = NoteStore.shared.ingest(incoming)
+        if added < incoming.count { failed.append(NotesL10n.text("storage.import_unsaved")) }
         if failed.isEmpty {
             alert(NotesL10n.text("import.complete_title"), NotesL10n.plural("import.added", added))
         } else {
@@ -202,6 +216,31 @@ enum Transfer {
     }
 
     // MARK: Helpers
+
+    /// Reserve the destination exclusively so existing files (including symlinks)
+    /// survive even if another export writes into the folder at the same time.
+    static func writeUniqueFile(_ text: String, named base: String, ext: String,
+                                directory: URL, used: inout Set<String>) throws -> URL {
+        let existing = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        used.formUnion(existing.map { $0.precomposedStringWithCanonicalMapping.lowercased() })
+        var suffix = 1
+        while true {
+            let name = (suffix == 1 ? base : "\(base)-\(suffix)") + "." + ext
+            let folded = name.precomposedStringWithCanonicalMapping.lowercased()
+            suffix += 1
+            guard !used.contains(folded) else { continue }
+            let url = directory.appendingPathComponent(name)
+            do {
+                try Data(text.utf8).write(to: url, options: .withoutOverwriting)
+                used.insert(folded)
+                return url
+            } catch let error as NSError {
+                guard error.domain == NSCocoaErrorDomain,
+                      error.code == NSFileWriteFileExistsError else { throw error }
+                used.insert(folded)
+            }
+        }
+    }
 
     private static func safeName(_ n: Note) -> String {
         let raw = n.displayTitle

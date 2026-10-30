@@ -28,6 +28,7 @@ extension TorliAppDelegate {
         )
         settingsItem.image = menuSymbol("gearshape")
         menu.addItem(settingsItem)
+        menu.addItem(.separator())
 
         let notesToggleItem = NSMenuItem(
             title: StatsL10n.text(NotesSettings.notesDeckEnabled ? "menu.disable_notes" : "menu.enable_notes"),

@@ -150,6 +150,7 @@ final class SettingsModel: ObservableObject {
     @Published var screens: [NSScreen] = NSScreen.screens
     @Published var edgeWidth: Double    { didSet { NotesSettings.edgeWidth = edgeWidth; apply() } }
     @Published var overFullScreen: Bool { didSet { NotesSettings.showOverFullScreen = overFullScreen; apply() } }
+    @Published var confineToSpace: Bool { didSet { NotesSettings.confineToSpace = confineToSpace; apply() } }
 
     @Published var fontName: String     { didSet { NotesSettings.noteFontName = fontName; apply() } }
     @Published var fontSize: Double     { didSet { NotesSettings.noteFontSize = fontSize; apply() } }
@@ -192,6 +193,7 @@ final class SettingsModel: ObservableObject {
         screens = NSScreen.screens
         edgeWidth = NotesSettings.edgeWidth
         overFullScreen = NotesSettings.showOverFullScreen
+        confineToSpace = NotesSettings.confineToSpace
         fontName = NotesSettings.noteFontName
         fontSize = NotesSettings.noteFontSize
         markdown = NotesSettings.markdownStyling
@@ -234,6 +236,9 @@ final class SettingsModel: ObservableObject {
     private func apply() {
         guard !loading else { return }
         NotesAppBridge.shared.delegate?.refreshDecks()
+        FloatingNote.shared.refreshSpaceBehavior()
+        QuickCapture.shared.refreshSpaceBehavior()
+        UndoToast.shared.refreshSpaceBehavior()
     }
 
 
@@ -422,6 +427,11 @@ struct NotesSettingsView: View {
                 )
             }
             Toggle(NotesL10n.text("menu.show_over_fullscreen"), isOn: $model.overFullScreen)
+            deckToggle(
+                NotesL10n.text("settings.deck.one_space"),
+                help: NotesL10n.text("settings.deck.one_space_help"),
+                isOn: $model.confineToSpace
+            )
         }
 
         Text(NotesL10n.text("settings.deck.drag_help"))

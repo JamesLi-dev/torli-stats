@@ -3,6 +3,78 @@ import AppKit
 
 // MARK: - Tabs
 
+/// Draws a title down the tab while respecting Unicode's usual vertical
+/// presentation. CJK characters and emoji stay upright; Latin, numbers and
+/// other scripts remain a rotated run so words do not become a stack of
+/// disconnected letters.
+struct VerticalTabLabel: View {
+    let title: String
+    let strip: CGFloat
+    let onRight: Bool
+    let ink: Color
+
+    private var text: String { title.uppercased() }
+    private var runs: [VerticalLabelRun] { VerticalLabelLayout.runs(for: text) }
+    private var usesUprightGlyphs: Bool {
+        runs.contains { $0.orientation == .upright }
+    }
+    private var availableAdvance: CGFloat {
+        max(20, strip - DeckGeom.labelInset)
+    }
+
+    var body: some View {
+        if usesUprightGlyphs {
+            let fitted = VerticalLabelLayout.fittingRuns(for: text,
+                                                         maxAdvance: availableAdvance)
+            let displayRuns = onRight ? fitted : Array(fitted.reversed())
+            VStack(spacing: 0) {
+                ForEach(Array(displayRuns.enumerated()), id: \.offset) { _, run in
+                    runView(run, availableWidth: availableAdvance)
+                }
+            }
+            // Keep short upright titles centred in the exposed strip just like
+            // the rotated Text path. A top anchor makes a four-character CJK
+            // title look stranded at the edge of a tall tab.
+            .frame(width: DeckGeom.tabWidth, height: strip, alignment: .center)
+        } else {
+            // Keep the established treatment for titles with no upright
+            // characters: one rotated Text preserves normal word shaping and
+            // SwiftUI's native tail ellipsis.
+            Text(text)
+                .font(Ink.tabFont)
+                .tracking(Ink.tabTracking)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .foregroundStyle(ink.opacity(0.85))
+                .frame(width: availableAdvance, height: DeckGeom.tabWidth)
+                .rotationEffect(.degrees(onRight ? 90 : -90))
+                .frame(width: DeckGeom.tabWidth, height: strip)
+        }
+    }
+
+    @ViewBuilder
+    private func runView(_ run: VerticalLabelRun, availableWidth: CGFloat) -> some View {
+        switch run.orientation {
+        case .upright:
+            Text(run.text)
+                .font(Ink.tabFont)
+                .foregroundStyle(ink.opacity(0.85))
+                .frame(width: max(20, DeckGeom.tabWidth - DeckGeom.labelInset),
+                       height: run.advance)
+        case .rotated:
+            Text(run.text)
+                .font(Ink.tabFont)
+                .tracking(Ink.tabTracking)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .foregroundStyle(ink.opacity(0.85))
+                .frame(width: availableWidth, height: DeckGeom.tabWidth)
+                .rotationEffect(.degrees(onRight ? 90 : -90))
+                .frame(width: DeckGeom.tabWidth, height: run.advance)
+        }
+    }
+}
+
 /// A tab keeps its colour and carries its label turned on its side.
 ///
 /// Tabs overlap, so the label is pinned to the top of the tab — the part that
@@ -58,16 +130,10 @@ struct VerticalTab: View {
                 .shadow(color: .black.opacity(lifted ? 0.42 : (isOpen || hovering ? 0.32 : 0.22)),
                         radius: lifted ? 16 : (isOpen || hovering ? 9 : 6),
                         x: onRight ? -3 : 3, y: lifted ? 6 : 2)
-            Text(note.displayTitle.uppercased())
-                .font(Ink.tabFont)
-                .tracking(Ink.tabTracking)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .foregroundStyle(note.palette.ink.opacity(0.85))
-                .frame(width: max(20, strip - DeckGeom.labelInset),
-                       height: DeckGeom.tabWidth)
-                .rotationEffect(.degrees(onRight ? 90 : -90))
-                .frame(width: DeckGeom.tabWidth, height: strip)
+            VerticalTabLabel(title: note.displayTitle,
+                             strip: strip,
+                             onRight: onRight,
+                             ink: note.palette.ink)
                 .offset(x: onRight ? -DeckGeom.bleed / 2 : DeckGeom.bleed / 2)
         }
         .frame(width: DeckGeom.tabWidth + DeckGeom.bleed, height: height, alignment: .top)
@@ -160,6 +226,8 @@ struct NotePreviewCard: View {
                 }
 
                 let lines = note.body.split(whereSeparator: \.isNewline).map(String.init)
+                    .map(Note.strippingImageTokens)
+                    .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
                 let previewLines = Array((note.hasCustomTitle ? lines : Array(lines.dropFirst())).prefix(4))
                 if !previewLines.isEmpty {
                     VStack(alignment: .leading, spacing: 3) {

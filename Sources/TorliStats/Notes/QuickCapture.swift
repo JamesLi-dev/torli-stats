@@ -7,6 +7,12 @@ import Carbon.HIToolbox
 /// point is that it costs nothing to jot something down mid-task.
 final class QuickCapture: NSObject, NSWindowDelegate {
     static let shared = QuickCapture()
+
+    func refreshSpaceBehavior() {
+        panel?.collectionBehavior = NotesSettings.confineToSpace
+            ? [.fullScreenAuxiliary] : [.canJoinAllSpaces, .fullScreenAuxiliary]
+    }
+
     private var panel: NSPanel?
     private var shownAt = Date.distantPast
 
@@ -33,7 +39,8 @@ final class QuickCapture: NSObject, NSWindowDelegate {
         p.backgroundColor = .clear
         p.hasShadow = true
         p.level = .statusBar
-        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        p.collectionBehavior = NotesSettings.confineToSpace
+            ? [.fullScreenAuxiliary] : [.canJoinAllSpaces, .fullScreenAuxiliary]
         p.isReleasedWhenClosed = false
         p.delegate = self
         p.contentView = NSHostingView(rootView: CaptureView(

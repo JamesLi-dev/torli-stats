@@ -9,6 +9,12 @@ import SwiftUI
 final class FloatingNote: NSObject, NSWindowDelegate {
     static let shared = FloatingNote()
 
+    func refreshSpaceBehavior() {
+        panel?.collectionBehavior = NotesSettings.confineToSpace
+            ? [.fullScreenAuxiliary] : [.canJoinAllSpaces, .fullScreenAuxiliary]
+    }
+
+
     private(set) var noteID: String?
     private var panel: NSPanel?
     private var idleTimer: Timer?
@@ -37,7 +43,8 @@ final class FloatingNote: NSObject, NSWindowDelegate {
         p.backgroundColor = .clear
         p.hasShadow = true
         p.level = .floating
-        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        p.collectionBehavior = NotesSettings.confineToSpace
+            ? [.fullScreenAuxiliary] : [.canJoinAllSpaces, .fullScreenAuxiliary]
         p.isReleasedWhenClosed = false
         p.delegate = self
         p.contentView = NSHostingView(rootView: FloatingNoteView(
@@ -201,8 +208,12 @@ private struct FloatingNoteView: View {
 
     @ObservedObject private var store = NoteStore.shared
     @StateObject private var bridge = EditorBridge()
-    @State private var text = ""
-    @State private var saveWork: DispatchWorkItem?
+    private var textBinding: Binding<String> {
+        Binding(get: { store.note(id: noteID)?.body ?? "" }, set: {
+            onActivity()
+            store.updateBody(id: noteID, body: $0)
+        })
+    }
 
     private var note: Note? { store.note(id: noteID) }
 
@@ -211,7 +222,7 @@ private struct FloatingNoteView: View {
             let pal = note.palette
             VStack(spacing: 0) {
                 header(note, pal)
-                NoteTextView(text: $text, ink: NSColor(pal.ink),
+                NoteTextView(text: textBinding, ink: NSColor(pal.ink),
                              bridge: bridge, autofocus: false,
                              fontSize: NotesSettings.noteFontSize,
                              markdownEnabled: NotesSettings.markdownStyling,
@@ -229,11 +240,6 @@ private struct FloatingNoteView: View {
                     .strokeBorder(pal.ink.opacity(0.14), lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .onAppear { text = note.body }
-            .onChange(of: text) { _, value in
-                onActivity()
-                scheduleSave(value)
-            }
             .onDisappear { flush() }
         }
     }
@@ -277,19 +283,5 @@ private struct FloatingNoteView: View {
         .gesture(WindowDragGesture())
     }
 
-    private func scheduleSave(_ value: String) {
-        saveWork?.cancel()
-        let work = DispatchWorkItem {
-            NoteStore.shared.updateBody(id: noteID, body: value)
-        }
-        saveWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
-    }
-
-    private func flush() {
-        saveWork?.cancel()
-        if !text.isEmpty || note?.body.isEmpty == false {
-            NoteStore.shared.updateBody(id: noteID, body: text)
-        }
-    }
+    private func flush() { store.flush(id: noteID) }
 }
