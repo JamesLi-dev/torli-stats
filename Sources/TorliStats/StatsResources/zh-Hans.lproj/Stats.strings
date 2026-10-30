@@ -267,7 +267,7 @@
 "wakatime.status.updated_at" = "更新于 %@";
 "wakatime.updated" = "更新 %@";
 "wakatime.error.no_data" = "WakaTime 未返回统计数据";
-"wakatime.error.invalid_api_key" = "API Key 无效或已失效";
+"wakatime.error.invalid_token" = "OAuth Token 无效、已过期或被撤销，请重新填写个人 OAuth Token。";
 "wakatime.error.rate_limited" = "WakaTime 请求过于频繁，请稍后重试";
 "wakatime.error.http" = "WakaTime 请求失败（HTTP %lld）";
 "wakatime.duration_accessibility" = "%@ 编码时长";
@@ -287,16 +287,16 @@
 "charts.cpu_core_accessibility" = "核心 %lld";
 
 "settings.wakatime.title" = "WakaTime 开发统计";
-"settings.wakatime.help" = "配置自己的 API Key 后才会请求 WakaTime；密钥仅保存在本机钥匙串，启用后每 30 分钟自动同步一次。";
-"settings.wakatime.api_key_saved" = "已保存 API Key（可输入新值替换）";
-"settings.wakatime.api_key" = "WakaTime API Key";
+"settings.wakatime.help" = "填写具有 read_summaries 权限的个人 OAuth Token，仅保存在本机钥匙串；启用后每 30 分钟同步统计。编辑器插件继续使用原 API Key，无需更换。";
+"settings.wakatime.token_saved" = "已保存 OAuth Token（可输入新值替换）";
+"settings.wakatime.token" = "个人 OAuth Token";
 "settings.wakatime.save_connect" = "保存并连接";
-"settings.wakatime.enter_api_key" = "请输入 WakaTime API Key。";
-"settings.wakatime.save_failed" = "无法保存 API Key 到钥匙串。";
+"settings.wakatime.enter_token" = "请填写个人 OAuth Token，不要包含空格或换行。";
+"settings.wakatime.save_failed" = "无法将 OAuth Token 保存到钥匙串。";
 "settings.wakatime.saved_connecting" = "已保存到钥匙串，正在连接。";
 "settings.wakatime.enabled" = "启用 WakaTime 统计";
-"settings.wakatime.remove_api_key" = "移除 API Key";
-"settings.wakatime.removed_api_key" = "已从钥匙串移除 API Key。";
+"settings.wakatime.remove_token" = "移除凭据";
+"settings.wakatime.removed_token" = "已从钥匙串移除 WakaTime 凭据。";
 
 "dashboard.typing_today_badge" = "今日 · %@";
 
@@ -565,3 +565,9 @@
 "statistics.active_time" = "活跃时长";
 "statistics.today_development" = "今日开发时长";
 "statistics.pro_history_hint" = "社区版提供今日概览；历史趋势、热力图和详细分析由 Pro 提供。";
+
+"wakatime.error.forbidden" = "无权访问。请使用具有 read_summaries 权限的个人 OAuth Token；插件 API Key 无法读取统计。账号历史数据权限也可能限制访问。";
+
+"settings.wakatime.get_token" = "获取个人 OAuth Token";
+
+"settings.wakatime.migrate_key" = "检测到旧 API Key。自 2026 年 11 月 1 日起，读取统计需要 OAuth Token。请获取个人 Token 并在此保存以重新连接，旧 Key 无法自动转换。";

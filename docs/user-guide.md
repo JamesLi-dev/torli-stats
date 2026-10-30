@@ -87,36 +87,38 @@ Input Monitoring 不是按应用显示名称授权，而是由 macOS 根据应�
 
 因此，**版本号本身通常不是问题，签名身份变化才是主要原因。** 对开发者来说，使用同一个 Bundle ID、同一个 Apple Developer Team 和稳定的 Developer ID 签名发布，通常可以显著减少升级后的重复授权；但 macOS 仍可能在签名身份变化、系统重置或安全策略变化后再次要求确认，应用无法保证永远不弹窗。
 
-### 5. WakaTime API Key
+### 5. WakaTime OAuth Token
 
 #### 5.1 配置方法
 
 1. 打开 **Settings > Development**。
 2. 找到 WakaTime 设置区域。
-3. 在 WakaTime 网站的账户设置中生成或复制 API Key。
-4. 将 API Key 粘贴到 Torli Stats 的安全输入框。
+3. 打开 [WakaTime 个人 OAuth 页面](https://wakatime.com/oauth)，获取具有 `read_summaries` 权限的个人 OAuth Token。
+4. 将 OAuth Token 粘贴到 Torli Stats 的安全输入框。
 5. 点击 **Save & Connect**，然后打开 WakaTime 开关。
 
 启用并配置 Key 后，应用会自动同步 WakaTime 数据；当前默认同步间隔为 30 分钟。WakaTime 的历史数据还取决于 WakaTime API 返回的范围和账户权限。
 
-#### 5.2 Key 存在哪里
+旧 API Key 无法自动转换。升级后请重新填写个人 OAuth Token；保存成功后会清理 Torli 自己保存的旧 Key，编辑器插件的 API Key 不受影响。
 
-API Key 只写入 macOS Keychain，不写入 UserDefaults、普通配置文件或 Dashboard 缓存。Torli Stats 使用以下 Keychain 项目：
+#### 5.2 Token 存在哪里
+
+OAuth Token 只写入 macOS Keychain，不写入 UserDefaults、普通配置文件或 Dashboard 缓存。Torli Stats 使用以下 Keychain 项目：
 
 - Service：`local.torli.stats.wakatime`
-- Account：`api-key`
+- Account：`oauth-token`
 
-应用删除 API Key 时会删除该 Keychain 项目。请不要把 API Key 提交到 Git、写进 `Info.plist`、放进源码，或粘贴到公开的诊断信息中。
+应用删除 OAuth Token 时会删除该 Keychain 项目。请不要把 OAuth Token 提交到 Git、写进 `Info.plist`、放进源码，或粘贴到公开的诊断信息中。
 
 #### 5.3 为什么编译更新后可能再次要求访问 Keychain
 
 macOS Keychain 可能将某个项目的访问权限与应用的代码签名要求关联。ad-hoc 或未签名构建的签名身份不稳定；当应用被重新编译并替换后，新的二进制可能需要再次确认 Keychain 访问，或者无法访问旧构建保存的项目。
 
-这不是 WakaTime API Key 自动失效，也不代表 Key 已发送给 Torli Stats。遇到提示时，只应允许已确认来源的 Torli Stats 访问；如果新构建仍无法读取：
+这不是 WakaTime OAuth Token 自动失效，也不代表 Key 已发送给 Torli Stats。遇到提示时，只应允许已确认来源的 Torli Stats 访问；如果新构建仍无法读取：
 
 1. 打开 **Settings > Development**。
 2. 在 WakaTime 区域删除旧 Key。
-3. 重新粘贴 API Key 并点击 **Save & Connect**。
+3. 重新粘贴 OAuth Token 并点击 **Save & Connect**。
 
 要避免在开发过程中反复遇到这个问题，应使用稳定的 Developer ID 签名，不要在同一个安装位置混用 ad-hoc 构建和发布构建。
 
@@ -205,9 +207,9 @@ plutil -lint TorliStats.app/Contents/Info.plist
 还应在干净用户账户或测试 Mac 上验证以下升级路径：
 
 1. 安装旧的 Developer ID 版本。
-2. 授予 Input Monitoring 权限并保存 WakaTime Key。
+2. 授予 Input Monitoring 权限并保存 WakaTime Token。
 3. 安装新的 Developer ID 版本覆盖旧版本。
-4. 确认输入统计仍能工作，且 WakaTime Key 不需要重新录入。
+4. 确认输入统计仍能工作，且 WakaTime Token 不需要重新录入。
 5. 单独测试传感器辅助进程的重新安装和版本升级。
 
 当前仓库的 `build-app.sh` 负责构建、复制资源、签名和本地安装；正式的 Developer ID 证书管理、Hardened Runtime、notarization、stapling 和发布包上传仍属于发行环境配置的一部分，不能由用户授权替代。
@@ -218,7 +220,7 @@ plutil -lint TorliStats.app/Contents/Info.plist
 
 A：确认授权的是当前安装的 `/Applications/TorliStats.app`，不是旧路径下的测试副本。返回设置点击 **Recheck**，仍无效时退出并重新启动 App。
 
-**Q：WakaTime Key 明明保存了，应用却显示未配置？**
+**Q：WakaTime Token 明明保存了，应用却显示未配置？**
 
 A：先确认当前启动的 App 不是另一个构建副本。若是刚更换了签名身份，在设置中删除并重新保存 Key。
 
@@ -232,7 +234,7 @@ A：不可以。macOS 不允许应用或安装脚本静默授予该隐私权限�
 
 **Q：本地编译是否会上传我的输入或 Notes？**
 
-A：Torli Stats 的输入统计、系统指标和 Notes 保存在本机。WakaTime 开启后只向 WakaTime API 请求数据；API Key 仍保存在本机 Keychain。
+A：Torli Stats 的输入统计、系统指标和 Notes 保存在本机。WakaTime 开启后只向 WakaTime API 请求数据；OAuth Token 仍保存在本机 Keychain。
 
 ---
 
@@ -317,32 +319,34 @@ Input Monitoring is not granted based only on the app’s display name. macOS ma
 
 Therefore, **the version number is usually not the root cause; the changing signing identity is.** For developers, using the same Bundle ID, Apple Developer Team, and stable Developer ID signature generally improves permission continuity across upgrades. macOS still owns the permission and may ask again after an identity change, a system reset, or a security-policy change; the app cannot guarantee that the prompt will never return.
 
-### 5. WakaTime API key
+### 5. WakaTime OAuth token
 
 #### 5.1 Configure it
 
 1. Open **Settings > Development**.
 2. Find the WakaTime section.
-3. Generate or copy an API Key from your WakaTime account settings.
+3. Get a personal OAuth token with `read_summaries` permission from [WakaTime OAuth](https://wakatime.com/oauth).
 4. Paste it into Torli Stats’s secure input field.
 5. Click **Save & Connect**, then enable WakaTime.
 
 After a key is configured and WakaTime is enabled, the app synchronizes WakaTime data automatically. The current default interval is 30 minutes. Available history also depends on the range and permissions returned by the WakaTime API.
 
-#### 5.2 Where the key is stored
+Legacy API keys cannot be converted automatically. Enter a personal OAuth token after upgrading. After saving it successfully, Torli removes its own saved legacy key; editor plugin API keys are unaffected.
 
-The API Key is written only to the macOS Keychain, not to UserDefaults, a normal configuration file, or the Dashboard cache. Torli Stats uses this Keychain item:
+#### 5.2 Where the token is stored
+
+The OAuth Token is written only to the macOS Keychain, not to UserDefaults, a normal configuration file, or the Dashboard cache. Torli Stats uses this Keychain item:
 
 - Service: `local.torli.stats.wakatime`
-- Account: `api-key`
+- Account: `oauth-token`
 
-Removing the API Key from Settings deletes that Keychain item. Never commit the key to Git, put it in `Info.plist` or source code, or include it in public diagnostic information.
+Removing the OAuth Token from Settings deletes that Keychain item. Never commit the key to Git, put it in `Info.plist` or source code, or include it in public diagnostic information.
 
 #### 5.3 Why a build update may ask for Keychain access again
 
 macOS may associate access to a Keychain item with the app’s code-signing requirement. Ad-hoc and unsigned builds do not provide a stable identity; when the app is rebuilt and replaced, the new binary may need confirmation to access the Keychain again, or may not be able to access an item saved by the previous build.
 
-This does not mean that the WakaTime API Key has expired or was sent to Torli Stats. Only allow a Torli Stats build from a source you trust to access the item. If the new build still cannot read it:
+This does not mean that the WakaTime OAuth Token has expired or was sent to Torli Stats. Only allow a Torli Stats build from a source you trust to access the item. If the new build still cannot read it:
 
 1. Open **Settings > Development**.
 2. Remove the old key in the WakaTime section.
@@ -434,9 +438,9 @@ plutil -lint TorliStats.app/Contents/Info.plist
 Also test this upgrade path on a clean user account or test Mac:
 
 1. Install the previous Developer ID build.
-2. Grant Input Monitoring and save a WakaTime Key.
+2. Grant Input Monitoring and save a WakaTime Token.
 3. Install the new Developer ID build over the previous one.
-4. Confirm that typing statistics still work and the WakaTime key does not need to be entered again.
+4. Confirm that typing statistics still work and the WakaTime token does not need to be entered again.
 5. Test sensor-helper reinstallation and upgrade separately.
 
 The repository’s current `build-app.sh` builds the app, copies resources, signs it, and can install it locally. Developer ID certificate management, Hardened Runtime, notarization, stapling, and release-upload configuration remain part of the distribution environment; user authorization cannot replace them.
@@ -461,4 +465,4 @@ A: No. macOS does not allow an app or installer to silently grant this privacy p
 
 **Q: Will a local build upload my input or Notes?**
 
-A: Torli Stats keeps typing statistics, system metrics, and Notes on this Mac. When WakaTime is enabled, it requests data only from the WakaTime API; the API Key remains in the local Keychain.
+A: Torli Stats keeps typing statistics, system metrics, and Notes on this Mac. When WakaTime is enabled, it requests data only from the WakaTime API; the OAuth Token remains in the local Keychain.

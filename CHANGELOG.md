@@ -4,6 +4,16 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
+## [1.11.1] - 2026-10-30
+
+### English
+
+- Migrate WakaTime statistics to personal OAuth tokens and Bearer authentication ahead of the November 1, 2026 API-key restriction. Add a token setup link, legacy-key migration guidance, and consistent 401/403 errors for today's usage and historical statistics. Tokens remain in the local Keychain.
+
+### 中文
+
+- WakaTime 统计改用个人 OAuth Token 和 Bearer 认证，适配 2026 年 11 月 1 日起 API Key 仅供插件使用的限制。新增 Token 获取入口及旧 Key 迁移提示，统一今日与历史统计的 401/403 错误说明。Token 仍仅保存在本机钥匙串。
+
 ## [1.11.0] - 2026-10-30
 
 ### English
