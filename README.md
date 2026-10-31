@@ -1,6 +1,6 @@
 # Torli Stats
 
-[中文说明](README_CN.md) · [Full user and developer guide](docs/user-guide.md)
+[中文说明](README_CN.md) · [User guide](docs/user-guide.md)
 
 A lightweight, local system monitor for the macOS menu bar. Torli Stats keeps the most useful system metrics one click away without sending data to a server.
 
@@ -19,15 +19,22 @@ A lightweight, local system monitor for the macOS menu bar. Torli Stats keeps th
 - Night monitoring pause, enabled by default from 23:30 to 07:00
 - Optional adaptive low-impact sampling after 25 minutes of idle time
 - Today’s typing count, active time, and WakaTime coding time (historical analysis is available in Pro)
-- Integrated Torli Notes, including searchable all-notes and archive views
+- Torli Notes: edge deck, floating notes, search, archive, task lists, PNG/JPEG insertion, resizing, cropping, and image-inclusive backups
+- Multiple Codex accounts, quota tracking, and local token activity
 - Automatic and manual GitHub Release update checks
 - Configurable refresh interval, process count, and sorting
 - Launch at login
 
+## Download
+
+Download the Apple Silicon (arm64) archive from [Latest Release](https://github.com/JamesLi-dev/torli-stats/releases/latest), extract it, and move `TorliStats.app` to `/Applications`. Launch it, then click the menu-bar item to open the dashboard or right-click to open Settings.
+
+Current releases use ad-hoc signing and are not Developer ID notarized. macOS may block first launch or request permissions again after an upgrade. The release workflow does not currently publish Intel or Universal packages.
+
 ## Requirements
 
 - macOS 15 or later
-- Xcode Command Line Tools
+- Xcode Command Line Tools (source builds only)
 
 ## Run from source
 
@@ -55,41 +62,25 @@ Click the CPU/MEM values in the menu bar to open the dashboard. Click outside th
 
 The Settings window provides controls for appearance, menu bar metrics, refresh frequency, night monitoring pause, adaptive low-impact sampling, process display, dashboard modules, typing and developer statistics, sensor authorization, update checks, and launch at login. Settings are saved automatically.
 
-Metrics, typing statistics, and Notes stay on this Mac. WakaTime personal OAuth tokens are stored in the macOS Keychain.
+Monitoring data, typing aggregates, and Notes stay on this Mac. Enabled Codex, WakaTime, and update checks contact their respective services. WakaTime uses a personal OAuth token with `read_summaries` permission, stored in the macOS Keychain; legacy API keys must be replaced manually.
+
+Note bodies are encrypted in the local database; this does not cover image files or exported backups. Use `.stickies` for image-inclusive backups, or keep Markdown exports together with their image folders. See the [user guide](docs/user-guide.md) for setup, shortcuts, and backup instructions.
+
+Community includes Notes and Codex. Pro adds historical typing/WakaTime analysis and email verification-code features.
 
 ## Sensor helper
 
 Fan speed and temperature readings may require the optional privileged sensor helper. Open Settings and choose **Authorize Fan and Temperature Access**. The app must be located in the Applications folder for the helper installation flow.
 
-## Changelog workflow
-
-`CHANGELOG.md` entries can be drafted locally from staged changes:
-
-```bash
-git add <files>
-./scripts/generate-changelog.sh
-# Review the generated entry, then stage it.
-git add CHANGELOG.md
-```
-
-The script uses `codex` when available and otherwise `claude`; `AI_CHANGELOG_COMMAND` can provide another stdin-to-stdout command. Review every generated entry before committing. The script writes an `[Unreleased]` entry and backs up the previous changelog under the ignored `.changelog-backups/` directory. An optional hook is available with `./scripts/setup-git-hooks.sh` and `AI_CHANGELOG_ON_COMMIT=1`.
-
-## Build and release automation
-
-`VERSION` is the source of truth for the user-visible semantic version. Bump it with:
-
-```bash
-./scripts/bump-version.sh major  # 1.2.3 → 2.0.0
-./scripts/bump-version.sh minor  # 1.2.3 → 1.3.0
-./scripts/bump-version.sh patch  # 1.2.3 → 1.2.4
-```
-
-Commit the resulting `VERSION`, `Info.plist`, and reviewed changelog changes, then push them to `main`. The GitHub Actions workflow runs on `main`, builds an arm64 archive, and—when that version has not already been released—creates the matching `vX.Y.Z` tag and GitHub Release automatically. Do not rely on manually pushing a version tag to start the workflow.
-
 ## Notes
 
 macOS does not provide a stable public GPU utilization API. Torli Stats reads the `Renderer Utilization %` and `Device Utilization %` fields from IORegistry when available and avoids interpreting memory values from the same row as GPU utilization.
 
-## 公共核心与扩展
+## Development and roadmap
 
-本仓库提供可独立构建的社区版及 `TorliStatsCore` Swift Package。扩展接口、本地构建和版本发布规则见 [ARCHITECTURE.md](ARCHITECTURE.md)。
+This repository provides the standalone Community app and the `TorliStatsCore` Swift Package.
+
+- [Architecture](ARCHITECTURE.md)
+- [Development, signing, changelog, and release workflow](docs/development.md)
+- [Product roadmap](TODO.md) · [Notes roadmap](note-todo.md)
+- [Changelog](CHANGELOG.md)
