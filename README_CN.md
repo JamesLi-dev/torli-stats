@@ -1,6 +1,6 @@
 # Torli Stats
 
-[English README](README.md) · [完整用户与开发者说明书](docs/user-guide.md)
+[English README](README.md) · [使用指南](docs/user-guide.md)
 
 Torli Stats 是一款运行在 macOS 状态栏中的本地系统监控工具，不会向服务器发送监控数据。
 
@@ -18,16 +18,23 @@ Torli Stats 是一款运行在 macOS 状态栏中的本地系统监控工具，�
 - 跟随系统、亮色和暗色主题
 - 夜间暂停监控，默认时段为 23:30–07:00
 - 连续空闲 25 分钟后可选的低干扰采样模式
-- 输入与开发活动统计，并提供每日详情图表
-- 内置 Torli 便签，支持搜索所有便签和查看归档
+- 今日输入次数、活跃时长、KPM 和 WakaTime 开发时长；历史分析由 Pro 提供
+- Torli 便签：屏幕边缘便签、浮动窗口、搜索、归档、任务列表，以及 PNG/JPEG 插入、缩放、裁剪和含图片备份
+- Codex 多账号额度和本地 Token 活动统计
 - 自动与手动检查 GitHub Release 更新
 - 可配置更新间隔、进程数量和排序方式
 - 开机启动
 
+## 下载与安装
+
+从[最新 Release](https://github.com/JamesLi-dev/torli-stats/releases/latest) 下载 Apple Silicon（arm64）压缩包，解压后将 `TorliStats.app` 移到 `/Applications`。启动后点击状态栏项目打开面板，右键打开设置。
+
+当前发布包采用 ad-hoc 签名，尚未配置 Developer ID 公证。macOS 可能拦截首次打开，升级后也可能要求重新授权；发布流程目前不提供 Intel 或 Universal 安装包。
+
 ## 系统要求
 
 - macOS 15 或更高版本
-- Xcode Command Line Tools
+- Xcode Command Line Tools（仅源码构建需要）
 
 ## 从源码运行
 
@@ -55,37 +62,25 @@ SKIP_INSTALL=1 ./build-app.sh
 
 设置窗口支持调整外观、状态栏显示项目、更新间隔、夜间暂停监控、低干扰采样、进程显示、面板模块、输入与开发统计、传感器授权、更新检查和开机启动。设置会自动保存。
 
-指标、输入统计和便签内容均保存在本机；WakaTime 个人 OAuth Token 保存在 macOS 钥匙串中。
+监控数据、输入聚合统计和便签保存在本机；启用 Codex、WakaTime 和更新检查时会访问对应服务。WakaTime 使用具有 `read_summaries` 权限的个人 OAuth Token，并将其保存在 macOS 钥匙串中；旧 API Key 需要手动替换。
+
+便签数据库正文使用本地加密，图片文件和导出的备份不在该正文加密范围内。含图片备份可使用 `.stickies`；Markdown 导出需连同图片文件夹一起保存。配置、快捷键和备份操作见[使用指南](docs/user-guide.md)。
+
+社区版包含便签与 Codex；历史输入/WakaTime 分析和邮箱验证码由 Pro 扩展提供。
 
 ## 传感器辅助进程
 
 读取风扇转速和温度可能需要安装可选的传感器辅助进程。在设置中点击“授权读取风扇和温度”。安装辅助进程前，需要先将 App 放在“应用程序”文件夹中。
 
-## Changelog 工作流
-
-可通过已安装的 `codex` 或 `claude` CLI，根据已暂存的变更在本地起草 Changelog：
-
-```bash
-git add <文件>
-./scripts/generate-changelog.sh
-# 检查生成内容后再暂存。
-git add CHANGELOG.md
-```
-
-脚本只分析已暂存的变更；也可通过 `AI_CHANGELOG_COMMAND` 指定其他从标准输入读取、向标准输出写入内容的命令。提交前必须人工检查生成内容。脚本会写入一个 `[Unreleased]` 条目，并把旧 Changelog 备份到 `.gitignore` 排除的 `.changelog-backups/` 目录。可通过 `./scripts/setup-git-hooks.sh` 和 `AI_CHANGELOG_ON_COMMIT=1` 启用可选的提交前 Hook。
-
-## 构建与发布自动化
-
-`VERSION` 是用户可见的语义化版本来源，可使用以下命令升级：
-
-```bash
-./scripts/bump-version.sh major  # 1.2.3 → 2.0.0
-./scripts/bump-version.sh minor  # 1.2.3 → 1.3.0
-./scripts/bump-version.sh patch  # 1.2.3 → 1.2.4
-```
-
-提交生成的 `VERSION`、`Info.plist` 和已检查的 Changelog 后，将它们推送到 `main`。GitHub Actions 只在 `main` 上运行：它会构建 arm64 App 压缩包；若该版本尚未发布，则自动创建对应的 `vX.Y.Z` 标签和 GitHub Release。请不要依赖手动推送版本标签来触发工作流。
-
 ## 说明
 
 macOS 没有稳定的公开 GPU 使用率 API。Torli Stats 会在可用时读取 IORegistry 中的 `Renderer Utilization %` 和 `Device Utilization %` 字段，并避免将同一行中的内存数值误判为 GPU 使用率。
+
+## 开发与后续计划
+
+本仓库提供可独立构建的社区版及 `TorliStatsCore` Swift Package。
+
+- [架构说明](ARCHITECTURE.md)
+- [开发、签名、Changelog 与发布流程](docs/development.md)
+- [产品计划](TODO.md) · [便签计划](note-todo.md)
+- [更新记录](CHANGELOG.md)

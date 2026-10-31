@@ -1,4 +1,4 @@
-# Torli Stats User & Developer Guide / Torli Stats 用户与开发者说明书
+# Torli Stats User Guide / Torli Stats 使用指南
 
 > This guide is bilingual. The Chinese section comes first, followed by the English version.
 >
@@ -17,11 +17,13 @@ Torli Stats 是一个运行在 macOS 状态栏中的本地系统监控工具。C
 - macOS 15 或更高版本
 - 从源码构建需要 Xcode Command Line Tools
 
-点击状态栏中的 CPU/MEM 数值可以打开 Dashboard。右键点击状态栏项目可以刷新数据、切换隐私模式、打开设置、查看诊断信息或退出应用。
+点击状态栏中的 CPU/MEM 数值可以打开 Dashboard。右键点击状态栏项目可以刷新数据、切换隐私模式、打开设置、查看应用信息或退出应用。
 
 ### 2. 快速开始
 
-普通用户建议使用经过稳定签名和公证的发布版：
+从 [Releases](https://github.com/JamesLi-dev/torli-stats/releases/latest) 下载 arm64 安装包。当前发布包采用 ad-hoc 签名，尚未配置 Developer ID 公证；macOS 可能拦截首次打开，升级后也可能要求重新授权。下载版不需要安装 Xcode。
+
+安装步骤：
 
 1. 将 `TorliStats.app` 放到 `/Applications`。
 2. 启动应用。
@@ -66,7 +68,7 @@ SKIP_INSTALL=1 ./build-app.sh
 
 #### 4.2 如何授权
 
-1. 打开 **Torli Stats > Settings > System**。
+1. 打开 **状态栏右键菜单 > 设置 > 系统**。
 2. 打开 **Enable Typing Statistics**。
 3. 点击 **Open Input Monitoring Settings**，或者在系统设置中进入：
    **System Settings > Privacy & Security > Input Monitoring**。
@@ -97,7 +99,7 @@ Input Monitoring 不是按应用显示名称授权，而是由 macOS 根据应�
 4. 将 OAuth Token 粘贴到 Torli Stats 的安全输入框。
 5. 点击 **Save & Connect**，然后打开 WakaTime 开关。
 
-启用并配置 Key 后，应用会自动同步 WakaTime 数据；当前默认同步间隔为 30 分钟。WakaTime 的历史数据还取决于 WakaTime API 返回的范围和账户权限。
+启用并配置 OAuth Token 后，应用会自动同步 WakaTime 数据；当前默认同步间隔为 30 分钟。WakaTime 的历史数据还取决于 WakaTime API 返回的范围和账户权限。
 
 旧 API Key 无法自动转换。升级后请重新填写个人 OAuth Token；保存成功后会清理 Torli 自己保存的旧 Key，编辑器插件的 API Key 不受影响。
 
@@ -114,10 +116,10 @@ OAuth Token 只写入 macOS Keychain，不写入 UserDefaults、普通配置文�
 
 macOS Keychain 可能将某个项目的访问权限与应用的代码签名要求关联。ad-hoc 或未签名构建的签名身份不稳定；当应用被重新编译并替换后，新的二进制可能需要再次确认 Keychain 访问，或者无法访问旧构建保存的项目。
 
-这不是 WakaTime OAuth Token 自动失效，也不代表 Key 已发送给 Torli Stats。遇到提示时，只应允许已确认来源的 Torli Stats 访问；如果新构建仍无法读取：
+这不是 WakaTime OAuth Token 自动失效，也不代表 Token 已发送给 Torli Stats。遇到提示时，只应允许已确认来源的 Torli Stats 访问；如果新构建仍无法读取：
 
 1. 打开 **Settings > Development**。
-2. 在 WakaTime 区域删除旧 Key。
+2. 在 WakaTime 区域删除旧 Token。
 3. 重新粘贴 OAuth Token 并点击 **Save & Connect**。
 
 要避免在开发过程中反复遇到这个问题，应使用稳定的 Developer ID 签名，不要在同一个安装位置混用 ad-hoc 构建和发布构建。
@@ -161,60 +163,46 @@ macOS Keychain 可能将某个项目的访问权限与应用的代码签名要�
 
 打开 **Settings > System > Launch at Login** 即可启用开机启动。该功能使用 macOS `SMAppService`，从 `swift run` 启动的未打包或未签名程序可能无法注册。遇到注册失败时，应使用安装在 `/Applications` 中的签名 App。
 
-### 8. 开发者发布指南
+### 8. Codex 与监控设置
 
-#### 8.1 必须保持稳定的身份
+在状态栏项目的右键菜单中打开“设置”。可以调整面板模块、顺序、显示密度、状态栏指标、Logo、主题和刷新策略。
 
-发布和升级时请保持：
+Codex 支持配置多个账号及各自的 Codex Home，查看额度、重置时间和刷新状态；自动刷新有独立开关和间隔。额度请求依赖对应账号的登录状态。本地 Token 活动从已配置的 Codex Home 读取 token 计数事件，不等同于检测 CLI 进程运行时长。
 
-- `CFBundleIdentifier` 不变，目前是 `local.torli.stats`；
-- 使用同一个 Apple Developer Team；
-- 使用稳定的 Developer ID Application 证书；
-- App 和内置的 `TorliStatsHelper` 使用一致、可验证的签名；
-- 不要让用户在同一个路径混用 ad-hoc、本地调试和正式发布版本；
-- 版本升级只改变版本号和构建内容，不随意更换 Bundle ID 或签名主体。
+手动暂停和夜间暂停会停止自动监控及 Codex/WakaTime 自动刷新，仍可手动刷新。夜间暂停默认时段为 23:30–07:00。可选的智能节能采样在连续空闲 25 分钟后降低采样频率。
 
-#### 8.2 使用 Developer ID 构建
+社区版显示今日输入与 WakaTime 开发统计；历史分析和邮箱验证码由 Pro 扩展提供。便签和 Codex 功能属于公共核心。
 
-在已经安装 Developer ID Application 证书的机器上，可以将签名身份传给当前构建脚本：
+### 9. 便签与图片
 
-```bash
-security find-identity -v -p codesigning
+1. 从状态栏右键菜单启用便签，再选择“新建便签”或“全部便签”。便签相关入口已单独分组。
+2. 在便签设置中调整屏幕边缘、显示屏、悬停行为、字号和快捷键。便签默认未启用；启用后的边缘位置默认为左侧。
+3. 拖动展开便签的标题区域可将它分离为浮动窗口；在全部便签中搜索、归档和恢复便签。
+4. 编辑正文时用 `⌘T` 在普通行、未完成任务 `☐`、已完成任务 `☑` 之间循环。正文保留文本标记，Markdown 样式不是完整富文本或完整 Markdown 渲染器。
 
-CODE_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
-  ./build-app.sh
-```
+默认全局快捷键：新建 `⌥⌘N`，全部便签 `⌥⌘A`，快速捕获 `⇧⌘Space`，归档库 `⌥⌘L`。可以在便签设置中修改；如果与其他应用冲突，请更换组合。
 
-当前脚本默认是 ad-hoc 签名：
+**插入图片**：在正文右键菜单选择插入图片，也可粘贴或拖入 PNG/JPEG。单张图片最多 20 MiB、4000 万像素；其他格式请先转换。
 
-```bash
-./build-app.sh
-# 等价于使用 CODE_SIGN_IDENTITY=-
-```
+**缩放与裁剪**：选中图片后调整显示宽度，或拖动缩放手柄。裁剪支持自由比例和固定比例，按 Enter 确认、Esc 取消；编辑可用 `⌘Z` 撤销。裁剪生成新的图片资源，不承诺重启后保留原图的撤销历史。
 
-这适合本地开发和 UI 调试，但不适合作为需要长期保留 TCC/Keychain 身份的正式更新渠道。
+### 10. 便签备份与本地数据
 
-#### 8.3 发布前检查
+在全部便签窗口导入或导出。导出库包含归档便签，不只包含当前搜索或筛选结果。
 
-正式发布前至少应完成：
+| 格式 | 内容与使用方式 |
+| --- | --- |
+| `.stickies` | 便签备份，包含图片资源，适合迁移与恢复；当前导出为 v4，可导入 v1–v4。单份备份的图片原始数据合计上限为 200 MiB。 |
+| Markdown | 保留文本标记并将图片写入相对路径的附属文件夹。分享或移动时请保留文档与图片文件夹的相对位置。 |
+| 纯文本 | 图片以 `[Image]` 占位，不包含图片内容。 |
 
-```bash
-codesign --verify --deep --strict --verbose=2 TorliStats.app
-spctl --assess --type execute --verbose=4 TorliStats.app
-plutil -lint TorliStats.app/Contents/Info.plist
-```
+Markdown 导入只读取文档目录范围内的本地图片，不下载远程图片链接。
 
-还应在干净用户账户或测试 Mac 上验证以下升级路径：
+便签目录为 `~/Library/Application Support/TorliStats/Notes`：`notes.db` 保存数据库，`note.key` 用于解密正文，`Images` 保存图片。数据库正文使用本地加密，标题等元数据、图片文件及导出的备份不在该正文加密范围内。需要迁移时优先使用导出功能；手动备份应先退出 App，并完整保留目录，不能只拷贝数据库或删除密钥。
 
-1. 安装旧的 Developer ID 版本。
-2. 授予 Input Monitoring 权限并保存 WakaTime Token。
-3. 安装新的 Developer ID 版本覆盖旧版本。
-4. 确认输入统计仍能工作，且 WakaTime Token 不需要重新录入。
-5. 单独测试传感器辅助进程的重新安装和版本升级。
+系统监控和输入聚合数据保留在本机；启用 Codex、WakaTime 或更新检查时会访问相应服务。有关构建、签名、升级验证和发布流程，见[开发与分发指南](development.md)。
 
-当前仓库的 `build-app.sh` 负责构建、复制资源、签名和本地安装；正式的 Developer ID 证书管理、Hardened Runtime、notarization、stapling 和发布包上传仍属于发行环境配置的一部分，不能由用户授权替代。
-
-### 9. 常见问题
+### 11. 常见问题
 
 **Q：授权后输入统计仍显示不可用？**
 
@@ -249,11 +237,13 @@ Requirements:
 - macOS 15 or later
 - Xcode Command Line Tools for source builds
 
-Click the CPU/MEM values in the menu bar to open the Dashboard. Right-click the menu-bar item to refresh data, switch privacy mode, open Settings, copy diagnostic information, or quit the app.
+Click the CPU/MEM values in the menu bar to open the Dashboard. Right-click the menu-bar item to refresh data, switch privacy mode, open Settings, view app information, or quit the app.
 
 ### 2. Quick start
 
-For regular use, install a release that has a stable signature and has been notarized:
+Download the arm64 archive from [Releases](https://github.com/JamesLi-dev/torli-stats/releases/latest). Current packages use ad-hoc signing and are not Developer ID notarized; macOS may block first launch or request permissions again after an upgrade. Downloaded builds do not require Xcode.
+
+Installation:
 
 1. Move `TorliStats.app` to `/Applications`.
 2. Launch the app.
@@ -298,7 +288,7 @@ The app does not read or save typed text, characters, clipboard contents, or the
 
 #### 4.2 How to grant it
 
-1. Open **Torli Stats > Settings > System**.
+1. Open **Menu-bar right-click menu > Settings > System**.
 2. Turn on **Enable Typing Statistics**.
 3. Click **Open Input Monitoring Settings**, or open:
    **System Settings > Privacy & Security > Input Monitoring**.
@@ -329,7 +319,7 @@ Therefore, **the version number is usually not the root cause; the changing sign
 4. Paste it into Torli Stats’s secure input field.
 5. Click **Save & Connect**, then enable WakaTime.
 
-After a key is configured and WakaTime is enabled, the app synchronizes WakaTime data automatically. The current default interval is 30 minutes. Available history also depends on the range and permissions returned by the WakaTime API.
+After an OAuth token is configured and WakaTime is enabled, the app synchronizes WakaTime data automatically. The current default interval is 30 minutes. Available history also depends on the range and permissions returned by the WakaTime API.
 
 Legacy API keys cannot be converted automatically. Enter a personal OAuth token after upgrading. After saving it successfully, Torli removes its own saved legacy key; editor plugin API keys are unaffected.
 
@@ -340,7 +330,7 @@ The OAuth Token is written only to the macOS Keychain, not to UserDefaults, a no
 - Service: `local.torli.stats.wakatime`
 - Account: `oauth-token`
 
-Removing the OAuth Token from Settings deletes that Keychain item. Never commit the key to Git, put it in `Info.plist` or source code, or include it in public diagnostic information.
+Removing the OAuth Token from Settings deletes that Keychain item. Never commit the token to Git, put it in `Info.plist` or source code, or include it in public diagnostic information.
 
 #### 5.3 Why a build update may ask for Keychain access again
 
@@ -349,8 +339,8 @@ macOS may associate access to a Keychain item with the app’s code-signing requ
 This does not mean that the WakaTime OAuth Token has expired or was sent to Torli Stats. Only allow a Torli Stats build from a source you trust to access the item. If the new build still cannot read it:
 
 1. Open **Settings > Development**.
-2. Remove the old key in the WakaTime section.
-3. Paste the key again and click **Save & Connect**.
+2. Remove the old token in the WakaTime section.
+3. Paste the token again and click **Save & Connect**.
 
 To avoid repeated prompts during development, use a stable Developer ID signature and do not mix ad-hoc and release builds at the same install path.
 
@@ -392,68 +382,54 @@ Not every Mac exposes readable fan, CPU-temperature, or GPU-temperature sensors.
 
 Enable **Settings > System > Launch at Login** to use macOS `SMAppService`. An unbundled or unsigned executable launched with `swift run` may not be able to register. If registration fails, use the signed app installed in `/Applications`.
 
-### 8. Developer distribution guide
+### 8. Codex and monitoring settings
 
-#### 8.1 Keep the identity stable
+Open Settings from the menu-bar item's right-click menu. Configure dashboard modules, order, density, menu-bar metrics, logos, appearance, and refresh policies there.
 
-For release and upgrade continuity, keep the following unchanged:
+Codex supports multiple accounts and their Codex Home directories, quotas, reset times, and refresh status. Automatic refresh has its own toggle and interval. Quota requests require the account's login state. Local token activity reads token-count events from configured homes; it does not measure CLI process uptime.
 
-- `CFBundleIdentifier`, currently `local.torli.stats`;
-- the Apple Developer Team;
-- the Developer ID Application certificate;
-- a consistent, verifiable signature for both the app and the embedded `TorliStatsHelper`;
-- the installation source at a given path; do not mix ad-hoc, debug, and release builds;
-- the identity while changing only the version and build contents for an upgrade.
+Manual and night pauses stop automatic monitoring and Codex/WakaTime refreshes; manual refresh remains available. The default night window is 23:30–07:00. Optional adaptive sampling reduces frequency after 25 minutes of inactivity.
 
-#### 8.2 Build with Developer ID
+Community shows today's typing and WakaTime statistics. Historical analysis and email verification codes are Pro extensions. Notes and Codex are part of the public core.
 
-On a Mac with a Developer ID Application certificate installed, pass the signing identity to the current build script:
+### 9. Notes and images
 
-```bash
-security find-identity -v -p codesigning
+1. Enable Notes from the menu-bar right-click menu, then choose New Note or All Notes. Notes actions have their own menu group.
+2. Configure the screen edge, displays, hover behavior, font size, and shortcuts in Notes settings. Notes is disabled by default; its default edge is left.
+3. Drag an expanded note's title area to detach it into a floating window. Search, archive, and restore notes in All Notes.
+4. In the editor, `⌘T` cycles a plain line through an unchecked task `☐`, a checked task `☑`, and back to plain text. The body retains text markers; Markdown styling is not a complete rich-text editor or Markdown renderer.
 
-CODE_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
-  ./build-app.sh
-```
+Default global shortcuts: New Note `⌥⌘N`, All Notes `⌥⌘A`, Quick Capture `⇧⌘Space`, Archive Library `⌥⌘L`. Change them in Notes settings if another app uses the same combination.
 
-The current script defaults to ad-hoc signing:
+**Insert an image:** use the editor's context menu, paste, or drag a PNG/JPEG into a note. Each image is limited to 20 MiB and 40 million pixels. Convert other formats first.
 
-```bash
-./build-app.sh
-# equivalent to CODE_SIGN_IDENTITY=-
-```
+**Resize and crop:** select an image to adjust its displayed width or drag a resize handle. Cropping supports free and fixed aspect ratios; Enter commits and Esc cancels. Use `⌘Z` to undo edits. Cropping creates a new image resource; original-image undo history is not guaranteed after restarting.
 
-That is suitable for local development and UI debugging, but not as a long-term update channel that must preserve TCC and Keychain identity.
+### 10. Notes backups and local data
 
-#### 8.3 Pre-release checks
+Import or export from All Notes. A library export includes archived notes, regardless of the current search or filter.
 
-At minimum, verify the signed app before release:
+| Format | Contents and handling |
+| --- | --- |
+| `.stickies` | Bundles notes and images for backup and migration. Current exports use v4; imports support v1–v4. Total raw image data is limited to 200 MiB per archive. |
+| Markdown | Preserves text markers and writes images into a relative sidecar folder. Keep the document and image folder together when moving or sharing them. |
+| Plain text | Replaces images with `[Image]`; image data is not included. |
 
-```bash
-codesign --verify --deep --strict --verbose=2 TorliStats.app
-spctl --assess --type execute --verbose=4 TorliStats.app
-plutil -lint TorliStats.app/Contents/Info.plist
-```
+Markdown import reads local images within the document's directory only; it does not download remote image URLs.
 
-Also test this upgrade path on a clean user account or test Mac:
+Notes live in `~/Library/Application Support/TorliStats/Notes`: `notes.db` is the database, `note.key` decrypts note bodies, and `Images` holds image files. Body encryption does not cover titles and other metadata, image files, or exported backups. Prefer the export feature for migration. For a manual backup, quit the app and preserve the whole directory; do not copy only the database or delete its key.
 
-1. Install the previous Developer ID build.
-2. Grant Input Monitoring and save a WakaTime Token.
-3. Install the new Developer ID build over the previous one.
-4. Confirm that typing statistics still work and the WakaTime token does not need to be entered again.
-5. Test sensor-helper reinstallation and upgrade separately.
+System monitoring and typing aggregates stay on this Mac. Enabled Codex, WakaTime, and update checks contact their respective services. See the [development and distribution guide](development.md) for builds, signing, upgrade checks, and releases.
 
-The repository’s current `build-app.sh` builds the app, copies resources, signs it, and can install it locally. Developer ID certificate management, Hardened Runtime, notarization, stapling, and release-upload configuration remain part of the distribution environment; user authorization cannot replace them.
-
-### 9. Troubleshooting
+### 11. Troubleshooting
 
 **Q: Typing statistics remain unavailable after authorization.**
 
 A: Confirm that you authorized the current `/Applications/TorliStats.app`, not an older test copy at another path. Click **Recheck** and relaunch the app if needed.
 
-**Q: WakaTime says that no key is configured even though it was saved.**
+**Q: WakaTime says that no token is configured even though it was saved.**
 
-A: Make sure you did not launch another build copy. If the signing identity just changed, remove and save the key again in Settings.
+A: Make sure you did not launch another build copy. If the signing identity just changed, remove and save the token again in Settings.
 
 **Q: Sensor authorization succeeded but no fan speed is shown.**
 
