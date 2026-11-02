@@ -17,7 +17,10 @@ extension TorliAppDelegate {
             for: settings,
             codexAccountCount: visibleAccountCount
         )
-        let targetHeight = min(estimatedHeight, DashboardView.maximumPopoverHeight)
+        let screenHeight = statusItem.button?.window?.screen?.visibleFrame.height
+            ?? NSScreen.main?.visibleFrame.height ?? DashboardView.maximumPopoverHeight
+        let maximumHeight = min(DashboardView.maximumPopoverHeight, max(160, screenHeight - 16))
+        let targetHeight = min(estimatedHeight, maximumHeight)
         if abs(dashboardPanel.dashboardContentSize.height - targetHeight) > 0.5 {
             dashboardPanel.dashboardContentSize = NSSize(width: DashboardView.panelWidth, height: targetHeight)
         }
@@ -32,7 +35,7 @@ extension TorliAppDelegate {
             view.layoutSubtreeIfNeeded()
             let fittedHeight = view.fittingSize.height
             guard fittedHeight > 0 else { return }
-            let fittedTargetHeight = min(fittedHeight, DashboardView.maximumPopoverHeight)
+            let fittedTargetHeight = min(fittedHeight, maximumHeight)
             guard abs(self.dashboardPanel.dashboardContentSize.height - fittedTargetHeight) > 0.5 else { return }
             self.dashboardPanel.dashboardContentSize = NSSize(width: DashboardView.panelWidth, height: fittedTargetHeight)
         }

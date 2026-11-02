@@ -299,7 +299,8 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
                 onOpenSettings: { [weak self] category in
                     SettingsNavigation.shared.selectedCategory = category
                     self?.openSettings()
-                }
+                },
+                onTabChange: { [weak self] in self?.updatePopoverSize() }
             )
         )
         dashboardController.view.wantsLayer = true

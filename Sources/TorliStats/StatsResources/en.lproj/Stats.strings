@@ -571,3 +571,11 @@
 "settings.wakatime.get_token" = "Get Personal OAuth Token";
 
 "settings.wakatime.migrate_key" = "A legacy API key is saved. From November 1, 2026, statistics require an OAuth token. Get your personal token and save it here to reconnect; no conversion is automatic.";
+
+// Dashboard categories
+"dashboard.tab.monitoring" = "Monitoring";
+"dashboard.tab.statistics" = "Statistics";
+"dashboard.tab.label" = "Panel category";
+"dashboard.tab.empty" = "No modules enabled in this category";
+"dashboard.tab.settings" = "Open Settings";
+"dashboard.tab.mail" = "Mail";
