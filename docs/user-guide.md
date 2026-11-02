@@ -186,6 +186,8 @@ Codex 支持配置多个账号及各自的 Codex Home，查看额度、重置时
 
 **缩放与裁剪**：选中图片后调整显示宽度，或拖动缩放手柄。裁剪支持自由比例和固定比例，按 Enter 确认、Esc 取消；编辑可用 `⌘Z` 撤销。裁剪生成新的图片资源，不承诺重启后保留原图的撤销历史。
 
+**任务与分割线**：原生 `☐` / `☑` 和 Markdown `- [ ]` / `- [x]`（也支持 `*`、`+`）使用相同任务规则。点击 checkbox 切换完成状态；回车延续当前缩进，空任务回车结束列表。长任务换行与正文对齐，完成态只划正文。独占一行输入 `---`、`***` 或 `___` 可显示分割线（也支持 `- - -` 等带空格写法）；光标进入该行显示原始标记，关闭 Markdown 样式则保留普通文本。当前未区分 YAML Front Matter 或代码围栏内的分割线。
+
 ### 10. 便签备份与本地数据
 
 在全部便签窗口导入或导出。导出库包含归档便签，不只包含当前搜索或筛选结果。
@@ -404,6 +406,8 @@ Default global shortcuts: New Note `⌥⌘N`, All Notes `⌥⌘A`, Quick Capture
 **Insert an image:** use the editor's context menu, paste, or drag a PNG/JPEG into a note. Each image is limited to 20 MiB and 40 million pixels. Convert other formats first.
 
 **Resize and crop:** select an image to adjust its displayed width or drag a resize handle. Cropping supports free and fixed aspect ratios; Enter commits and Esc cancels. Use `⌘Z` to undo edits. Cropping creates a new image resource; original-image undo history is not guaranteed after restarting.
+
+**Tasks and dividers:** Native `☐` / `☑` and Markdown `- [ ]` / `- [x]` (including `*` and `+` bullets) share task rules. Click a checkbox to toggle completion. Return continues the indentation; Return on an empty task exits the list. Wrapped text aligns with the body, and completion strikes only the body. A standalone `---`, `***`, or `___` renders as a divider, including spaced forms such as `- - -`. The caret line reveals the source; disabling Markdown styling leaves ordinary text. YAML Front Matter and fenced-code contexts are not distinguished yet.
 
 ### 10. Notes backups and local data
 

@@ -3,6 +3,9 @@ import AppKit
 extension NSAttributedString.Key {
     /// Marks Markdown punctuation that should occupy no glyph space while the
     /// plain-text source remains untouched.
+    static let notesCheckbox = NSAttributedString.Key("notesCheckbox")
+    static let notesRule = NSAttributedString.Key("notesRule")
+    static let notesInk = NSAttributedString.Key("notesInk")
     static let notesHidden = NSAttributedString.Key("notesHidden")
 }
 
@@ -124,6 +127,10 @@ enum EditorStyleEngine {
             storage.removeAttribute(.obliqueness, range: range)
             storage.removeAttribute(.backgroundColor, range: range)
             storage.removeAttribute(.notesHidden, range: range)
+            storage.removeAttribute(.notesCheckbox, range: range)
+            storage.removeAttribute(.notesRule, range: range)
+            storage.removeAttribute(.notesInk, range: range)
+            storage.removeAttribute(.kern, range: range)
             // Both belong to links. Styling is line-scoped, so an attribute left
             // behind when the syntax around it is deleted never gets cleaned up
             // by a later pass — the line would stay underlined and clickable.
@@ -138,8 +145,8 @@ enum EditorStyleEngine {
                 markdown(storage, fragment, offset: range.location, ink: ink,
                          size: size, revealing: activeLine, bodyFont: bodyFont)
             }
-            styleCompletedTasks(storage, fragment, offset: range.location,
-                                ink: ink, isCompletedTask: isCompletedTask)
+            styleTasksAndRules(storage, fragment, offset: range.location, ink: ink,
+                               font: font, markdownEnabled: markdownEnabled, activeLine: activeLine)
             storage.endEditing()
 
             // Hidden markers require glyph regeneration, but only for the lines
@@ -316,18 +323,50 @@ enum EditorStyleEngine {
         }
     }
 
-    private static func styleCompletedTasks(_ storage: NSTextStorage, _ fragment: String,
-                                            offset: Int, ink: NSColor,
-                                            isCompletedTask: @escaping CompletedTaskPredicate) {
+    private static func styleTasksAndRules(_ storage: NSTextStorage, _ fragment: String,
+                                           offset: Int, ink: NSColor, font: NSFont,
+                                           markdownEnabled: Bool, activeLine: NSRange?) {
         let local = fragment as NSString
-        let full = NSRange(location: 0, length: local.length)
-        local.enumerateSubstrings(in: full, options: .byLines) { line, range, _, _ in
-            guard let line, isCompletedTask(line) else { return }
+        local.enumerateSubstrings(in: NSRange(location: 0, length: local.length), options: .byLines) { line, range, _, _ in
+            guard let line else { return }
             let global = NSRange(location: offset + range.location, length: range.length)
-            storage.addAttribute(.strikethroughStyle,
-                                 value: NSUnderlineStyle.single.rawValue, range: global)
-            storage.addAttribute(.foregroundColor,
-                                 value: ink.withAlphaComponent(0.45), range: global)
+            if let task = TaskLine.parse(line) {
+                let marker = NSRange(location: global.location + task.markerRange.location, length: 1)
+                let prefix = NSRange(location: global.location, length: task.bodyRange.location)
+                storage.removeAttribute(.strikethroughStyle, range: prefix)
+                storage.addAttribute(.notesHidden, value: true, range: prefix)
+                let boxFont = NSFont.monospacedSystemFont(ofSize: font.pointSize + 2, weight: .regular)
+                storage.addAttributes([.font: boxFont, .foregroundColor: NSColor.clear,
+                                       .notesCheckbox: task.completed,
+                                       .notesInk: ink], range: marker)
+                let indent = CGFloat(task.indentationColumns) * (" " as NSString).size(withAttributes: [.font: font]).width
+                let existing = storage.attribute(.paragraphStyle, at: global.location, effectiveRange: nil) as? NSParagraphStyle
+                let paragraph = (existing?.mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
+                paragraph.headIndent = indent + max(9, boxFont.pointSize - 3) + 6
+                paragraph.firstLineHeadIndent = paragraph.headIndent
+                if task.body.isEmpty {
+                    // Keep a transparent glyph on an empty task line; otherwise
+                    // TextKit folds its entirely-null prefix into the preceding line.
+                    storage.removeAttribute(.notesHidden, range: marker)
+                    paragraph.firstLineHeadIndent = indent
+                }
+                storage.addAttribute(.paragraphStyle, value: paragraph, range: global)
+                if task.completed, task.bodyRange.length > 0 {
+                    let body = NSRange(location: global.location + task.bodyRange.location, length: task.bodyRange.length)
+                    storage.addAttributes([.strikethroughStyle: NSUnderlineStyle.single.rawValue,
+                                           .foregroundColor: ink.withAlphaComponent(0.45)], range: body)
+                }
+            } else if markdownEnabled, MarkdownRule.isRule(line) {
+                // Keep a normal text line and its source so caret editing and export remain natural.
+                storage.removeAttribute(.notesHidden, range: global)
+                storage.removeAttribute(.strikethroughStyle, range: global)
+                let active = activeLine.map { NSIntersectionRange($0, global).length > 0 } ?? false
+                if !active {
+                    storage.addAttribute(.foregroundColor, value: NSColor.clear, range: global)
+                    storage.addAttributes([.notesRule: true, .notesInk: ink],
+                                          range: NSRange(location: global.location, length: 1))
+                }
+            }
         }
     }
 

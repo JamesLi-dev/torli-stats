@@ -51,12 +51,12 @@ final class TaskTextView: NSTextView {
 
         let (lineRange, lineText) = lineContentRange(for: sel.location, in: ns)
 
+        if MarkdownRule.isRule(lineText) { return false }
+
         // 1. Task checklist (☐ / ☑ or - [ ] / - [x])
-        let taskPattern = try! NSRegularExpression(pattern: "^([ \\t]*)([\u{2610}\u{2611}]|- \\[([ xX])\\])[ \\t]*(.*)$")
-        if let match = taskPattern.firstMatch(in: lineText, range: NSRange(location: 0, length: (lineText as NSString).length)) {
-            let indent = (lineText as NSString).substring(with: match.range(at: 1))
-            let bodyRange = match.range(at: 4)
-            let body = (lineText as NSString).substring(with: bodyRange).trimmingCharacters(in: .whitespacesAndNewlines)
+        if let task = TaskLine.parse(lineText), sel.location >= lineRange.location + task.bodyRange.location {
+            let indent = task.indentation
+            let body = task.body.trimmingCharacters(in: .whitespacesAndNewlines)
             if body.isEmpty {
                 // Empty item: pressing Enter clears the task marker and exits list
                 let replacement = indent.isEmpty ? "" : indent
@@ -68,7 +68,7 @@ final class TaskTextView: NSTextView {
                 }
             } else {
                 // Continue new empty task item
-                let nextPrefix = "\n\(indent)\(Tasks.openPrefix)"
+                let nextPrefix = "\n\(indent)" + (task.markdown ? "- [ ] " : Tasks.openPrefix)
                 if shouldChangeText(in: sel, replacementString: nextPrefix) {
                     storage.replaceCharacters(in: sel, with: nextPrefix)
                     didChangeText()
@@ -416,22 +416,16 @@ final class TaskTextView: NSTextView {
         let visibleRange = NSRange(location: safeLocation, length: safeLength)
 
         ns.enumerateSubstrings(in: visibleRange, options: .byLines) { line, lineRange, _, _ in
-            guard let line, Tasks.isTask(line) else { return }
-            let lineText = line as NSString
-            let indentRange = lineText.range(of: "^[ \\t]*", options: .regularExpression)
-            let indentCount = indentRange.location != NSNotFound ? indentRange.length : 0
-            let glyphs = lm.glyphRange(forCharacterRange: NSRange(location: lineRange.location + indentCount, length: 1),
-                                       actualCharacterRange: nil)
-            var box = lm.boundingRect(forGlyphRange: glyphs, in: tc)
-            box.origin.x += origin.x
-            box.origin.y += origin.y
+            guard let line, let task = TaskLine.parse(line) else { return }
+            guard let local = (lm as? HidingLayoutManager)?.checkboxRect(at: lineRange.location + task.markerRange.location) else { return }
+            let box = local.offsetBy(dx: origin.x, dy: origin.y)
             self.addCursorRect(box.insetBy(dx: -4, dy: -3), cursor: .pointingHand)
         }
     }
 
     /// Returns true when the click landed on a checkbox and was consumed.
     private func toggleBox(at point: NSPoint) -> Bool {
-        guard let lm = layoutManager, let tc = textContainer, let storage = textStorage else { return false }
+        guard let lm = layoutManager, let storage = textStorage else { return false }
         let ns = string as NSString
         guard ns.length > 0 else { return false }
 
@@ -440,23 +434,13 @@ final class TaskTextView: NSTextView {
         guard line.length > 0 else { return false }
 
         let lineText = ns.substring(with: line)
-        let indentRange = (lineText as NSString).range(of: "^[ \\t]*", options: .regularExpression)
-        let indentCount = indentRange.location != NSNotFound ? indentRange.length : 0
-        guard line.length > indentCount else { return false }
-
-        let first = ns.character(at: line.location + indentCount)
-        guard first == Tasks.open.unicodeScalars.first!.value ||
-              first == Tasks.done.unicodeScalars.first!.value else { return false }
-
-        let glyphs = lm.glyphRange(forCharacterRange: NSRange(location: line.location + indentCount, length: 1),
-                                   actualCharacterRange: nil)
-        var box = lm.boundingRect(forGlyphRange: glyphs, in: tc)
-        box.origin.x += textContainerOrigin.x
-        box.origin.y += textContainerOrigin.y
+        guard !hasMarkedText(), let task = TaskLine.parse(lineText) else { return false }
+        guard let local = (lm as? HidingLayoutManager)?.checkboxRect(at: line.location + task.markerRange.location) else { return false }
+        let box = local.offsetBy(dx: textContainerOrigin.x, dy: textContainerOrigin.y)
         guard box.insetBy(dx: -4, dy: -3).contains(point) else { return false }
 
-        let target = NSRange(location: line.location + indentCount, length: 1)
-        let flipped = String(first == Tasks.open.unicodeScalars.first!.value ? Tasks.done : Tasks.open)
+        let target = NSRange(location: line.location + task.markerRange.location, length: task.markerRange.length)
+        let flipped = task.marker(toggled: true)
         guard shouldChangeText(in: target, replacementString: flipped) else { return true }
         storage.replaceCharacters(in: target, with: flipped)
         didChangeText()

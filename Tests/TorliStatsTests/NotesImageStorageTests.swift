@@ -54,6 +54,27 @@ final class NotesImageStorageTests: XCTestCase {
         let second = try XCTUnwrap(NoteImageTransfer.decodeArchive(archive).first)
         XCTAssertNotEqual(ImageStore.tokens(in: second.body).first?.id, token.id)
     }
+    func testArchiveRestoresIntoEmptyStoreAfterCacheReset() throws {
+        let bytes = png()
+        let original = try ImageStore.saveValidated(data: bytes)
+        let crop = try XCTUnwrap(ImageStore.crop(id: original, normalizedRect: NSRect(x: 0, y: 0, width: 0.5, height: 0.5)))
+        let croppedBytes = try XCTUnwrap(ImageStore.data(id: crop))
+        var note = Note(body: "Restored\n" + ImageStore.token(id: crop, width: 180))
+        note.archived = true
+        let backup = try NoteImageTransfer.encodeArchive([note])
+        let fresh = folder.appendingPathComponent("restored")
+        ImageStore.directoryOverride = fresh
+        XCTAssertNil(ImageStore.data(id: crop))
+        let restored = try XCTUnwrap(NoteImageTransfer.decodeArchive(backup).first)
+        let token = try XCTUnwrap(ImageStore.tokens(in: restored.body).first)
+        ImageStore.directoryOverride = fresh // clear in-memory image cache, as on relaunch
+        ImageStore.removeOrphans(referencedBy: [restored])
+        XCTAssertEqual(ImageStore.data(id: token.id), croppedBytes)
+        XCTAssertEqual(ImageStore.image(id: token.id)?.size, NSSize(width: 40, height: 30))
+        XCTAssertEqual(token.width, 180)
+        XCTAssertTrue(restored.archived)
+    }
+
     func testMissingArchiveAssetFailsWithoutWriting() throws {
         let id = try ImageStore.saveValidated(data: png())
         let note = Note(body: ImageStore.token(id: id, width: nil) + "\n" + ImageStore.token(id: "missing", width: nil))

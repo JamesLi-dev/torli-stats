@@ -430,34 +430,33 @@ enum Tasks {
     static let donePrefix = "\u{2611} "
 
     static func marker(of line: some StringProtocol) -> Character? {
-        let trimmed = line.drop(while: { $0 == " " || $0 == "\t" })
-        guard let f = trimmed.first, f == open || f == done else { return nil }
-        return f
+        guard let task = TaskLine.parse(line) else { return nil }
+        return task.completed ? done : open
     }
 
-    static func isTask(_ line: some StringProtocol) -> Bool { marker(of: line) != nil }
+    static func isTask(_ line: some StringProtocol) -> Bool { TaskLine.parse(line) != nil }
 
-    /// Strip the marker for display in lists and titles.
     static func stripped(_ line: some StringProtocol) -> String {
-        guard isTask(line) else { return String(line) }
-        let trimmed = line.drop(while: { $0 == " " || $0 == "\t" })
-        return String(trimmed.dropFirst()).trimmingCharacters(in: .whitespaces)
+        TaskLine.parse(line)?.body.trimmingCharacters(in: .whitespaces) ?? String(line)
     }
 
-    /// Markdown task syntax in, ☐/☑ out.
-    static func fromMarkdown(_ text: String) -> String {
-        text.replacingOccurrences(of: "(?m)^([\\t ]*)[-*][\\t ]+\\[ \\][\\t ]+",
-                                  with: "$1" + openPrefix, options: .regularExpression)
-            .replacingOccurrences(of: "(?m)^([\\t ]*)[-*][\\t ]+\\[[xX]\\][\\t ]+",
-                                  with: "$1" + donePrefix, options: .regularExpression)
+    private static func convert(_ text: String, markdown: Bool) -> String {
+        let source = text as NSString
+        let result = NSMutableString(string: text)
+        var edits: [(NSRange, String)] = []
+        source.enumerateSubstrings(in: NSRange(location: 0, length: source.length), options: .byLines) { line, range, _, _ in
+            guard let line, let task = TaskLine.parse(line) else { return }
+            let marker = markdown ? (task.completed ? "- [x] " : "- [ ] ") : (task.completed ? donePrefix : openPrefix)
+            edits.append((NSRange(location: range.location + task.prefixRange.location,
+                                  length: task.prefixRange.length), marker))
+        }
+        for (range, marker) in edits.reversed() { result.replaceCharacters(in: range, with: marker) }
+        return result as String
     }
 
-    static func toMarkdown(_ text: String) -> String {
-        text.replacingOccurrences(of: "(?m)^([\\t ]*)☐ ", with: "$1- [ ] ",
-                                  options: .regularExpression)
-            .replacingOccurrences(of: "(?m)^([\\t ]*)☑ ", with: "$1- [x] ",
-                                  options: .regularExpression)
-    }
+    static func fromMarkdown(_ text: String) -> String { convert(text, markdown: false) }
+    static func toMarkdown(_ text: String) -> String { convert(text, markdown: true) }
+
 }
 
 // MARK: - Formatting
