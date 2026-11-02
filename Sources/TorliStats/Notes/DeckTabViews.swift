@@ -232,21 +232,24 @@ struct NotePreviewCard: View {
                 if !previewLines.isEmpty {
                     VStack(alignment: .leading, spacing: 3) {
                         ForEach(Array(previewLines.enumerated()), id: \.offset) { _, line in
-                            if Tasks.isTask(line) {
-                                let isDone = Tasks.marker(of: line) == Tasks.done
+                            if let task = TaskLine.parse(line) {
+                                let isDone = task.completed
                                 HStack(spacing: 4) {
                                     // Done tasks dim in the note's own ink, exactly as the
                                     // editor draws them. Color.secondary follows the system
                                     // appearance, not the paper — near-white in dark mode.
-                                    Image(systemName: isDone ? "checkmark.square.fill" : "square")
+                                    Image(systemName: isDone ? "checkmark.square" : "square")
                                         .font(.system(size: 8.5))
                                         .foregroundStyle(note.palette.ink.opacity(isDone ? 0.45 : 0.75))
-                                    Text(Tasks.stripped(line))
+                                    Text(task.body)
                                         .font(.system(size: 10.5))
                                         .strikethrough(isDone, color: note.palette.ink.opacity(0.45))
                                         .foregroundStyle(note.palette.ink.opacity(isDone ? 0.45 : 0.85))
                                         .lineLimit(1)
                                 }
+                                .padding(.leading, CGFloat(task.indentationColumns) * 3)
+                            } else if NotesSettings.markdownStyling && MarkdownRule.isRule(line) {
+                                Rectangle().fill(note.palette.ink.opacity(0.3)).frame(height: 1).padding(.vertical, 5)
                             } else {
                                 Text(line)
                                     .font(.system(size: 10.5))
