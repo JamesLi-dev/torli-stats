@@ -155,6 +155,17 @@ enum DashboardDensity: String, CaseIterable, Identifiable {
     }
 }
 
+struct DashboardTab: Identifiable {
+    let id: String
+    let title: String
+
+    static var available: [DashboardTab] {
+        [DashboardTab(id: "monitoring", title: StatsL10n.text("dashboard.tab.monitoring")),
+         DashboardTab(id: "statistics", title: StatsL10n.text("dashboard.tab.statistics"))]
+        + FeatureRegistry.shared.features.map { DashboardTab(id: "feature:" + $0.id, title: $0.dashboardTabTitle) }
+    }
+}
+
 enum DashboardModule: Hashable, RawRepresentable, CaseIterable, Codable, Identifiable {
     case cpu
     case gpu
@@ -169,6 +180,14 @@ enum DashboardModule: Hashable, RawRepresentable, CaseIterable, Codable, Identif
     case wakatime
     case feature(String)
     case processes
+
+    var dashboardTabID: String {
+        switch self {
+        case .codex, .wakatime: return "statistics"
+        case .feature(let id): return "feature:" + id
+        default: return "monitoring"
+        }
+    }
 
     static var allCases: [DashboardModule] {
         [.cpu, .gpu, .memory, .disk, .network, .networkApplications, .fan, .typing, .power, .codex, .wakatime, .processes] + FeatureRegistry.shared.features.map { .feature($0.id) }

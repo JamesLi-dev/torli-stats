@@ -4,6 +4,20 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
+## [1.11.2] - 2026-11-02
+
+### English
+
+- Split the dashboard into Monitoring and Statistics tabs. Typing stays with system monitoring; Codex and WakaTime appear under Statistics. Remember the selected tab while preserving module visibility, relative order, and density preferences.
+- Resize the panel for the selected category, with an 820-point maximum constrained by available screen height and internal scrolling for overflow. Keep device information and tab navigation above the scrolling content.
+- Unify task-list editing in Notes and add Markdown divider support, including task layout and image-storage regression coverage.
+
+### 中文
+
+- 面板按“监控 / 统计”分类，输入统计保留在监控中，Codex 与 WakaTime 归入统计。记住所选分类，保留模块显示开关、相对顺序和密度设置。
+- 面板随当前分类内容调整高度，上限为 820pt 且不超过屏幕可用高度，超出后内部滚动；设备信息和分类入口固定在滚动区上方。
+- 便签统一任务列表编辑行为，增加 Markdown 分割线支持，并补充任务布局和图片存储回归测试。
+
 ## [1.11.1] - 2026-10-30
 
 ### English

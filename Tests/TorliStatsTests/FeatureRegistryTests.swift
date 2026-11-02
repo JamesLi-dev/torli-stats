@@ -10,6 +10,9 @@ final class FeatureRegistryTests: XCTestCase {
         XCTAssertNil(DashboardModule(rawValue: "feature:sample"))
         XCTAssertFalse(SettingsCategory.allCases.contains(.feature("sample")))
         XCTAssertEqual(DashboardModule.allCases.count, 12)
+        XCTAssertEqual(DashboardTab.available.map(\.id), ["monitoring", "statistics"])
+        XCTAssertEqual(DashboardModule.allCases.filter { $0.dashboardTabID == "statistics" }, [.codex, .wakatime])
+        XCTAssertEqual(DashboardModule.allCases.filter { $0.dashboardTabID == "monitoring" }.count, 10)
     }
 
     @MainActor
@@ -19,6 +22,9 @@ final class FeatureRegistryTests: XCTestCase {
         defer { FeatureRegistry.shared.register([]) }
         let module = try XCTUnwrap(DashboardModule(rawValue: "feature:sample"))
         XCTAssertEqual(module.title, "Sample")
+        XCTAssertEqual(module.dashboardTabID, "feature:sample")
+        XCTAssertEqual(DashboardTab.available.map(\.id), ["monitoring", "statistics", "feature:sample"])
+        XCTAssertEqual(DashboardTab.available.last?.title, "Sample")
         XCTAssertFalse(module.isMetric)
         XCTAssertEqual(DashboardModule(rawValue: "sample"), module, "Legacy IDs migrate")
         XCTAssertEqual(try JSONDecoder().decode(DashboardModule.self, from: JSONEncoder().encode(module)), module)

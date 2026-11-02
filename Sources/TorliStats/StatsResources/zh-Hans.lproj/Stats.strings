@@ -571,3 +571,11 @@
 "settings.wakatime.get_token" = "获取个人 OAuth Token";
 
 "settings.wakatime.migrate_key" = "检测到旧 API Key。自 2026 年 11 月 1 日起，读取统计需要 OAuth Token。请获取个人 Token 并在此保存以重新连接，旧 Key 无法自动转换。";
+
+// Dashboard categories
+"dashboard.tab.monitoring" = "监控";
+"dashboard.tab.statistics" = "统计";
+"dashboard.tab.label" = "面板分类";
+"dashboard.tab.empty" = "此分类暂无已启用的模块";
+"dashboard.tab.settings" = "前往设置";
+"dashboard.tab.mail" = "邮箱";

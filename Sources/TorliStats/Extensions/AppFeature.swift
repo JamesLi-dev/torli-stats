@@ -6,6 +6,7 @@ import SwiftUI
 public protocol TorliFeature: AnyObject {
     var id: String { get }
     var title: String { get }
+    var dashboardTabTitle: String { get }
     var systemImage: String { get }
     var changes: AnyPublisher<Void, Never> { get }
     var isEnabled: Bool { get }
@@ -16,6 +17,10 @@ public protocol TorliFeature: AnyObject {
     func dashboardView(privacyMode: Bool, openSettings: @escaping () -> Void) -> AnyView
     func reset()
     func shutdown()
+}
+
+public extension TorliFeature {
+    var dashboardTabTitle: String { title }
 }
 
 public protocol TorliStatisticsProvider {

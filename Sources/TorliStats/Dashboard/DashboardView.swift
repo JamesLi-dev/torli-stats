@@ -18,6 +18,7 @@ struct DashboardView: View {
     static let panelWidth: CGFloat = 360
     static let maximumPopoverHeight: CGFloat = 820
 
+    @AppStorage("dashboardSelectedTab") private var selectedTab = "monitoring"
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var features = FeatureRegistry.shared
     @ObservedObject var store: MetricsStore
@@ -31,6 +32,7 @@ struct DashboardView: View {
     let onWakaTimeDetails: () -> Void
     var onTypingPermission: () -> Void = {}
     var onOpenSettings: (SettingsCategory) -> Void = { _ in }
+    var onTabChange: () -> Void = {}
 
     private var moduleSpacing: CGFloat {
         DashboardLayout.moduleSpacing(for: settings.dashboardDensity)
@@ -48,8 +50,8 @@ struct DashboardView: View {
     }
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(alignment: .leading, spacing: moduleSpacing) {
+        VStack(spacing: 0) {
+            VStack(spacing: moduleSpacing) {
                 if settings.showDashboardDeviceInfo {
                     DeviceInfoView(
                         info: store.deviceInfo,
@@ -58,43 +60,79 @@ struct DashboardView: View {
                     )
                 }
 
-                if store.isMonitoringPaused || store.isAdaptiveLowFrequency {
-                    HStack(spacing: 6) {
-                        Image(systemName: store.isMonitoringPaused ? "moon.zzz.fill" : "leaf.fill")
-                        Text(monitoringStatusMessage)
-                    }
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(monitoringStatusColor)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .background(monitoringStatusColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .stroke(monitoringStatusColor.opacity(0.16), lineWidth: 0.6)
+                Picker(StatsL10n.text("dashboard.tab.label"), selection: $selectedTab) {
+                    ForEach(DashboardTab.available) { tab in
+                        Text(tab.title).tag(tab.id)
                     }
                 }
-
-                ForEach(layoutBlocks) { block in
-                    switch block {
-                    case let .metrics(modules):
-                        LazyVGrid(columns: columns, spacing: metricGridSpacing) {
-                            ForEach(modules) { module in
-                                metricCard(for: module)
-                            }
-                        }
-                    case let .module(module):
-                        moduleView(for: module)
-                    }
-                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
             }
             .padding(settings.dashboardDensity == .compact ? AppMetrics.compactPadding : AppMetrics.contentPadding)
-            .frame(width: Self.panelWidth, alignment: .top)
+
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(alignment: .leading, spacing: moduleSpacing) {
+                    if store.isMonitoringPaused || store.isAdaptiveLowFrequency {
+                        HStack(spacing: 6) {
+                            Image(systemName: store.isMonitoringPaused ? "moon.zzz.fill" : "leaf.fill")
+                            Text(monitoringStatusMessage)
+                        }
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(monitoringStatusColor)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(monitoringStatusColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .stroke(monitoringStatusColor.opacity(0.16), lineWidth: 0.6)
+                        }
+                    }
+
+                    if layoutBlocks.isEmpty {
+                        VStack(spacing: 10) {
+                            Text(StatsL10n.text("dashboard.tab.empty"))
+                                .font(.caption).foregroundStyle(.secondary)
+                            Button(StatsL10n.text("dashboard.tab.settings")) {
+                                if activeTab.hasPrefix("feature:") {
+                                    onOpenSettings(.feature(String(activeTab.dropFirst(8))))
+                                } else {
+                                    onOpenSettings(.dashboard)
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity).padding(.vertical, 16)
+                    }
+                    ForEach(layoutBlocks) { block in
+                        switch block {
+                        case let .metrics(modules):
+                            LazyVGrid(columns: columns, spacing: metricGridSpacing) {
+                                ForEach(modules) { module in
+                                    metricCard(for: module)
+                                }
+                            }
+                        case let .module(module):
+                            moduleView(for: module)
+                        }
+                    }
+                }
+                .padding(settings.dashboardDensity == .compact ? AppMetrics.compactPadding : AppMetrics.contentPadding)
+                .frame(width: Self.panelWidth, alignment: .top)
+            }
+            .id(activeTab)
         }
+        .onAppear {
+            if selectedTab != activeTab { selectedTab = activeTab }
+        }
+        .onChange(of: selectedTab) { _, _ in onTabChange() }
         .frame(width: Self.panelWidth)
         .background(panelSurface)
         .clipShape(DashboardLayout.popoverShape)
         .preferredColorScheme(settings.theme.colorScheme)
+    }
+
+    private var activeTab: String {
+        DashboardTab.available.contains(where: { $0.id == selectedTab }) ? selectedTab : "monitoring"
     }
 
     private var usesDarkGlass: Bool {
@@ -169,7 +207,7 @@ struct DashboardView: View {
             metricBuffer.removeAll()
         }
 
-        for module in settings.dashboardModuleOrder where isModuleVisible(module) {
+        for module in settings.dashboardModuleOrder where module.dashboardTabID == activeTab && isModuleVisible(module) {
             if module.isMetric {
                 metricBuffer.append(module)
             } else {
@@ -430,14 +468,22 @@ struct DashboardView: View {
     }
 
     static func preferredHeight(for settings: AppSettings, codexAccountCount: Int = 1) -> CGFloat {
+        let requested = UserDefaults.standard.string(forKey: "dashboardSelectedTab") ?? "monitoring"
+        let tab = DashboardTab.available.contains(where: { $0.id == requested }) ? requested : "monitoring"
+        return preferredTabHeight(for: settings, codexAccountCount: codexAccountCount, tab: tab)
+    }
+
+    private static func preferredTabHeight(for settings: AppSettings, codexAccountCount: Int, tab: String) -> CGFloat {
+        let monitoring = tab == "monitoring"
+        let statistics = tab == "statistics"
         let metricCount = [
-            settings.showCPUCard,
-            settings.showGPUCard,
-            settings.showMemoryCard,
-            settings.showDiskCard,
-            settings.showNetworkCard,
-            settings.showFanCard,
-            settings.showTypingCard && settings.typingStatsEnabled
+            monitoring && settings.showCPUCard,
+            monitoring && settings.showGPUCard,
+            monitoring && settings.showMemoryCard,
+            monitoring && settings.showDiskCard,
+            monitoring && settings.showNetworkCard,
+            monitoring && settings.showFanCard,
+            monitoring && settings.showTypingCard && settings.typingStatsEnabled
         ].filter { $0 }.count
         let metricRows = CGFloat((metricCount + 1) / 2)
 
@@ -461,7 +507,7 @@ struct DashboardView: View {
             processRowCount = settings.processLimit
         }
 
-        var blockHeights: [CGFloat] = []
+        var blockHeights: [CGFloat] = [32]
         if settings.showDashboardDeviceInfo { blockHeights.append(48) }
         if metricRows > 0 {
             blockHeights.append(
@@ -469,13 +515,13 @@ struct DashboardView: View {
                     + max(0, metricRows - 1) * DashboardLayout.moduleSpacing(for: settings.dashboardDensity)
             )
         }
-        if settings.showPowerCard { blockHeights.append(powerHeight) }
-        if codexAccountCount > 0 {
+        if monitoring && settings.showPowerCard { blockHeights.append(powerHeight) }
+        if statistics && settings.showCodexCard && codexAccountCount > 0 {
             var codexHeight = codexBaseHeight + CGFloat(max(0, (codexAccountCount + 1) / 2 - 1)) * 56
             if settings.codexTokenActivityEnabled { codexHeight += 175 }
             blockHeights.append(codexHeight)
         }
-        if settings.showWakaTimeCard && settings.wakaTimeEnabled {
+        if statistics && settings.showWakaTimeCard && settings.wakaTimeEnabled {
             if FeatureRegistry.shared.statistics == nil {
                 blockHeights.append(95)
             } else {
@@ -486,11 +532,11 @@ struct DashboardView: View {
             }
             }
         }
-        if settings.showProcessesCard {
+        if monitoring && settings.showProcessesCard {
             let processSpacing = processRowCount > 0 ? CGFloat(processRowCount) * 4 : 0
             blockHeights.append(42 + CGFloat(processRowCount) * 20 + processSpacing)
         }
-        if settings.showNetworkApplicationsCard {
+        if monitoring && settings.showNetworkApplicationsCard {
             let rowCount = settings.dashboardDensity == .compact ? 3 : 5
             let rowSpacing = CGFloat(rowCount) * 4
             blockHeights.append(42 + CGFloat(rowCount) * 20 + rowSpacing)
@@ -502,7 +548,7 @@ struct DashboardView: View {
 
         // The popover height follows the enabled modules and process count;
         // only the minimum keeps an empty or partially loaded panel usable.
-        for feature in FeatureRegistry.shared.features where feature.isEnabled {
+        for feature in FeatureRegistry.shared.features where feature.isEnabled && tab == "feature:" + feature.id {
             height += feature.estimatedHeight + DashboardLayout.moduleSpacing(for: settings.dashboardDensity)
         }
         return max(height, 160)
