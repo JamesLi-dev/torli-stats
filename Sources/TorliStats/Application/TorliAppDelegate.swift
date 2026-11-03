@@ -27,6 +27,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
     var statusLogoImage: NSImage?
     private var codexSettingsUpdateWorkItem: DispatchWorkItem?
     var popoverSizeUpdateWorkItem: DispatchWorkItem?
+    var measuredHeightUpdateWorkItem: DispatchWorkItem?
     private var pendingCodexDefaultRefresh = false
     var appliedStatusLogoConfiguration: StatusBarLogoConfiguration?
 
@@ -227,6 +228,8 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
 
         FeatureRegistry.shared.objectWillChange
             .receive(on: RunLoop.main)
+            .map { FeatureRegistry.shared.features.map { "\($0.id):\($0.isEnabled):\($0.estimatedHeight)" } }
+            .removeDuplicates()
             .sink { [weak self] _ in
                 guard let self, self.dashboardPanel.isShown else { return }
                 self.schedulePopoverSizeUpdate()
@@ -300,7 +303,8 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
                     SettingsNavigation.shared.selectedCategory = category
                     self?.openSettings()
                 },
-                onTabChange: { [weak self] in self?.updatePopoverSize() }
+                onTabChange: { [weak self] in self?.schedulePopoverSizeUpdate() },
+                onMeasuredHeightChange: { [weak self] height in self?.applyMeasuredPopoverHeight(height) }
             )
         )
         dashboardController.view.wantsLayer = true

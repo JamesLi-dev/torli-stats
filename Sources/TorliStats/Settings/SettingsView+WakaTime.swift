@@ -59,7 +59,10 @@ extension SettingsView {
                     )
                     if hasWakaTimeOAuthToken || hasLegacyWakaTimeKey {
                         Button(StatsL10n.text("settings.wakatime.remove_token"), role: .destructive) {
-                            WakaTimeKeychain.deleteCredentials()
+                            guard WakaTimeKeychain.deleteCredentials() else {
+                                wakaTimeMessage = StatsL10n.text("settings.wakatime.save_failed")
+                                return
+                            }
                             wakaTimeOAuthToken = ""
                             hasWakaTimeOAuthToken = false
                             hasLegacyWakaTimeKey = false
