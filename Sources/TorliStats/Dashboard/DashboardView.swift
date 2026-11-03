@@ -125,6 +125,9 @@ struct DashboardView: View {
             if selectedTab != activeTab { selectedTab = activeTab }
         }
         .onChange(of: selectedTab) { _, _ in onTabChange() }
+        .onChange(of: DashboardTab.available.map(\.id)) { _, _ in
+            if selectedTab != activeTab { selectedTab = activeTab }
+        }
         .frame(width: Self.panelWidth)
         .background(panelSurface)
         .clipShape(DashboardLayout.popoverShape)

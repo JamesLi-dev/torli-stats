@@ -7,6 +7,7 @@ public protocol TorliFeature: AnyObject {
     var id: String { get }
     var title: String { get }
     var dashboardTabTitle: String { get }
+    var showsDashboardTabWhenDisabled: Bool { get }
     var systemImage: String { get }
     var changes: AnyPublisher<Void, Never> { get }
     var isEnabled: Bool { get }
@@ -16,11 +17,14 @@ public protocol TorliFeature: AnyObject {
     func settingsView() -> AnyView
     func dashboardView(privacyMode: Bool, openSettings: @escaping () -> Void) -> AnyView
     func reset()
+    func dashboardDidClose()
     func shutdown()
 }
 
 public extension TorliFeature {
     var dashboardTabTitle: String { title }
+    var showsDashboardTabWhenDisabled: Bool { true }
+    func dashboardDidClose() {}
 }
 
 public protocol TorliStatisticsProvider {
@@ -49,6 +53,7 @@ final class FeatureRegistry: ObservableObject {
 
     func feature(_ id: String) -> (any TorliFeature)? { features.first { $0.id == id } }
     func reset() { features.forEach { $0.reset() } }
+    func dashboardDidClose() { features.forEach { $0.dashboardDidClose() } }
     func shutdown() { features.forEach { $0.shutdown() } }
 }
 

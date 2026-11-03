@@ -71,6 +71,7 @@ extension TorliAppDelegate {
     func closePopover() {
         stopOutsideClickMonitors()
         dashboardPanel.dismiss()
+        FeatureRegistry.shared.dashboardDidClose()
         monitoringPauseController.setDashboardVisible(false)
     }
 

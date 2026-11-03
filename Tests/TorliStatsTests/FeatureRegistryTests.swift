@@ -16,6 +16,18 @@ final class FeatureRegistryTests: XCTestCase {
     }
 
     @MainActor
+    func testFeatureMayHideItsTabWhileDisabled() {
+        let feature = SampleFeature(); feature.isEnabled = false; feature.showsDashboardTabWhenDisabled = false
+        FeatureRegistry.shared.register([feature]); defer { FeatureRegistry.shared.register([]) }
+        XCTAssertFalse(DashboardTab.available.map(\.id).contains("feature:sample"))
+        XCTAssertTrue(SettingsCategory.allCases.contains(.feature("sample")))
+        feature.isEnabled = true
+        XCTAssertTrue(DashboardTab.available.map(\.id).contains("feature:sample"))
+        feature.isEnabled = false; feature.showsDashboardTabWhenDisabled = true
+        XCTAssertTrue(DashboardTab.available.map(\.id).contains("feature:sample"))
+    }
+
+    @MainActor
     func testRegisteredFeatureParticipatesInOrderNavigationAndLifecycle() throws {
         let feature = SampleFeature()
         FeatureRegistry.shared.register([feature])
@@ -32,8 +44,10 @@ final class FeatureRegistryTests: XCTestCase {
         XCTAssertTrue(SettingsCategory.allCases.contains(.feature("sample")))
         XCTAssertEqual(SettingsCategory.feature("sample").title, "Sample")
         FeatureRegistry.shared.reset()
+        FeatureRegistry.shared.dashboardDidClose()
         FeatureRegistry.shared.shutdown()
         XCTAssertEqual(feature.resets, 1)
+        XCTAssertEqual(feature.dashboardCloses, 1)
         XCTAssertEqual(feature.stops, 1)
     }
 }
@@ -44,13 +58,16 @@ private final class SampleFeature: TorliFeature {
     let systemImage = "star"
     var changes: AnyPublisher<Void, Never> { Empty().eraseToAnyPublisher() }
     var isEnabled = true
+    var showsDashboardTabWhenDisabled = true
     var canEnable = true
     var estimatedHeight: CGFloat = 100
     var resets = 0
     var stops = 0
+    var dashboardCloses = 0
     func setEnabled(_ enabled: Bool) { isEnabled = enabled }
     func settingsView() -> AnyView { AnyView(EmptyView()) }
     func dashboardView(privacyMode: Bool, openSettings: @escaping () -> Void) -> AnyView { AnyView(EmptyView()) }
     func reset() { resets += 1 }
+    func dashboardDidClose() { dashboardCloses += 1 }
     func shutdown() { stops += 1 }
 }
