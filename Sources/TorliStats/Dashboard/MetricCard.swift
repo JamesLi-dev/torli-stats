@@ -44,6 +44,7 @@ struct MetricCard<Content: View, Footer: View>: View {
             HStack(alignment: .center) {
                 Label(title, systemImage: icon)
                     .font(AppTypography.cardTitle)
+                    .lineLimit(1)
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -53,6 +54,8 @@ struct MetricCard<Content: View, Footer: View>: View {
                         tint: badgeColor,
                         verticalPadding: 4
                     )
+                    // Footer chips can squeeze the header vertically; keep badge text at its intended size.
+                    .fixedSize(horizontal: true, vertical: true)
                 }
             }
 

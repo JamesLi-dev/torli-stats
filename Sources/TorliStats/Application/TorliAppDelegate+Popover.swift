@@ -20,25 +20,28 @@ extension TorliAppDelegate {
         let screenHeight = statusItem.button?.window?.screen?.visibleFrame.height
             ?? NSScreen.main?.visibleFrame.height ?? DashboardView.maximumPopoverHeight
         let maximumHeight = min(DashboardView.maximumPopoverHeight, max(160, screenHeight - 16))
+        guard !dashboardPanel.isShown else { return }
         let targetHeight = min(estimatedHeight, maximumHeight)
         if abs(dashboardPanel.dashboardContentSize.height - targetHeight) > 0.5 {
             dashboardPanel.dashboardContentSize = NSSize(width: DashboardView.panelWidth, height: targetHeight)
         }
+    }
 
-        // 内容较长时将面板限制在可用的阅读高度，Dashboard 内部负责滚动。
-        // Do not force a full fitting pass while the panel is hidden; this is
-        // also important when a background WakaTime update arrives.
-        DispatchQueue.main.async { [weak self] in
-            guard let self,
-                  self.dashboardPanel.isShown,
-                  let view = self.dashboardPanel.contentViewController?.view else { return }
-            view.layoutSubtreeIfNeeded()
-            let fittedHeight = view.fittingSize.height
-            guard fittedHeight > 0 else { return }
-            let fittedTargetHeight = min(fittedHeight, maximumHeight)
-            guard abs(self.dashboardPanel.dashboardContentSize.height - fittedTargetHeight) > 0.5 else { return }
-            self.dashboardPanel.dashboardContentSize = NSSize(width: DashboardView.panelWidth, height: fittedTargetHeight)
+    func applyMeasuredPopoverHeight(_ height: CGFloat) {
+        guard dashboardPanel.isShown, height.isFinite, height > 0 else { return }
+        measuredHeightUpdateWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, self.dashboardPanel.isShown else { return }
+            self.measuredHeightUpdateWorkItem = nil
+            let screenHeight = self.statusItem.button?.window?.screen?.visibleFrame.height
+                ?? NSScreen.main?.visibleFrame.height ?? DashboardView.maximumPopoverHeight
+            let maximumHeight = min(DashboardView.maximumPopoverHeight, max(160, screenHeight - 16))
+            let targetHeight = min(max(height, 160), maximumHeight)
+            guard abs(self.dashboardPanel.dashboardContentSize.height - targetHeight) > 0.5 else { return }
+            self.dashboardPanel.dashboardContentSize = NSSize(width: DashboardView.panelWidth, height: targetHeight)
         }
+        measuredHeightUpdateWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: workItem)
     }
 
     func schedulePopoverSizeUpdate() {
@@ -69,8 +72,11 @@ extension TorliAppDelegate {
     }
 
     func closePopover() {
+        measuredHeightUpdateWorkItem?.cancel()
+        measuredHeightUpdateWorkItem = nil
         stopOutsideClickMonitors()
         dashboardPanel.dismiss()
+        FeatureRegistry.shared.dashboardDidClose()
         monitoringPauseController.setDashboardVisible(false)
     }
 

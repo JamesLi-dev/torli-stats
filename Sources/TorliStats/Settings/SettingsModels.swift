@@ -162,7 +162,7 @@ struct DashboardTab: Identifiable {
     static var available: [DashboardTab] {
         [DashboardTab(id: "monitoring", title: StatsL10n.text("dashboard.tab.monitoring")),
          DashboardTab(id: "statistics", title: StatsL10n.text("dashboard.tab.statistics"))]
-        + FeatureRegistry.shared.features.map { DashboardTab(id: "feature:" + $0.id, title: $0.dashboardTabTitle) }
+        + FeatureRegistry.shared.features.filter { $0.isEnabled || $0.showsDashboardTabWhenDisabled }.map { DashboardTab(id: "feature:" + $0.id, title: $0.dashboardTabTitle) }
     }
 }
 

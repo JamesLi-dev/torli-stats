@@ -14,11 +14,27 @@ private enum DashboardLayoutBlock: Identifiable {
     }
 }
 
+private struct DashboardHeaderHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+private struct DashboardContentSize: Equatable {
+    let tab: String
+    let height: CGFloat
+}
+private struct DashboardContentHeightKey: PreferenceKey {
+    static var defaultValue: DashboardContentSize? = nil
+    static func reduce(value: inout DashboardContentSize?, nextValue: () -> DashboardContentSize?) { value = nextValue() ?? value }
+}
+
 struct DashboardView: View {
     static let panelWidth: CGFloat = 360
     static let maximumPopoverHeight: CGFloat = 820
 
     @AppStorage("dashboardSelectedTab") private var selectedTab = "monitoring"
+    @State private var headerHeight: CGFloat = 0
+    @State private var measuredContent: DashboardContentSize?
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var features = FeatureRegistry.shared
     @ObservedObject var store: MetricsStore
@@ -33,6 +49,7 @@ struct DashboardView: View {
     var onTypingPermission: () -> Void = {}
     var onOpenSettings: (SettingsCategory) -> Void = { _ in }
     var onTabChange: () -> Void = {}
+    var onMeasuredHeightChange: (CGFloat) -> Void = { _ in }
 
     private var moduleSpacing: CGFloat {
         DashboardLayout.moduleSpacing(for: settings.dashboardDensity)
@@ -58,20 +75,21 @@ struct DashboardView: View {
                         isPrivacyMode: settings.privacyMode,
                         density: settings.dashboardDensity
                     )
+                    .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Picker(StatsL10n.text("dashboard.tab.label"), selection: $selectedTab) {
-                    ForEach(DashboardTab.available) { tab in
-                        Text(tab.title).tag(tab.id)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                dashboardTabs
             }
-            .padding(settings.dashboardDensity == .compact ? AppMetrics.compactPadding : AppMetrics.contentPadding)
+            .padding(.horizontal, settings.dashboardDensity == .compact ? AppMetrics.compactPadding : AppMetrics.contentPadding)
+            .padding(.top, settings.dashboardDensity == .compact ? AppMetrics.compactPadding : AppMetrics.contentPadding)
+            .fixedSize(horizontal: false, vertical: true)
+            .layoutPriority(1)
+            .background(GeometryReader { proxy in
+                Color.clear.preference(key: DashboardHeaderHeightKey.self, value: proxy.size.height)
+            })
 
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVStack(alignment: .leading, spacing: moduleSpacing) {
+                VStack(alignment: .leading, spacing: moduleSpacing) {
                     if store.isMonitoringPaused || store.isAdaptiveLowFrequency {
                         HStack(spacing: 6) {
                             Image(systemName: store.isMonitoringPaused ? "moon.zzz.fill" : "leaf.fill")
@@ -116,8 +134,14 @@ struct DashboardView: View {
                         }
                     }
                 }
-                .padding(settings.dashboardDensity == .compact ? AppMetrics.compactPadding : AppMetrics.contentPadding)
+                .padding(.horizontal, settings.dashboardDensity == .compact ? AppMetrics.compactPadding : AppMetrics.contentPadding)
+                .padding(.top, moduleSpacing)
+                .padding(.bottom, settings.dashboardDensity == .compact ? AppMetrics.compactPadding : AppMetrics.contentPadding)
                 .frame(width: Self.panelWidth, alignment: .top)
+                .background(GeometryReader { proxy in
+                    Color.clear.preference(key: DashboardContentHeightKey.self,
+                        value: DashboardContentSize(tab: activeTab, height: proxy.size.height))
+                })
             }
             .id(activeTab)
         }
@@ -125,10 +149,71 @@ struct DashboardView: View {
             if selectedTab != activeTab { selectedTab = activeTab }
         }
         .onChange(of: selectedTab) { _, _ in onTabChange() }
+        .onPreferenceChange(DashboardHeaderHeightKey.self) { height in
+            headerHeight = height
+            reportMeasuredHeight()
+        }
+        .onPreferenceChange(DashboardContentHeightKey.self) { measurement in
+            guard let measurement, measurement.tab == activeTab else { return }
+            measuredContent = measurement
+            reportMeasuredHeight()
+        }
+        .onChange(of: DashboardTab.available.map(\.id)) { _, _ in
+            if selectedTab != activeTab { selectedTab = activeTab }
+        }
         .frame(width: Self.panelWidth)
         .background(panelSurface)
         .clipShape(DashboardLayout.popoverShape)
         .preferredColorScheme(settings.theme.colorScheme)
+    }
+
+    private func reportMeasuredHeight() {
+        guard headerHeight > 0, let measuredContent, measuredContent.tab == activeTab,
+              measuredContent.height > 0 else { return }
+        onMeasuredHeightChange(headerHeight + measuredContent.height)
+    }
+
+    private var dashboardTabs: some View {
+        HStack(spacing: 3) {
+            ForEach(DashboardTab.available) { tab in
+                let selected = tab.id == activeTab
+                Button {
+                    selectedTab = tab.id
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: tabIcon(for: tab.id))
+                            .font(.system(size: 11, weight: .semibold))
+                        Text(tab.title)
+                            .font(.system(size: 11, weight: selected ? .semibold : .medium))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                    .foregroundStyle(selected ? Color.white : Color.primary.opacity(0.72))
+                    .frame(maxWidth: .infinity, minHeight: 28)
+                    .background {
+                        if selected {
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .fill(Color.accentColor)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
+        .padding(3)
+        .dashboardCardSurface()
+    }
+
+    private func tabIcon(for id: String) -> String {
+        switch id {
+        case "monitoring": return "waveform.path.ecg"
+        case "statistics": return "chart.bar"
+        default:
+            guard id.hasPrefix("feature:") else { return "square.grid.2x2" }
+            return FeatureRegistry.shared.feature(String(id.dropFirst(8)))?.systemImage ?? "square.grid.2x2"
+        }
     }
 
     private var activeTab: String {

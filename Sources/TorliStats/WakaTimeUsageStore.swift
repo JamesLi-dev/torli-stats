@@ -1037,7 +1037,30 @@ enum WakaTimeKeychain {
     private static let account = "oauth-token"
     private static let legacyAccount = "api-key"
 
-    static func readOAuthToken() -> String? { read(account: account) }
+    static func readOAuthToken() -> String? {
+        do {
+            let data = try SharedCredentialVault.shared.read("wakatime.oauth") {
+                try readLegacyOAuthData()
+            }
+            guard let data, !data.isEmpty else { return nil }
+            let value = String(data: data, encoding: .utf8)
+            if value != nil { delete(account: account) }
+            return value
+        } catch { return nil }
+    }
+    private static func readLegacyOAuthData() throws -> Data? {
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service, kSecAttrAccount as String: account,
+            kSecReturnData as String: true]
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess else { throw CredentialVaultError.unavailable(status) }
+        guard let data = result as? Data, let token = String(data: data, encoding: .utf8), !token.isEmpty else {
+            throw CredentialVaultError.malformed
+        }
+        return data
+    }
     /// Migration only needs to know that an old item exists, not read its secret.
     /// Never interrupt rendering Settings with a legacy-key authorization prompt.
     static var hasLegacyAPIKey: Bool {
@@ -1053,47 +1076,24 @@ enum WakaTimeKeychain {
         return status == errSecSuccess || status == errSecInteractionNotAllowed
     }
 
-    private static func read(account: String) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        var result: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data,
-              let key = String(data: data, encoding: .utf8),
-              !key.isEmpty else { return nil }
-        return key
-    }
-
     @discardableResult
     static func saveOAuthToken(_ value: String) -> Bool {
         guard !value.isEmpty, !value.contains(where: { $0.isWhitespace || $0.isNewline }) else { return false }
-        let data = Data(value.utf8)
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account
-        ]
-        let attributes = [kSecValueData as String: data]
-        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-        if status == errSecItemNotFound {
-            var item = query
-            item[kSecValueData as String] = data
-            item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-            guard SecItemAdd(item as CFDictionary, nil) == errSecSuccess else { return false }
-        } else if status != errSecSuccess { return false }
-        // Remove the old credential only after the new one is safely stored.
+        do { try SharedCredentialVault.shared.write(Data(value.utf8), for: "wakatime.oauth") }
+        catch { return false }
+        delete(account: account)
         delete(account: legacyAccount)
         return true
     }
 
-    static func deleteCredentials() {
+    @discardableResult
+    static func deleteCredentials() -> Bool {
+        // A durable empty value prevents a surviving legacy item from returning.
+        do { try SharedCredentialVault.shared.write(Data(), for: "wakatime.oauth") }
+        catch { return false }
         delete(account: account)
         delete(account: legacyAccount)
+        return true
     }
 
     private static func delete(account: String) {

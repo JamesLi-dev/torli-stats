@@ -4,6 +4,22 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-11-03
+
+### English
+
+- Add a shared, versioned Keychain container for WakaTime and Pro credentials, with verified writes, serialized feature updates, and migration from existing WakaTime OAuth storage. Pro keeps its TOTP payload encrypted separately.
+- Improve dashboard tabs with icons and measured content heights; stabilize resizing and preserve header and CPU badge readability.
+- Report credential-removal failures instead of showing a successful removal when the Keychain write failed.
+- Existing Keychain items may still require individual permission during migration. Ad-hoc signed updates may require renewed access permission; TOTP identity verification remains separate.
+
+### 中文
+
+- 新增版本化统一钥匙串容器，供 WakaTime 与 Pro 凭据共用；写入后校验、串行更新各功能数据，并兼容迁移旧 WakaTime OAuth 凭据。Pro 的 2FA 内容仍单独加密。
+- 面板分类增加图标，按实测内容高度调整面板，减少尺寸抖动并保持标题与 CPU 徽章完整显示。
+- 删除凭据失败时显示错误，避免钥匙串写入失败后仍提示删除成功。
+- 旧钥匙串项迁移期间仍可能逐条请求授权；临时签名更新可能再次要求许可，2FA 身份验证独立保留。
+
 ## [1.11.2] - 2026-11-02
 
 ### English
