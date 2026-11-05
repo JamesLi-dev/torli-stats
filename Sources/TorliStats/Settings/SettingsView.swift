@@ -23,7 +23,8 @@ struct SettingsView: View {
     @State var isAddingCodexAccount = false
     @State var newCodexAccountName = ""
     @State var wakaTimeOAuthToken = ""
-    @State var hasWakaTimeOAuthToken: Bool
+    @State var wakaTimeCredentialHint: WakaTimeCredentialHint
+    var hasWakaTimeOAuthToken: Bool { wakaTimeCredentialHint != .notConfigured }
     @State var hasLegacyWakaTimeKey = WakaTimeKeychain.hasLegacyAPIKey
     @State var wakaTimeMessage: String?
     @State var languageRestartRequired = false
@@ -51,7 +52,7 @@ struct SettingsView: View {
         self._initialLanguage = State(initialValue: settings.appLanguage)
         self.codexUsageStore = codexUsageStore
         self.wakaTimeUsageStore = wakaTimeUsageStore
-        self._hasWakaTimeOAuthToken = State(initialValue: WakaTimeKeychain.readOAuthToken() != nil)
+        self._wakaTimeCredentialHint = State(initialValue: WakaTimeKeychain.configurationHint)
         self.typingStats = typingStats
         self.updateChecker = updateChecker
         self.onCodexRefresh = onCodexRefresh

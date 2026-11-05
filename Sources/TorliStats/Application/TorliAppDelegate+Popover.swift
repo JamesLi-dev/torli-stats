@@ -41,7 +41,9 @@ extension TorliAppDelegate {
             self.dashboardPanel.dashboardContentSize = NSSize(width: DashboardView.panelWidth, height: targetHeight)
         }
         measuredHeightUpdateWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: workItem)
+        // Coalesce measurements within this layout pass without displaying the
+        // new tab inside the old tab's frame for an extra 120ms.
+        DispatchQueue.main.async(execute: workItem)
     }
 
     func schedulePopoverSizeUpdate() {

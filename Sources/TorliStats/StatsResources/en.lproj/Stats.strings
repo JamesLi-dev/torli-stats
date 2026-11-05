@@ -579,3 +579,10 @@
 "dashboard.tab.empty" = "No modules enabled in this category";
 "dashboard.tab.settings" = "Open Settings";
 "dashboard.tab.mail" = "Mail";
+
+"dashboard.tab.verification" = "Verification";
+
+"settings.wakatime.credential_unknown" = "Credential status is unverified. Enable WakaTime and refresh to check the saved token; opening Settings does not read it.";
+"wakatime.credential_authorization_required" = "Keychain access needs authorization or was cancelled. Unlock the Keychain and refresh manually; your saved token has not been removed.";
+"wakatime.credential_malformed" = "Saved credential data could not be decoded. It has not been overwritten. Check the Keychain before replacing the token.";
+"wakatime.credential_unavailable" = "Unable to read the saved credential. Check Keychain access and retry; this does not mean no token is configured.";

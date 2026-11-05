@@ -159,10 +159,19 @@ struct DashboardTab: Identifiable {
     let id: String
     let title: String
 
+    static func resolvedID(_ saved: String) -> String {
+        if available.contains(where: { $0.id == saved }) { return saved }
+        if saved.hasPrefix("feature:"),
+           let feature = FeatureRegistry.shared.feature(String(saved.dropFirst(8))),
+           available.contains(where: { $0.id == feature.dashboardTabID }) { return feature.dashboardTabID }
+        return "monitoring"
+    }
+
     static var available: [DashboardTab] {
-        [DashboardTab(id: "monitoring", title: StatsL10n.text("dashboard.tab.monitoring")),
+        var seen = Set<String>()
+        return [DashboardTab(id: "monitoring", title: StatsL10n.text("dashboard.tab.monitoring")),
          DashboardTab(id: "statistics", title: StatsL10n.text("dashboard.tab.statistics"))]
-        + FeatureRegistry.shared.features.filter { $0.isEnabled || $0.showsDashboardTabWhenDisabled }.map { DashboardTab(id: "feature:" + $0.id, title: $0.dashboardTabTitle) }
+        + FeatureRegistry.shared.features.filter { $0.isEnabled || $0.showsDashboardTabWhenDisabled }.filter { seen.insert($0.dashboardTabID).inserted }.map { DashboardTab(id: $0.dashboardTabID, title: $0.dashboardTabTitle) }
     }
 }
 
@@ -184,7 +193,7 @@ enum DashboardModule: Hashable, RawRepresentable, CaseIterable, Codable, Identif
     var dashboardTabID: String {
         switch self {
         case .codex, .wakatime: return "statistics"
-        case .feature(let id): return "feature:" + id
+        case .feature(let id): return FeatureRegistry.shared.feature(id)?.dashboardTabID ?? "feature:" + id
         default: return "monitoring"
         }
     }

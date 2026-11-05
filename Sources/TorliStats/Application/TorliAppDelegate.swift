@@ -43,7 +43,8 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
         )
         codexTokenActivityService = CodexTokenActivityService(homePaths: { [appSettings.codexHomePath] })
         wakaTimeUsageStore = WakaTimeUsageStore(
-            apiKeyProvider: WakaTimeKeychain.readOAuthToken,
+            apiKeyProvider: { try WakaTimeKeychain.readOAuthToken() },
+            interactiveCredentialProvider: { try WakaTimeKeychain.readOAuthToken(allowInteraction: true) },
             rangeProvider: { appSettings.wakaTimeRange },
             historyEnabled: FeatureRegistry.shared.statistics != nil
         )
@@ -219,7 +220,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
         observeSetting(settings.$wakaTimeEnabled) { app in
             app.wakaTimeUsageStore.synchronize(isEnabled: app.settings.wakaTimeEnabled)
         }
-        observeSetting(settings.$wakaTimeRange) { $0.wakaTimeUsageStore.refresh() }
+        observeSetting(settings.$wakaTimeRange) { $0.wakaTimeUsageStore.refresh(allowCredentialInteraction: false) }
 
         observeSetting(settings.$codexDefaultAccountName) { $0.scheduleCodexSettingsUpdate() }
         observeSetting(settings.$codexHomePath) { app in

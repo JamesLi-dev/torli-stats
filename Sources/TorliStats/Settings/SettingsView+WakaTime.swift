@@ -3,6 +3,11 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 extension SettingsView {
+    private var isWakaTimeUnverified: Bool {
+        if case .notConfigured = wakaTimeUsageStore.state { return true }
+        return false
+    }
+
     var wakaTimeSection: some View {
         SettingsSection(title: StatsL10n.text("settings.wakatime.title")) {
             VStack(alignment: .leading, spacing: 10) {
@@ -17,7 +22,7 @@ extension SettingsView {
                 }
 
                 HStack(spacing: 8) {
-                    SecureField(hasWakaTimeOAuthToken ? StatsL10n.text("settings.wakatime.token_saved") : StatsL10n.text("settings.wakatime.token"), text: $wakaTimeOAuthToken)
+                    SecureField(wakaTimeCredentialHint == .configured ? StatsL10n.text("settings.wakatime.token_saved") : StatsL10n.text("settings.wakatime.token"), text: $wakaTimeOAuthToken)
                         .textFieldStyle(.roundedBorder)
                     Button(StatsL10n.text("settings.wakatime.save_connect")) {
                         let key = wakaTimeOAuthToken.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -30,7 +35,7 @@ extension SettingsView {
                             return
                         }
                         wakaTimeOAuthToken = ""
-                        hasWakaTimeOAuthToken = true
+                        wakaTimeCredentialHint = .configured
                         hasLegacyWakaTimeKey = false
                         wakaTimeMessage = nil
                         settings.showWakaTimeCard = true
@@ -53,7 +58,7 @@ extension SettingsView {
 
                 HStack(spacing: 8) {
                     SettingsStatusMessage(
-                        text: wakaTimeMessage ?? wakaTimeUsageStore.state.statusText,
+                        text: wakaTimeMessage ?? (wakaTimeCredentialHint == .unknown && isWakaTimeUnverified ? StatsL10n.text("settings.wakatime.credential_unknown") : wakaTimeUsageStore.state.statusText),
                         icon: "info.circle",
                         tint: DashboardPalette.diskProgress
                     )
@@ -64,7 +69,7 @@ extension SettingsView {
                                 return
                             }
                             wakaTimeOAuthToken = ""
-                            hasWakaTimeOAuthToken = false
+                            wakaTimeCredentialHint = .notConfigured
                             hasLegacyWakaTimeKey = false
                             wakaTimeMessage = StatsL10n.text("settings.wakatime.removed_token")
                             settings.wakaTimeEnabled = false
@@ -74,6 +79,9 @@ extension SettingsView {
                     }
                 }
             }
+        }
+        .onReceive(wakaTimeUsageStore.objectWillChange) { _ in
+            wakaTimeCredentialHint = WakaTimeKeychain.configurationHint
         }
     }
 }

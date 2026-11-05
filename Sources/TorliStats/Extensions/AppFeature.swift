@@ -7,6 +7,7 @@ public protocol TorliFeature: AnyObject {
     var id: String { get }
     var title: String { get }
     var dashboardTabTitle: String { get }
+    var dashboardTabID: String { get }
     var showsDashboardTabWhenDisabled: Bool { get }
     var systemImage: String { get }
     var changes: AnyPublisher<Void, Never> { get }
@@ -23,6 +24,7 @@ public protocol TorliFeature: AnyObject {
 
 public extension TorliFeature {
     var dashboardTabTitle: String { title }
+    var dashboardTabID: String { "feature:" + id }
     var showsDashboardTabWhenDisabled: Bool { true }
     func dashboardDidClose() {}
 }

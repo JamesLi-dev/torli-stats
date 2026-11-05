@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import LocalAuthentication
 
 protocol CredentialVaultBackend {
     func read() throws -> Data?
@@ -11,11 +12,15 @@ enum CredentialVaultError: Error { case unavailable(OSStatus), malformed }
 private struct KeychainCredentialVaultBackend: CredentialVaultBackend {
     let service: String
     let account: String
+    let allowsInteraction: Bool
     private var query: [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword,
+        let context = LAContext()
+        context.interactionNotAllowed = !allowsInteraction
+        return [kSecClass as String: kSecClassGenericPassword,
          kSecAttrService as String: service,
          kSecAttrAccount as String: account,
-         kSecAttrSynchronizable as String: false]
+         kSecAttrSynchronizable as String: false,
+         kSecUseAuthenticationContext as String: context]
     }
     func read() throws -> Data? {
         var q = query; q[kSecReturnData as String] = true
@@ -42,11 +47,12 @@ private struct KeychainCredentialVaultBackend: CredentialVaultBackend {
 /// overwrite one another. No credentials are cached here.
 public final class SharedCredentialVault {
     public static let shared = SharedCredentialVault()
+    static let nonInteractive = SharedCredentialVault(allowsInteraction: false)
     private static let lock = NSRecursiveLock()
     private let backend: CredentialVaultBackend
     private struct Payload: Codable { let version: Int; var entries: [String: Data] }
-    public init(service: String = "local.torli.stats.credentials.v1", account: String = "shared-vault") {
-        backend = KeychainCredentialVaultBackend(service: service, account: account)
+    public init(service: String = "local.torli.stats.credentials.v1", account: String = "shared-vault", allowsInteraction: Bool = true) {
+        backend = KeychainCredentialVaultBackend(service: service, account: account, allowsInteraction: allowsInteraction)
     }
     init(backend: CredentialVaultBackend) { self.backend = backend }
     private func load() throws -> Payload {

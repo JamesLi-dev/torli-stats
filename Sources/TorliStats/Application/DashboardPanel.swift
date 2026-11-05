@@ -4,6 +4,10 @@ import QuartzCore
 /// A borderless replacement for NSPopover so the dashboard owns its surface
 /// shape instead of inheriting the system popover arrow and bezel.
 final class DashboardPanel: NSPanel {
+    // Borderless panels must opt in to keyboard focus for embedded text fields.
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+
     private static let statusBarGap: CGFloat = 12
     private(set) var isShown = false
     private var transitionID = 0
@@ -16,10 +20,12 @@ final class DashboardPanel: NSPanel {
             contentView?.bounds.size ?? frame.size
         }
         set {
-            let topEdge = frame.maxY
-            setContentSize(newValue)
-            guard isVisible else { return }
-            setFrameOrigin(NSPoint(x: frame.origin.x, y: topEdge - frame.height))
+            guard isVisible else { setContentSize(newValue); return }
+            // Resize and anchor in one operation, avoiding an intermediate frame
+            // whose top edge moves before setFrameOrigin can restore it.
+            var target = frameRect(forContentRect: NSRect(origin: .zero, size: newValue))
+            target.origin = NSPoint(x: frame.minX, y: frame.maxY - target.height)
+            setFrame(target, display: true)
         }
     }
 
