@@ -50,6 +50,8 @@ final class WakaTimeRequestTests: XCTestCase {
         payload["dateID"] = "2000-01-01"
         try JSONSerialization.data(withJSONObject: payload).write(to: cacheFile)
         let restored = WakaTimeUsageStore(apiKeyProvider: { "test" }, rangeProvider: { .last30Days }, cacheDirectory: cache, requests: requests)
+        restored.setAutomaticRefreshPaused(true)
+        restored.synchronize(isEnabled: true)
         XCTAssertNil(restored.todayPeriod)
         XCTAssertNil(restored.todaySnapshot)
     }

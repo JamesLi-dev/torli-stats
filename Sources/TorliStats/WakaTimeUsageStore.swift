@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import Security
+import LocalAuthentication
 import CryptoKit
 
 public enum WakaTimeRange: String, CaseIterable, Identifiable {
@@ -215,7 +216,10 @@ public final class WakaTimeUsageStore: ObservableObject {
     private let historyEnabled: Bool
     private let requests: Requests
 
-    private let apiKeyProvider: () -> String?
+    private let apiKeyProvider: () throws -> String?
+    private let interactiveCredentialProvider: (() throws -> String?)?
+    private var allowsCredentialInteraction = false
+    private var credentialError: String?
     private let rangeProvider: () -> WakaTimeRange
     private var refreshTimer: DispatchSourceTimer?
     private var refreshInFlight = false
@@ -225,22 +229,54 @@ public final class WakaTimeUsageStore: ObservableObject {
     private var isEnabled = false
     private var automaticRefreshPaused = false
 
-    init(apiKeyProvider: @escaping () -> String?, rangeProvider: @escaping () -> WakaTimeRange, cacheDirectory: URL? = nil, requests: Requests = Requests(), historyEnabled: Bool = false) {
+    init(apiKeyProvider: @escaping () throws -> String?, interactiveCredentialProvider: (() throws -> String?)? = nil, rangeProvider: @escaping () -> WakaTimeRange, cacheDirectory: URL? = nil, requests: Requests = Requests(), historyEnabled: Bool = false) {
         self.historyEnabled = historyEnabled
         self.requests = requests
         self.apiKeyProvider = apiKeyProvider
+        self.interactiveCredentialProvider = interactiveCredentialProvider
         self.rangeProvider = rangeProvider
         self.cacheDirectory = cacheDirectory ?? FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("local.torli.stats/wakatime-v1", isDirectory: true)
-        restoreCacheIfAvailable()
+        // Configuration/rendering must not read credentials. Restore after a refresh authorizes access.
     }
 
     deinit {
         refreshTimer?.cancel()
     }
 
+    private func readCredential() -> String? {
+        do {
+            let provider = allowsCredentialInteraction ? (interactiveCredentialProvider ?? apiKeyProvider) : apiKeyProvider
+            let value = try provider()
+            credentialError = nil
+            if value == nil || value?.isEmpty == true {
+                requestGeneration = UUID()
+                refreshInFlight = false
+                activityLoading = false
+                update(.notConfigured)
+            }
+            return value
+        } catch {
+            let message = WakaTimeCredentialFailure.message(for: error)
+            credentialError = message
+            requestGeneration = UUID()
+            refreshInFlight = false
+            activityLoading = false
+            update(.unavailable(message, state.snapshot))
+            return nil
+        }
+    }
+
     func synchronize(isEnabled: Bool) {
-        let requestedIdentity = apiKeyProvider()
+        guard isEnabled else {
+            self.isEnabled = false
+            requestGeneration = UUID()
+            refreshInFlight = false
+            activityLoading = false
+            refreshTimer?.cancel(); refreshTimer = nil
+            return
+        }
+        let requestedIdentity = readCredential()
         if requestIdentity != requestedIdentity || self.isEnabled != isEnabled {
             requestGeneration = UUID()
             requestIdentity = requestedIdentity
@@ -250,8 +286,8 @@ public final class WakaTimeUsageStore: ObservableObject {
             pendingActivityRefresh = false
         }
         self.isEnabled = isEnabled
-        guard let apiKey = apiKeyProvider(), !apiKey.isEmpty else {
-            clearCachedData()
+        guard let apiKey = requestedIdentity, !apiKey.isEmpty else {
+            if credentialError == nil { clearCachedData() }
             update(.notConfigured)
             refreshTimer?.cancel()
             refreshTimer = nil
@@ -261,14 +297,14 @@ public final class WakaTimeUsageStore: ObservableObject {
         if cacheIdentity != identity {
             clearCachedData()
             cacheIdentity = identity
-            restoreCacheIfAvailable()
+            restoreCacheIfAvailable(apiKey: apiKey)
         }
-        if !isEnabled || activityIdentity != apiKeyProvider() {
+        if activityIdentity != apiKey {
             activityPeriod = nil
             activityRefreshedAt = nil
             activityFullRefreshedAt = nil
             activityError = nil
-            activityIdentity = apiKeyProvider()
+            activityIdentity = apiKey
             objectWillChange.send()
         }
         refreshTimer?.cancel()
@@ -310,7 +346,7 @@ public final class WakaTimeUsageStore: ObservableObject {
     /// Fetch a year only when the development statistics view needs it.
     public func loadActivity(force: Bool = false) {
         guard historyEnabled else { return }
-        guard isEnabled, !activityLoading, let apiKey = apiKeyProvider(), !apiKey.isEmpty else { return }
+        guard isEnabled, !activityLoading, let apiKey = readCredential(), !apiKey.isEmpty else { return }
         if activityIdentity != apiKey {
             activityPeriod = nil
             activityRefreshedAt = nil
@@ -337,7 +373,7 @@ public final class WakaTimeUsageStore: ObservableObject {
             DispatchQueue.main.async {
                 guard let self, self.acceptsResponse(apiKey: apiKey, generation: generation) else { return }
                 self.activityLoading = false
-                guard self.isEnabled, self.apiKeyProvider() == apiKey else {
+                guard self.isEnabled, self.readCredential() == apiKey else {
                     self.objectWillChange.send()
                     return
                 }
@@ -357,7 +393,10 @@ public final class WakaTimeUsageStore: ObservableObject {
 
     /// User-initiated refreshes fetch the selected range and historical periods.
     /// Automatic refreshes use `refreshCurrentDay()` once this cache is warm.
-    public func refresh() {
+    public func refresh(allowCredentialInteraction: Bool = true) {
+        let previous = allowsCredentialInteraction
+        allowsCredentialInteraction = allowCredentialInteraction
+        defer { allowsCredentialInteraction = previous }
         dispatchPrecondition(condition: .onQueue(.main))
         guard historyEnabled else { refreshCurrentDay(force: true); return }
         guard isEnabled else { return }
@@ -367,7 +406,7 @@ public final class WakaTimeUsageStore: ObservableObject {
             pendingSnapshotRange = rangeProvider()
             return
         }
-        guard let apiKey = apiKeyProvider(), !apiKey.isEmpty else {
+        guard let apiKey = readCredential(), !apiKey.isEmpty else {
             update(.notConfigured)
             return
         }
@@ -462,7 +501,7 @@ public final class WakaTimeUsageStore: ObservableObject {
         guard historyEnabled else { return }
         dispatchPrecondition(condition: .onQueue(.main))
         guard isEnabled, snapshots[range] == nil,
-              let apiKey = apiKeyProvider(), !apiKey.isEmpty else { return }
+              let apiKey = readCredential(), !apiKey.isEmpty else { return }
         guard !refreshInFlight else {
             pendingSnapshotRange = range
             return
@@ -489,7 +528,7 @@ public final class WakaTimeUsageStore: ObservableObject {
     }
 
     private func acceptsResponse(apiKey: String, generation: UUID) -> Bool {
-        isEnabled && apiKeyProvider() == apiKey && requestGeneration == generation
+        isEnabled && requestGeneration == generation && readCredential() == apiKey && requestGeneration == generation
     }
 
     private func drainPendingRequests() {
@@ -528,7 +567,7 @@ public final class WakaTimeUsageStore: ObservableObject {
         if hasCachedData, todaySnapshot != nil, todayPeriod != nil, cacheDateID == Self.dateID(for: Date()) {
             refreshCurrentDay()
         } else {
-            refresh()
+            refresh(allowCredentialInteraction: false)
         }
     }
 
@@ -538,7 +577,7 @@ public final class WakaTimeUsageStore: ObservableObject {
 
     private func refreshCurrentDay(force: Bool = false) {
         guard isEnabled, (force || !automaticRefreshPaused), !refreshInFlight,
-              let apiKey = apiKeyProvider(), !apiKey.isEmpty else { return }
+              let apiKey = readCredential(), !apiKey.isEmpty else { return }
         refreshInFlight = true
         let generation = requestGeneration
         update(.loading(historyEnabled ? snapshots[rangeProvider()] : todaySnapshot))
@@ -721,8 +760,7 @@ public final class WakaTimeUsageStore: ObservableObject {
         cacheDirectory.appendingPathComponent("\(identity).json")
     }
 
-    private func restoreCacheIfAvailable() {
-        guard let apiKey = apiKeyProvider(), !apiKey.isEmpty else { return }
+    private func restoreCacheIfAvailable(apiKey: String) {
         let identity = Self.cacheIdentity(for: apiKey)
         guard let data = try? Data(contentsOf: cacheURL(for: identity)),
               let payload = try? JSONDecoder().decode(WakaTimeCachePayload.self, from: data),
@@ -748,7 +786,7 @@ public final class WakaTimeUsageStore: ObservableObject {
     }
 
     private func persistCache() {
-        guard let apiKey = apiKeyProvider(), !apiKey.isEmpty else { return }
+        guard let apiKey = readCredential(), !apiKey.isEmpty else { return }
         let identity = Self.cacheIdentity(for: apiKey)
         let payload = WakaTimeCachePayload(
             version: 1,
@@ -788,6 +826,11 @@ public final class WakaTimeUsageStore: ObservableObject {
     }
 
     private func update(_ state: WakaTimeUsageState) {
+        if case .notConfigured = state, let credentialError {
+            self.state = .unavailable(credentialError, self.state.snapshot)
+            objectWillChange.send()
+            return
+        }
         self.state = state
         objectWillChange.send()
     }
@@ -1037,21 +1080,39 @@ enum WakaTimeKeychain {
     private static let account = "oauth-token"
     private static let legacyAccount = "api-key"
 
-    static func readOAuthToken() -> String? {
-        do {
-            let data = try SharedCredentialVault.shared.read("wakatime.oauth") {
-                try readLegacyOAuthData()
-            }
-            guard let data, !data.isEmpty else { return nil }
-            let value = String(data: data, encoding: .utf8)
-            if value != nil { delete(account: account) }
-            return value
-        } catch { return nil }
+    static var configurationHint: WakaTimeCredentialHint {
+        WakaTimeCredentialHint.load(from: .standard)
     }
-    private static func readLegacyOAuthData() throws -> Data? {
+    static func readOAuthToken(allowInteraction: Bool = false) throws -> String? {
+        let vault = allowInteraction ? SharedCredentialVault.shared : SharedCredentialVault.nonInteractive
+        let token = try readOAuthToken(read: {
+            try vault.read("wakatime.oauth") { try readLegacyOAuthData(allowInteraction: allowInteraction) }
+        }, defaults: .standard)
+        // Legacy cleanup is user-initiated, never a hidden background prompt.
+        if token != nil && allowInteraction { delete(account: account) }
+        return token
+    }
+    // Injectable for tests: never turn access errors into "not configured".
+    static func readOAuthToken(read: () throws -> Data?, defaults: UserDefaults) throws -> String? {
+        let data = try read()
+        guard let data, !data.isEmpty else {
+            WakaTimeCredentialHint.notConfigured.save(to: defaults)
+            return nil
+        }
+        guard let value = String(data: data, encoding: .utf8),
+              !value.contains(where: { $0.isWhitespace || $0.isNewline }) else {
+            throw CredentialVaultError.malformed
+        }
+        WakaTimeCredentialHint.configured.save(to: defaults)
+        return value
+    }
+    private static func readLegacyOAuthData(allowInteraction: Bool) throws -> Data? {
+        let context = LAContext()
+        context.interactionNotAllowed = !allowInteraction
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service, kSecAttrAccount as String: account,
-            kSecReturnData as String: true]
+            kSecReturnData as String: true,
+            kSecUseAuthenticationContext as String: context]
         var result: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         if status == errSecItemNotFound { return nil }
@@ -1064,13 +1125,15 @@ enum WakaTimeKeychain {
     /// Migration only needs to know that an old item exists, not read its secret.
     /// Never interrupt rendering Settings with a legacy-key authorization prompt.
     static var hasLegacyAPIKey: Bool {
+        let context = LAContext()
+        context.interactionNotAllowed = true
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: legacyAccount,
             kSecReturnAttributes as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
-            kSecUseAuthenticationUI as String: kSecUseAuthenticationUIFail
+            kSecUseAuthenticationContext as String: context
         ]
         let status = SecItemCopyMatching(query as CFDictionary, nil)
         return status == errSecSuccess || status == errSecInteractionNotAllowed
@@ -1083,6 +1146,7 @@ enum WakaTimeKeychain {
         catch { return false }
         delete(account: account)
         delete(account: legacyAccount)
+        WakaTimeCredentialHint.configured.save(to: .standard)
         return true
     }
 
@@ -1093,6 +1157,7 @@ enum WakaTimeKeychain {
         catch { return false }
         delete(account: account)
         delete(account: legacyAccount)
+        WakaTimeCredentialHint.notConfigured.save(to: .standard)
         return true
     }
 

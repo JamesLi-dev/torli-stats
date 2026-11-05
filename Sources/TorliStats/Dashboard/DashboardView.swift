@@ -162,6 +162,7 @@ struct DashboardView: View {
             if selectedTab != activeTab { selectedTab = activeTab }
         }
         .frame(width: Self.panelWidth)
+        .frame(maxHeight: .infinity, alignment: .top)
         .background(panelSurface)
         .clipShape(DashboardLayout.popoverShape)
         .preferredColorScheme(settings.theme.colorScheme)
@@ -199,6 +200,7 @@ struct DashboardView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .focusEffectDisabled()
                 .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
@@ -217,7 +219,7 @@ struct DashboardView: View {
     }
 
     private var activeTab: String {
-        DashboardTab.available.contains(where: { $0.id == selectedTab }) ? selectedTab : "monitoring"
+        DashboardTab.resolvedID(selectedTab)
     }
 
     private var usesDarkGlass: Bool {
@@ -633,7 +635,7 @@ struct DashboardView: View {
 
         // The popover height follows the enabled modules and process count;
         // only the minimum keeps an empty or partially loaded panel usable.
-        for feature in FeatureRegistry.shared.features where feature.isEnabled && tab == "feature:" + feature.id {
+        for feature in FeatureRegistry.shared.features where feature.isEnabled && tab == feature.dashboardTabID {
             height += feature.estimatedHeight + DashboardLayout.moduleSpacing(for: settings.dashboardDensity)
         }
         return max(height, 160)
