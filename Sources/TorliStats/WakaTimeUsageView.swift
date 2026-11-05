@@ -27,6 +27,23 @@ struct WakaTimeUsageView: View {
             if case .notConfigured = store.state {
                 DashboardEmptyState(icon: "link", message: StatsL10n.text("wakatime.not_configured"),
                     action: onDetails, actionHelp: StatsL10n.text("wakatime.open_details"))
+            } else if FeatureRegistry.shared.statistics == nil {
+                HStack(alignment: .bottom, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(StatsL10n.text("wakatime.today"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(store.todayPeriod.map { StatisticsFormatting.compactDuration($0.totalSeconds) } ?? "—")
+                            .font(.system(size: density == .compact ? 24 : 28, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(DashboardPalette.diskProgress)
+                    }
+                    Spacer(minLength: 8)
+                    Text(store.state.statusText)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                }
             } else {
                 HStack(alignment: .firstTextBaseline) {
                     Text(StatsL10n.text("wakatime.today")).font(.caption).foregroundStyle(.secondary)

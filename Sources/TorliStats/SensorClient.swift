@@ -70,6 +70,11 @@ final class SensorClient {
         let finish: (PrivilegedSensorValues) -> Void = { [weak self] values in
             guard let self, self.readID == currentReadID, self.isReading else { return }
             self.isReading = false
+            if !values.isHelperReachable {
+                let staleConnection = self.connection
+                self.connection = nil
+                staleConnection?.invalidate()
+            }
             completion(values)
         }
 
@@ -145,11 +150,18 @@ final class SensorClient {
             options: .privileged
         )
         connection.remoteObjectInterface = NSXPCInterface(with: SensorServiceProtocol.self)
-        connection.invalidationHandler = { [weak self] in
-            self?.callbackQueue.async { [weak self] in self?.connection = nil }
+        connection.invalidationHandler = { [weak self, weak connection] in
+            self?.callbackQueue.async { [weak self, weak connection] in
+                guard let self, let connection, self.connection === connection else { return }
+                self.connection = nil
+            }
         }
-        connection.interruptionHandler = { [weak self] in
-            self?.callbackQueue.async { [weak self] in self?.connection = nil }
+        connection.interruptionHandler = { [weak self, weak connection] in
+            self?.callbackQueue.async { [weak self, weak connection] in
+                guard let self, let connection, self.connection === connection else { return }
+                self.connection = nil
+                connection.invalidate()
+            }
         }
         connection.resume()
         self.connection = connection

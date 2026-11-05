@@ -252,6 +252,7 @@ final class AppSettings: ObservableObject {
     var appliedFanCoolingTarget: FanControlMode?
     var fanControlTransitionTarget: FanControlMode?
     var fanControlTransitionWorkItem: DispatchWorkItem?
+    private var sensorProbeGeneration = 0
     let sensorClient = SensorClient()
 
     init() {
@@ -434,6 +435,7 @@ final class AppSettings: ObservableObject {
     }
 
     func uninstallSensorHelper() {
+        sensorProbeGeneration += 1
         runSensorHelperScript(
             named: "uninstall-sensor-helper",
             successMessage: StatsL10n.text("sensor.operation.uninstalled")
@@ -511,16 +513,28 @@ final class AppSettings: ObservableObject {
         }
     }
 
-    private func probeSensorHelper() {
+    private func probeSensorHelper(retriesRemaining: Int = 3) {
+        sensorProbeGeneration += 1
+        let generation = sensorProbeGeneration
         sensorHelperChecking = true
         DispatchQueue.global(qos: .utility).async { [weak self] in
             let installation = SensorHelperInstallationStatus.inspect()
             self?.sensorClient.read { [weak self] values in
                 DispatchQueue.main.async {
                     guard let self else { return }
+                    guard self.sensorProbeGeneration == generation else { return }
                     let protocolIsCompatible = values.protocolVersion == SensorServiceConstants.protocolVersion
                     let helperIsVerified = values.isHelperReachable && installation.signatureIsValid && protocolIsCompatible
 
+                    // launchd/SMC may still be starting during the first request.
+                    // Retry only verified installations and transient failures.
+                    if retriesRemaining > 0, installation.signatureIsValid,
+                       !values.isHelperReachable || (protocolIsCompatible && !values.isAvailable) {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+                            guard let self, self.sensorProbeGeneration == generation else { return }
+                            self.probeSensorHelper(retriesRemaining: retriesRemaining - 1)
+                        }
+                    }
                     self.sensorHelperChecking = false
                     self.sensorHelperReachable = values.isHelperReachable
                     self.sensorHelperEnabled = helperIsVerified

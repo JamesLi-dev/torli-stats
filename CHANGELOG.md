@@ -4,6 +4,20 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
+## [1.12.1] - 2026-11-05
+
+### English
+
+- Synchronize the sensor helper's current status when monitoring subscribes, preventing a completed startup probe from leaving fan and temperature sampling disabled until manual refresh.
+- Retry transient startup failures, reconnect failed sensor connections, and resume failed sampling with a 30-second backoff.
+- Improve the Community development-statistics card with a larger, left-aligned duration and a compact update-time layout.
+
+### 中文
+
+- 监控订阅建立时同步传感器当前状态，修复启动探测提前完成后风扇和温度采样未开启、需要手动刷新的问题。
+- 启动连接暂时失败时自动重试，异常连接重新建立，采样失败后间隔至少 30 秒继续尝试。
+- 优化普通版开发统计卡片：时长放大并靠左显示，更新时间紧凑排列，减少左侧空白。
+
 ## [1.12.0] - 2026-11-03
 
 ### English

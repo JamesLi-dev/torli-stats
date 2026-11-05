@@ -132,6 +132,7 @@ final class MetricsStore: ObservableObject {
     // retain a modest throttle because each read crosses the privileged XPC
     // boundary and queries multiple SMC keys.
     private let sensorSampleInterval: TimeInterval = 5
+    private var sensorRetryAfter: TimeInterval = 0
     private var lastSensorSampleUptime: TimeInterval?
     private var deviceInfoLoaded = false
     private let sensorClient = SensorClient()
@@ -275,6 +276,7 @@ final class MetricsStore: ObservableObject {
             guard self.sensorHelperEnabled != enabled else { return }
             self.sensorHelperEnabled = enabled
             self.sensorPollingStopped = !enabled
+            self.sensorRetryAfter = 0
             self.lastSensorSampleUptime = nil
             if enabled {
                 self.pollSensorIfNeeded()
@@ -613,6 +615,7 @@ final class MetricsStore: ObservableObject {
               sensorReadingsNeeded, !sensorPollingStopped else { return }
 
         let now = ProcessInfo.processInfo.systemUptime
+        guard force || now >= sensorRetryAfter else { return }
         guard force || lastSensorSampleUptime.map({ now - $0 >= sensorSampleInterval }) != false else {
             return
         }
@@ -622,12 +625,13 @@ final class MetricsStore: ObservableObject {
             guard let self else { return }
             self.lowMetricsQueue.async {
                 guard (force || !self.isAutomaticallyPaused), self.sensorHelperEnabled, !self.sensorPollingStopped else { return }
-                // A failed helper/permission read is not transient. Do not
-                // keep waking the privileged helper every low-frequency tick.
+                // Startup and wake can temporarily interrupt the helper.
+                // Back off instead of permanently disabling sensor polling.
                 guard values.isAvailable else {
-                    self.sensorPollingStopped = true
+                    self.sensorRetryAfter = ProcessInfo.processInfo.systemUptime + 30
                     return
                 }
+                self.sensorRetryAfter = 0
 
                 // A missing fan key is a capability limitation, not a failed
                 // helper session. Continue polling so CPU/GPU temperatures can

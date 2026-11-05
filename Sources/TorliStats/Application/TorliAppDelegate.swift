@@ -129,7 +129,14 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
         observeSetting(settings.$batteryRefreshInterval) { $0.applyPowerPolicy() }
         observeSetting(settings.$lowBatterySavingEnabled) { $0.applyPowerPolicy() }
         observeSetting(settings.$lowBatteryThreshold) { $0.applyPowerPolicy() }
-        observeSetting(settings.$sensorHelperEnabled) { $0.store.setSensorHelperEnabled($0.settings.sensorHelperEnabled) }
+        // The startup probe can finish before applicationDidFinishLaunching.
+        // Replay its current result instead of dropping the initial value.
+        settings.$sensorHelperEnabled
+            .receive(on: RunLoop.main)
+            .sink { [weak self] enabled in
+                self?.store.setSensorHelperEnabled(enabled)
+            }
+            .store(in: &cancellables)
         observeSetting(settings.$showGPUCard) { app in
             app.store.setGPUMonitoringEnabled(app.settings.showGPUCard)
             app.updateMetricsCollectionRequirements()
