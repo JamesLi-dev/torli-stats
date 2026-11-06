@@ -586,3 +586,5 @@
 "wakatime.credential_authorization_required" = "钥匙串需要授权或操作已取消。请解锁钥匙串后手动刷新，已保存的 Token 未被删除。";
 "wakatime.credential_malformed" = "已保存的凭据数据无法解析，未覆盖原数据。请检查钥匙串后再决定是否替换 Token。";
 "wakatime.credential_unavailable" = "无法读取已保存的凭据，请检查钥匙串权限并重试；这不代表尚未配置 Token。";
+
+"wakatime.last_14_days" = "近 14 天";
