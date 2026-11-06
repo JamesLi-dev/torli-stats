@@ -33,6 +33,11 @@ public protocol TorliStatisticsProvider {
     func details(tab: StatisticsDetailTab, typing: TypingStatsService, development: WakaTimeUsageStore) -> AnyView
     func typingTrend(records: [TypingDailyRecord]) -> AnyView
     func developmentSummary(store: WakaTimeUsageStore) -> AnyView
+    func developmentHeadline(store: WakaTimeUsageStore) -> AnyView?
+}
+
+public extension TorliStatisticsProvider {
+    func developmentHeadline(store: WakaTimeUsageStore) -> AnyView? { nil }
 }
 
 final class FeatureRegistry: ObservableObject {

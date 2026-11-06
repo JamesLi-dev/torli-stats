@@ -45,12 +45,16 @@ struct WakaTimeUsageView: View {
                         .multilineTextAlignment(.trailing)
                 }
             } else {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(StatsL10n.text("wakatime.today")).font(.caption).foregroundStyle(.secondary)
-                    Spacer()
-                    Text(store.todayPeriod.map { StatisticsFormatting.compactDuration($0.totalSeconds) } ?? "—")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(DashboardPalette.diskProgress)
+                if let headline = FeatureRegistry.shared.statistics?.developmentHeadline(store: store) {
+                    headline
+                } else {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(StatsL10n.text("wakatime.today")).font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        Text(store.todayPeriod.map { StatisticsFormatting.compactDuration($0.totalSeconds) } ?? "—")
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundStyle(DashboardPalette.diskProgress)
+                    }
                 }
                 if density != .compact, let statistics = FeatureRegistry.shared.statistics {
                     statistics.developmentSummary(store: store)

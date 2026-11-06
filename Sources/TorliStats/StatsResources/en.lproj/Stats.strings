@@ -586,3 +586,5 @@
 "wakatime.credential_authorization_required" = "Keychain access needs authorization or was cancelled. Unlock the Keychain and refresh manually; your saved token has not been removed.";
 "wakatime.credential_malformed" = "Saved credential data could not be decoded. It has not been overwritten. Check the Keychain before replacing the token.";
 "wakatime.credential_unavailable" = "Unable to read the saved credential. Check Keychain access and retry; this does not mean no token is configured.";
+
+"wakatime.last_14_days" = "Last 14 days";
