@@ -69,6 +69,7 @@ extension TorliAppDelegate {
             )
             updatePopoverSize()
             monitoringPauseController.setDashboardVisible(true)
+            updateMetricsCollectionRequirements()
             startOutsideClickMonitors()
         }
     }
@@ -80,6 +81,7 @@ extension TorliAppDelegate {
         dashboardPanel.dismiss()
         FeatureRegistry.shared.dashboardDidClose()
         monitoringPauseController.setDashboardVisible(false)
+        updateMetricsCollectionRequirements()
     }
 
     private func startOutsideClickMonitors() {

@@ -121,9 +121,9 @@ final class MetricsStore: ObservableObject {
     private var processSort: ProcessSortOption = .cpu
     private var powerSavingMode = false
     private var sensorHelperEnabled = false
-    private var diskMonitoringEnabled = true
-    private var bluetoothMonitoringEnabled = true
-    private var processMonitoringEnabled = true
+    private var diskMonitoringEnabled = false
+    private var bluetoothMonitoringEnabled = false
+    private var processMonitoringEnabled = false
     private var networkApplicationMonitoringEnabled = false
     private var sensorReadingsNeeded = true
     private var sensorPollingStopped = false
