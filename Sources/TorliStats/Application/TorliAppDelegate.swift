@@ -392,14 +392,15 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func updateMetricsCollectionRequirements() {
+    func updateMetricsCollectionRequirements() {
+        let dashboardVisible = dashboardPanel.isShown
         store.setLowFrequencyMonitoring(
-            disk: settings.showDiskCard,
-            bluetooth: settings.showPowerCard,
-            processes: settings.showProcessesCard,
+            disk: dashboardVisible && settings.showDiskCard,
+            bluetooth: dashboardVisible && settings.showPowerCard,
+            processes: dashboardVisible && settings.showProcessesCard,
             sensorReadings: settings.showCPUCard || settings.showGPUCard || settings.showFanCard
         )
-        store.setNetworkApplicationMonitoring(settings.showNetworkApplicationsCard)
+        store.setNetworkApplicationMonitoring(dashboardVisible && settings.showNetworkApplicationsCard)
     }
 
     private func applyPowerPolicy() {

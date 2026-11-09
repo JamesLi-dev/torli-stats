@@ -4,6 +4,16 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
+## [1.12.2] - 2026-11-09
+
+### English
+
+- Suspend dashboard-only disk, Bluetooth, process and per-application network sampling while the dashboard is closed; refresh them when it reopens.
+
+### 中文
+
+- 面板关闭时暂停仅供面板使用的磁盘、蓝牙、进程和按应用网络流量采集，重新打开时立即恢复刷新。
+
 ## [1.12.1] - 2026-11-05
 
 ### English
