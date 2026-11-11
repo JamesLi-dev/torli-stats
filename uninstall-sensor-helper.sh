@@ -13,5 +13,5 @@ for _ in {1..20}; do
   sleep 0.25
 done
 
-rm -f "$PLIST" "$INSTALL_HELPER"
+rm -f "$PLIST" "$INSTALL_HELPER" "$INSTALL_HELPER.requirement"
 echo "传感器辅助进程已卸载。"

@@ -91,7 +91,7 @@ extension AppSettings {
     }
 
     private func shellQuoted(_ value: String) -> String {
-        "'\(value.replacingOccurrences(of: "'", with: "'\\\"'\\\"'"))'"
+        "'\(value.replacingOccurrences(of: "'", with: "'\"'\"'"))'"
     }
 
     static func loadCodexManagedAccounts(from data: Data?) -> [CodexAccountConfiguration] {

@@ -4,29 +4,36 @@ import TorliStatsShared
 
 final class SensorService: NSObject, SensorServiceProtocol {
     private let queue = DispatchQueue(label: "local.torli.stats.sensor-service")
-    private var manualFanControlActive = false
+    /// The connection that put the fans into a manual mode. Only that
+    /// client's disconnect restores automatic control, so an unrelated
+    /// connection closing cannot undo the user's choice.
+    private var manualFanControlOwner: ObjectIdentifier?
 
     func readSensors(withReply reply: @escaping (NSDictionary) -> Void) {
         queue.async { reply(SMCReader.snapshot()) }
     }
 
     func setFanControlMode(_ mode: NSNumber, withReply reply: @escaping (NSDictionary) -> Void) {
+        let caller = NSXPCConnection.current().map(ObjectIdentifier.init)
         queue.async {
             guard let requestedMode = FanControlMode(rawValue: mode.intValue) else {
                 reply(["success": false, "reason": "fan.control.invalid_mode"])
                 return
             }
             let result = SMCReader.setFanControlMode(requestedMode)
-            self.manualFanControlActive = (result["success"] as? Bool ?? false) && requestedMode != .automatic
+            let succeeded = result["success"] as? Bool ?? false
+            if succeeded {
+                self.manualFanControlOwner = requestedMode == .automatic ? nil : caller
+            }
             reply(result)
         }
     }
 
-    func restoreAutomaticFanControlAfterDisconnect() {
+    func restoreAutomaticFanControlAfterDisconnect(_ connection: ObjectIdentifier) {
         queue.async {
-            guard self.manualFanControlActive else { return }
+            guard self.manualFanControlOwner == connection else { return }
             _ = SMCReader.setFanControlMode(.automatic)
-            self.manualFanControlActive = false
+            self.manualFanControlOwner = nil
         }
     }
 }
@@ -34,14 +41,39 @@ final class SensorService: NSObject, SensorServiceProtocol {
 final class ListenerDelegate: NSObject, NSXPCListenerDelegate {
     private let service = SensorService()
 
+    /// Read on every connection so reinstalling the helper (which rewrites
+    /// the file) takes effect without relying on cached state.
+    private func clientRequirement() -> String? {
+        let path = SensorServiceConstants.clientRequirementPath
+        // Only trust a file that cannot have been planted by a normal user.
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
+              (attributes[.ownerAccountID] as? NSNumber)?.intValue == 0,
+              let permissions = (attributes[.posixPermissions] as? NSNumber)?.intValue,
+              permissions & 0o022 == 0,
+              let text = try? String(contentsOfFile: path, encoding: .utf8) else {
+            return nil
+        }
+        let requirement = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return requirement.isEmpty ? nil : requirement
+    }
+
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {
+        // Fail closed: without a recorded requirement (e.g. a helper installed
+        // by an older version) no client may talk to this root process.
+        // Reinstalling the helper from the app writes the requirement.
+        guard let requirement = clientRequirement() else { return false }
+        // The kernel-verified audit token of the peer is checked against the
+        // requirement for every message, which also defeats PID reuse.
+        connection.setCodeSigningRequirement(requirement)
+
         connection.exportedInterface = NSXPCInterface(with: SensorServiceProtocol.self)
         connection.exportedObject = service
+        let identifier = ObjectIdentifier(connection)
         connection.invalidationHandler = { [weak self] in
-            self?.service.restoreAutomaticFanControlAfterDisconnect()
+            self?.service.restoreAutomaticFanControlAfterDisconnect(identifier)
         }
         connection.interruptionHandler = { [weak self] in
-            self?.service.restoreAutomaticFanControlAfterDisconnect()
+            self?.service.restoreAutomaticFanControlAfterDisconnect(identifier)
         }
         connection.resume()
         return true
