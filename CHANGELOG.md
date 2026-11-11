@@ -4,6 +4,22 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
+## [1.12.3] - 2026-11-11
+
+### English
+
+- Unify normal-temperature and battery greens with the dashboard palette while preserving warning colors.
+- Keep dashboard updates responsive during interaction and prevent a closed Codex subprocess pipe from terminating the app.
+- Include idle, memory-heavy processes when sorting by memory or combined usage; fix quoting of account paths containing apostrophes.
+- Restrict sensor-helper connections to the installing app's code-signing requirement and restore automatic fan control only when the controlling connection disconnects. Reinstall the helper to enable these changes; ad-hoc signed app updates require reinstalling it again.
+
+### 中文
+
+- 正常温度和电池绿色统一使用面板配色，保留异常状态的警告颜色。
+- 改善交互期间的面板刷新，避免 Codex 子进程管道提前关闭导致应用退出。
+- 内存及综合排序保留 CPU 空闲但占用内存的进程，修复账号路径含单引号时的转义。
+- 传感器助手按安装应用的签名要求校验连接，仅在控制风扇的连接断开时恢复自动模式。需重新安装助手才会生效；临时签名应用更新后需再次安装助手。
+
 ## [1.12.2] - 2026-11-09
 
 ### English

@@ -89,7 +89,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
         updatePopoverSize()
 
         store.objectWillChange
-            .receive(on: RunLoop.main)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 guard let self else { return }
                 self.updateStatusBarLogoSpeed()
@@ -133,7 +133,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
         // The startup probe can finish before applicationDidFinishLaunching.
         // Replay its current result instead of dropping the initial value.
         settings.$sensorHelperEnabled
-            .receive(on: RunLoop.main)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] enabled in
                 self?.store.setSensorHelperEnabled(enabled)
             }
@@ -235,7 +235,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
 
 
         FeatureRegistry.shared.objectWillChange
-            .receive(on: RunLoop.main)
+            .receive(on: DispatchQueue.main)
             .map { FeatureRegistry.shared.features.map { "\($0.id):\($0.isEnabled):\($0.estimatedHeight)" } }
             .removeDuplicates()
             .sink { [weak self] _ in
@@ -245,7 +245,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &cancellables)
 
         wakaTimeUsageStore.objectWillChange
-            .receive(on: RunLoop.main)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 guard let self, self.dashboardPanel.isShown else { return }
                 self.schedulePopoverSizeUpdate()
@@ -253,14 +253,14 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &cancellables)
 
         typingStats.objectWillChange
-            .receive(on: RunLoop.main)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.scheduleTypingStatusUpdate()
             }
             .store(in: &cancellables)
 
         codexUsageStore.objectWillChange
-            .receive(on: RunLoop.main)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 DispatchQueue.main.async {
                     guard let self else { return }
@@ -339,7 +339,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
     ) where P.Failure == Never {
         publisher
             .dropFirst()
-            .receive(on: RunLoop.main)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 guard let self else { return }
                 action(self)

@@ -4,8 +4,12 @@ public enum SensorServiceConstants {
     public static let machServiceName = "local.torli.stats.sensor"
     public static let daemonPlistName = "TorliStatsHelper.plist"
     public static let installedHelperPath = "/Library/PrivilegedHelperTools/TorliStatsHelper"
+    /// Root-owned file written by the install script. It contains the
+    /// designated code requirement of the app that installed the helper; the
+    /// helper only accepts XPC clients satisfying it.
+    public static let clientRequirementPath = "/Library/PrivilegedHelperTools/TorliStatsHelper.requirement"
     public static let protocolVersion = 5
-    public static let helperVersion = "1.4"
+    public static let helperVersion = "1.5"
 }
 
 public enum FanControlMode: Int, CaseIterable, Sendable {

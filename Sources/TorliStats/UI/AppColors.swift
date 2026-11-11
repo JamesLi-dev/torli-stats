@@ -32,7 +32,7 @@ enum AppTypography {
     static let compactMetadata = Font.system(size: 9, weight: .medium, design: .monospaced)
 }
 
-enum AppColors {
+public enum AppColors {
     // Neutral, system-like surfaces avoid a separate warm palette in each
     // window. The small luminance steps retain hierarchy without making the
     // sidebar and content area look like unrelated panels.
@@ -67,7 +67,7 @@ enum AppColors {
         light: NSColor(calibratedRed: 0.72, green: 0.38, blue: 0.88, alpha: 1),
         dark: NSColor(calibratedRed: 0.78, green: 0.50, blue: 0.96, alpha: 1)
     )
-    static let success = adaptive(
+    public static let success = adaptive(
         light: NSColor(calibratedRed: 0.17, green: 0.72, blue: 0.40, alpha: 1),
         dark: NSColor(calibratedRed: 0.30, green: 0.82, blue: 0.51, alpha: 1)
     )

@@ -52,7 +52,7 @@ final class FeatureRegistry: ObservableObject {
         self.features = features
         subscriptions.removeAll()
         for feature in features {
-            feature.changes.receive(on: RunLoop.main).sink { [weak self] in
+            feature.changes.receive(on: DispatchQueue.main).sink { [weak self] in
                 self?.objectWillChange.send()
             }.store(in: &subscriptions)
         }

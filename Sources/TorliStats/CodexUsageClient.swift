@@ -186,6 +186,10 @@ final class CodexServerSession {
         environment["CODEX_HOME"] = home.path
         process.environment = environment
 
+        // If app-server exits early, writing to its stdin would raise SIGPIPE
+        // and terminate the whole app. Return EPIPE from the write instead.
+        _ = fcntl(inputPipe.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
+
         do {
             try process.run()
         } catch {

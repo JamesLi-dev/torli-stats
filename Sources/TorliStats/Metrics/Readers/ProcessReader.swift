@@ -34,7 +34,9 @@ enum ProcessReader {
                 let name = URL(fileURLWithPath: path).lastPathComponent
                 return ProcessRow(id: pid, name: name, cpu: cpu, memory: rss * 1024)
             }
-            .filter { $0.cpu > 0 }
+            // Idle processes are only noise for CPU sorting; memory-heavy idle
+            // processes must remain visible for memory/combined sorting.
+            .filter { sort != .cpu || $0.cpu > 0 }
 
             let sorted: [ProcessRow]
             switch sort {

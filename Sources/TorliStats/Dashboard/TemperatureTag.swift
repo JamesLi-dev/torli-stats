@@ -8,7 +8,7 @@ struct TemperatureTag: View {
         if value >= 90 { return .red }
         if value >= 80 { return Color(red: 0.82, green: 0.22, blue: 0.04) }
         if value >= 65 { return .orange }
-        return .green
+        return AppColors.success
     }
 
     var body: some View {

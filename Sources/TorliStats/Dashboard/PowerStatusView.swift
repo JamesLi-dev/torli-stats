@@ -195,7 +195,7 @@ struct BatteryRing: View {
     let title: String
     let detail: String
     let icon: String
-    var color: Color = .green
+    var color: Color = AppColors.success
 
     var body: some View {
         HStack(spacing: 6) {
