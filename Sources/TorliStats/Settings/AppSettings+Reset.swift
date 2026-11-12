@@ -12,7 +12,7 @@ extension AppSettings {
             "themePreference", "showCPU", "showMemory", "showDownload", "showUpload",
             "showCPUCard", "showGPUCard", "showMemoryCard", "showDiskCard",
             "showNetworkCard", "showNetworkApplicationsCard", "showFanCard", "showTypingCard", "showPowerCard", "showProcessesCard",
-            "showCodexCard", "showWakaTimeCard", "wakaTimeEnabled", "wakaTimeRange", "dashboardDensity", "showDashboardDeviceInfo", "showTemperatureTags", "showProcessPID", "dashboardModuleOrder", "showCodexStatusItem", "showTypingStatusItem", "codexStatusMetric", "codexStatusBarMode", "codexStatusBarAccountLimit", "statusBarMetricOrder",
+            "showCodexCard", "showWakaTimeCard", "wakaTimeEnabled", "wakaTimeRange", "dashboardDensity", "showDashboardDeviceInfo", "showTemperatureTags", "showProcessPID", "dashboardModuleOrder", "showCodexStatusItem", "showCPUTemperatureStatusItem", "showGPUTemperatureStatusItem", "showTypingStatusItem", "codexStatusMetric", "codexStatusBarMode", "codexStatusBarAccountLimit", "statusBarMetricOrder",
             "systemStatusBarStyle", "statusBarFontSize", "showStatusBarMetricIcons", "statusBarUsageColorsEnabled", "networkRateUnit", "networkRateDecimalPlaces", "showStatusBarLogo", "statusBarLogoStyle", "statusBarLogoAnimation", "statusBarLogoAnimated", "statusBarStaticLogo", "statusBarRunner", "privacyMode", "automaticUpdateChecks", "typingStatsEnabled", "codexDefaultAccountName", "codexHomePath", "codexAutoRefresh", "codexTokenActivityEnabled", "codexRefreshInterval", "codexManagedAccounts", "powerSavingMode", "manualMonitoringPaused", "backgroundMonitoringEnabled", "nightMonitoringPauseEnabled", "adaptiveSamplingEnabled", "nightMonitoringPauseStartSeconds", "nightMonitoringPauseEndSeconds", "batteryRefreshInterval", "lowBatterySavingEnabled", "lowBatteryThreshold", "processLimit", "processSort", "refreshInterval"
         ].forEach { defaults.removeObject(forKey: $0) }
 
@@ -41,6 +41,8 @@ extension AppSettings {
         showProcessPID = true
         dashboardModuleOrder = DashboardModule.allCases
         showCodexStatusItem = true
+        showCPUTemperatureStatusItem = false
+        showGPUTemperatureStatusItem = false
         showTypingStatusItem = false
         codexStatusMetric = .remaining
         codexStatusBarMode = .defaultAccount

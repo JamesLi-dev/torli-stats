@@ -90,6 +90,12 @@ final class AppSettings: ObservableObject {
     @Published var showCodexStatusItem: Bool {
         didSet { defaults.set(showCodexStatusItem, forKey: "showCodexStatusItem") }
     }
+    @Published var showCPUTemperatureStatusItem: Bool {
+        didSet { defaults.set(showCPUTemperatureStatusItem, forKey: "showCPUTemperatureStatusItem") }
+    }
+    @Published var showGPUTemperatureStatusItem: Bool {
+        didSet { defaults.set(showGPUTemperatureStatusItem, forKey: "showGPUTemperatureStatusItem") }
+    }
     @Published var showTypingStatusItem: Bool {
         didSet { defaults.set(showTypingStatusItem, forKey: "showTypingStatusItem") }
     }
@@ -282,6 +288,8 @@ final class AppSettings: ObservableObject {
         showProcessPID = defaults.object(forKey: "showProcessPID") as? Bool ?? true
         dashboardModuleOrder = Self.validDashboardModuleOrder(defaults.stringArray(forKey: "dashboardModuleOrder"))
         showCodexStatusItem = defaults.object(forKey: "showCodexStatusItem") as? Bool ?? true
+        showCPUTemperatureStatusItem = defaults.object(forKey: "showCPUTemperatureStatusItem") as? Bool ?? false
+        showGPUTemperatureStatusItem = defaults.object(forKey: "showGPUTemperatureStatusItem") as? Bool ?? false
         showTypingStatusItem = defaults.object(forKey: "showTypingStatusItem") as? Bool ?? false
         codexStatusMetric = CodexStatusMetric(rawValue: defaults.string(forKey: "codexStatusMetric") ?? "") ?? .remaining
         codexStatusBarMode = CodexStatusBarMode(rawValue: defaults.string(forKey: "codexStatusBarMode") ?? "") ?? .defaultAccount
