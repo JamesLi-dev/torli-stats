@@ -84,6 +84,14 @@ public enum AppColors {
         dark: NSColor(calibratedRed: 1.0, green: 0.40, blue: 0.43, alpha: 1)
     )
 
+    static func temperature(_ value: Double?) -> Color {
+        guard let value, value.isFinite else { return .secondary }
+        if value >= 90 { return .red }
+        if value >= 80 { return Color(red: 0.82, green: 0.22, blue: 0.04) }
+        if value >= 65 { return .orange }
+        return success
+    }
+
     private static func adaptive(light: NSColor, dark: NSColor) -> Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light

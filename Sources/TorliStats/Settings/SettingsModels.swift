@@ -34,6 +34,8 @@ enum CodexStatusBarMode: String, CaseIterable, Identifiable {
 enum StatusBarMetricGroup: String, CaseIterable, Codable, Identifiable {
     case system
     case network
+    case cpuTemperature
+    case gpuTemperature
     case typing
     case codex
     case logo
@@ -44,6 +46,8 @@ enum StatusBarMetricGroup: String, CaseIterable, Codable, Identifiable {
         switch self {
         case .system: return StatsL10n.text("status_group.system")
         case .network: return StatsL10n.text("status_group.network")
+        case .cpuTemperature: return StatsL10n.text("sensor.cpu_temperature_short")
+        case .gpuTemperature: return StatsL10n.text("sensor.gpu_temperature_short")
         case .typing: return StatsL10n.text("status_group.typing")
         case .codex: return StatsL10n.text("status_group.codex")
         case .logo: return StatsL10n.text("status_group.logo")

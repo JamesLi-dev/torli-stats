@@ -320,6 +320,24 @@ extension TorliAppDelegate {
                 secondLine: settings.showDownload ? statusBarText("\(downloadPrefix)\(download.number) \(download.unit)", attributes: attributes) : nil
             )
 
+        case .cpuTemperature, .gpuTemperature:
+            let isCPU = group == .cpuTemperature
+            guard isCPU ? settings.showCPUTemperatureStatusItem : settings.showGPUTemperatureStatusItem else {
+                return StatusBarGroupContent(firstLine: nil, secondLine: nil)
+            }
+            let temperature = isCPU ? store.cpuTemperature : store.gpuTemperature
+            let value = temperature.map { String(format: "%.0f°C", $0) } ?? "--°C"
+            return StatusBarGroupContent(
+                firstLine: statusBarText(isCPU ? "CPU" : "GPU", attributes: attributes),
+                secondLine: statusBarText(
+                    value,
+                    attributes: statusBarUsageAttributes(
+                        color: NSColor(AppColors.temperature(temperature)),
+                        base: attributes
+                    )
+                )
+            )
+
         case .logo:
             // The runner is provided through the status button's native image
             // property; it is not part of the title text.

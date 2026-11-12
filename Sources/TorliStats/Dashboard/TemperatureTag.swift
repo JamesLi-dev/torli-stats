@@ -4,11 +4,7 @@ struct TemperatureTag: View {
     let value: Double?
 
     private var color: Color {
-        guard let value else { return .secondary }
-        if value >= 90 { return .red }
-        if value >= 80 { return Color(red: 0.82, green: 0.22, blue: 0.04) }
-        if value >= 65 { return .orange }
-        return AppColors.success
+        AppColors.temperature(value)
     }
 
     var body: some View {

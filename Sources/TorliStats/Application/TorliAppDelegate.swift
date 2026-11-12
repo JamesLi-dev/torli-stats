@@ -99,6 +99,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
                 // main-loop turn so it uses the freshly sampled readings.
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
+                    self.updateStatusTitle(self.store.statusLine)
                     self.settings.updateFanCoolingTarget(
                         cpuTemperature: self.store.cpuTemperature,
                         gpuTemperature: self.store.gpuTemperature,
@@ -197,6 +198,14 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
         observeSetting(settings.$showUpload) { $0.updateStatusTitle($0.store.statusLine) }
         observeSetting(settings.$showCodexStatusItem) { app in
             app.codexUsageStore.synchronize()
+            app.updateStatusTitle(app.store.statusLine)
+        }
+        observeSetting(settings.$showCPUTemperatureStatusItem) { app in
+            app.updateMetricsCollectionRequirements()
+            app.updateStatusTitle(app.store.statusLine)
+        }
+        observeSetting(settings.$showGPUTemperatureStatusItem) { app in
+            app.updateMetricsCollectionRequirements()
             app.updateStatusTitle(app.store.statusLine)
         }
         observeSetting(settings.$showTypingStatusItem) { $0.updateStatusTitle($0.store.statusLine) }
@@ -399,6 +408,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
             bluetooth: dashboardVisible && settings.showPowerCard,
             processes: dashboardVisible && settings.showProcessesCard,
             sensorReadings: settings.showCPUCard || settings.showGPUCard || settings.showFanCard
+                || settings.showCPUTemperatureStatusItem || settings.showGPUTemperatureStatusItem
         )
         store.setNetworkApplicationMonitoring(dashboardVisible && settings.showNetworkApplicationsCard)
     }

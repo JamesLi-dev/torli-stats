@@ -4,6 +4,18 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
+## [1.12.4] - 2026-11-12
+
+### English
+
+- Add independently configurable CPU and GPU temperature indicators to the menu bar, including display ordering and sensor refresh.
+- Share temperature colors with the dashboard: green below 65°C, orange from 65°C, dark orange from 80°C, and red from 90°C. Menu-bar values respect the usage-color setting.
+
+### 中文
+
+- 菜单栏新增 CPU、GPU 温度，可分别开启并调整显示顺序，温度随传感器采样刷新。
+- 温度颜色与面板统一：低于 65°C 为绿色，65°C 起为橙色，80°C 起为深橙色，90°C 起为红色；菜单栏遵循现有用量颜色开关。
+
 ## [1.12.3] - 2026-11-11
 
 ### English

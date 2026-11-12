@@ -17,6 +17,8 @@ extension SettingsView {
                         Toggle(StatsL10n.text("module.memory"), isOn: $settings.showMemory)
                         Toggle(StatsL10n.text("settings.status_bar.download"), isOn: $settings.showDownload)
                         Toggle(StatsL10n.text("settings.status_bar.upload"), isOn: $settings.showUpload)
+                        Toggle(StatsL10n.text("sensor.cpu_temperature_short"), isOn: $settings.showCPUTemperatureStatusItem)
+                        Toggle(StatsL10n.text("sensor.gpu_temperature_short"), isOn: $settings.showGPUTemperatureStatusItem)
                         Toggle(StatsL10n.text("settings.status_bar.show_metric_icons"), isOn: $settings.showStatusBarMetricIcons)
                             .fixedSize(horizontal: true, vertical: false)
                         Toggle(StatsL10n.text("settings.status_bar.usage_colors"), isOn: $settings.statusBarUsageColorsEnabled)

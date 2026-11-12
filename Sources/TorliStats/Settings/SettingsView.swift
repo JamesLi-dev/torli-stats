@@ -66,6 +66,8 @@ struct SettingsView: View {
             switch group {
             case .system: return settings.showCPU || settings.showMemory
             case .network: return settings.showDownload || settings.showUpload
+            case .cpuTemperature: return settings.showCPUTemperatureStatusItem
+            case .gpuTemperature: return settings.showGPUTemperatureStatusItem
             case .typing: return settings.showTypingStatusItem && settings.typingStatsEnabled
             case .codex: return settings.showCodexStatusItem
             case .logo: return settings.showStatusBarLogo
