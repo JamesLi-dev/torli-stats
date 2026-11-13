@@ -588,3 +588,5 @@
 "wakatime.credential_unavailable" = "Unable to read the saved credential. Check Keychain access and retry; this does not mean no token is configured.";
 
 "wakatime.last_14_days" = "Last 14 days";
+"startup.failed" = "Torli Stats could not start";
+"startup.instance_lock_failed" = "Could not check whether Torli Stats is already running. Please quit any running copy and try again.";
