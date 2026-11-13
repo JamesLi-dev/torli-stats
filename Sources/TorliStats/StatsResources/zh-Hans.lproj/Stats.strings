@@ -589,4 +589,11 @@
 
 "wakatime.last_14_days" = "近 14 天";
 "startup.failed" = "Torli Stats 无法启动";
+"sensor.repair.title" = "传感器助手需要处理";
+"sensor.repair.open_settings" = "打开传感器设置";
+"sensor.repair.later" = "稍后";
+"sensor.repair.invalid_signature" = "已安装的传感器助手未通过签名验证。请在“设置 → 监控”中重新安装，以恢复风扇和温度读数。";
+"sensor.repair.changed_app" = "已安装的传感器助手未授权当前这份 Torli Stats，应用更新或重新构建后可能出现这种情况。请在“设置 → 监控”中重新安装助手，以恢复风扇和温度读数。";
+"sensor.repair.connection_unavailable" = "多次尝试后仍无法连接已安装的传感器助手。请在“设置 → 监控”中检查或重新安装，以恢复风扇和温度读数。";
+"sensor.temperature.helper_required" = "温度暂不可用，请在“设置 → 监控”中授权或检查传感器助手。";
 "startup.instance_lock_failed" = "无法检查 Torli Stats 是否已在运行。请退出正在运行的程序后重试。";

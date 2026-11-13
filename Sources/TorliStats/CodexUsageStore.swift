@@ -10,6 +10,8 @@ final class CodexUsageStore: ObservableObject {
     private var retryTimer: DispatchSourceTimer?
     private var activeRequest: CodexUsageRequest?
     private var refreshInFlight = false
+    private var requestGeneration = 0
+    private var lastRefreshStartedAt: Date?
     private var retryAttempt = 0
     private var refreshSettings: CodexRefreshSettings
     private var automaticRefreshPaused: Bool
@@ -54,6 +56,7 @@ final class CodexUsageStore: ObservableObject {
         refreshTimer = nil
         cancelPendingRetry()
         if paused {
+            requestGeneration += 1
             activeRequest?.cancel()
             activeRequest = nil
             refreshInFlight = false
@@ -68,15 +71,23 @@ final class CodexUsageStore: ObservableObject {
         refresh()
     }
 
+    func refreshAfterWake(since wakeDate: Date) {
+        guard !automaticRefreshPaused, lastRefreshStartedAt.map({ $0 < wakeDate.addingTimeInterval(-1) }) ?? true else { return }
+        refreshAutomatically()
+    }
+
     private func startRefresh() {
         guard !refreshInFlight else { return }
         refreshInFlight = true
+        lastRefreshStartedAt = Date()
+        requestGeneration += 1
+        let generation = requestGeneration
         state = .loading(state.snapshot)
         objectWillChange.send()
 
         activeRequest = client.fetch { [weak self] result in
             DispatchQueue.main.async {
-                guard let self else { return }
+                guard let self, self.requestGeneration == generation else { return }
                 self.activeRequest = nil
                 self.refreshInFlight = false
                 switch result {

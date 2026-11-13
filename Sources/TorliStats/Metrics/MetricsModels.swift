@@ -40,6 +40,7 @@ struct BatterySnapshot {
     let cycleCount: Int?
     let adapterWatts: Int?
     let isCharging: Bool
+    var isOnExternalPower: Bool = false
     let powerSource: String
 }
 

@@ -30,6 +30,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
     var measuredHeightUpdateWorkItem: DispatchWorkItem?
     private var pendingCodexDefaultRefresh = false
     var appliedStatusLogoConfiguration: StatusBarLogoConfiguration?
+    private var didPresentSensorRepair = false
 
     override init() {
         let appSettings = AppSettings()
@@ -91,14 +92,12 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
         store.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                guard let self else { return }
-                self.updateStatusBarLogoSpeed()
-                self.updateStatusTitle(self.store.statusLine)
                 // Published store changes are announced before their new
-                // values are assigned. Defer the cooling-curve decision one
-                // main-loop turn so it uses the freshly sampled readings.
+                // values are assigned. Update the title, animation and fan
+                // strategy together once the fresh snapshot is available.
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
+                    self.updateStatusBarLogoSpeed()
                     self.updateStatusTitle(self.store.statusLine)
                     self.settings.updateFanCoolingTarget(
                         cpuTemperature: self.store.cpuTemperature,
@@ -139,6 +138,27 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
                 self?.store.setSensorHelperEnabled(enabled)
             }
             .store(in: &cancellables)
+        settings.$sensorHelperRepairReason
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] reason in
+                guard let self else { return }
+                self.updateStatusTitle(self.store.statusLine)
+                guard let reason, !self.didPresentSensorRepair else { return }
+                self.didPresentSensorRepair = true
+                let alert = NSAlert()
+                alert.messageText = StatsL10n.text("sensor.repair.title")
+                alert.informativeText = reason.message
+                alert.addButton(withTitle: StatsL10n.text("sensor.repair.open_settings"))
+                alert.addButton(withTitle: StatsL10n.text("sensor.repair.later"))
+                NSApp.activate(ignoringOtherApps: true)
+                if alert.runModal() == .alertFirstButtonReturn {
+                    SettingsNavigation.shared.selectedCategory = .monitoring
+                    self.openSettings()
+                }
+            }
+            .store(in: &cancellables)
+        observeSetting(settings.$sensorHelperChecking) { $0.updateStatusTitle($0.store.statusLine) }
+        observeSetting(settings.$fanControlMode) { $0.updateMetricsCollectionRequirements() }
         observeSetting(settings.$showGPUCard) { app in
             app.store.setGPUMonitoringEnabled(app.settings.showGPUCard)
             app.updateMetricsCollectionRequirements()
@@ -416,8 +436,9 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
             disk: dashboardVisible && settings.showDiskCard,
             bluetooth: dashboardVisible && settings.showPowerCard,
             processes: dashboardVisible && settings.showProcessesCard,
-            sensorReadings: settings.showCPUCard || settings.showGPUCard || settings.showFanCard
+            sensorReadings: (dashboardVisible && (settings.showCPUCard || settings.showGPUCard || settings.showFanCard))
                 || settings.showCPUTemperatureStatusItem || settings.showGPUTemperatureStatusItem
+                || settings.fanControlMode != .automatic
         )
         store.setNetworkApplicationMonitoring(dashboardVisible && settings.showNetworkApplicationsCard)
     }

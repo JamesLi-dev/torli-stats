@@ -42,7 +42,7 @@ final class TokenActivityTests: XCTestCase {
         XCTAssertFalse(service.isLoading)
         XCTAssertEqual(service.records.map(\.value), [200])
         for file in try FileManager.default.contentsOfDirectory(at: cache, includingPropertiesForKeys: nil) {
-            let contents = try String(contentsOf: file, encoding: .utf8)
+            let contents = String(decoding: try Data(contentsOf: file), as: UTF8.self)
             XCTAssertFalse(contents.contains(root.path))
             XCTAssertFalse(contents.contains("private-session"))
             XCTAssertFalse(contents.contains("account-a"))

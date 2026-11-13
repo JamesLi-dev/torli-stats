@@ -10,7 +10,7 @@ extension SettingsView {
                     Image(systemName: settings.sensorHelperEnabled ? "checkmark.shield.fill" : "exclamationmark.shield")
                         .foregroundStyle(settings.sensorHelperEnabled ? .green : (settings.sensorHelperReachable ? .orange : .secondary))
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(settings.sensorHelperEnabled ? StatsL10n.text("sensor.settings.helper_running") : (settings.sensorHelperReachable ? StatsL10n.text("sensor.settings.helper_reinstall_required") : StatsL10n.text("sensor.settings.unauthorized_or_unavailable")))
+                        Text(settings.sensorHelperEnabled ? StatsL10n.text("sensor.settings.helper_running") : (settings.sensorHelperRepairReason != nil || settings.sensorHelperReachable ? StatsL10n.text("sensor.settings.helper_reinstall_required") : StatsL10n.text("sensor.settings.unauthorized_or_unavailable")))
                             .font(.callout.weight(.semibold))
                         Text(settings.sensorHelperMessage ?? StatsL10n.text("sensor.settings.authorization_required"))
                             .font(.caption)
@@ -79,7 +79,7 @@ extension SettingsView {
                 }
 
                 HStack(spacing: 8) {
-                    Button(settings.sensorHelperReachable ? StatsL10n.text("sensor.settings.reinstall") : StatsL10n.text("sensor.settings.authorize")) {
+                    Button(settings.sensorHelperRepairReason != nil || settings.sensorHelperReachable ? StatsL10n.text("sensor.settings.reinstall") : StatsL10n.text("sensor.settings.authorize")) {
                         settings.installSensorHelper()
                     }
                     .buttonStyle(.borderedProminent)

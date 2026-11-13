@@ -18,6 +18,8 @@ final class CodexTokenActivityService: ObservableObject {
     private var refreshPending = false
     // Accessed only on the serial reader queue. Unchanged files are never reparsed.
     private var cache: [String: ScopedFile] = [:]
+    private var index: TokenActivityIndex?
+    private var indexedRecords: [ActivityDay] = []
 
     struct ScopedFile: Codable {
         let homeScope: String
@@ -107,84 +109,106 @@ final class CodexTokenActivityService: ObservableObject {
         isLoading = true
         queue.async { [weak self] in
             guard let self else { return }
-            if self.loadedScope != scope {
-                self.cache = (try? Data(contentsOf: self.cacheURL(scope, "index")))
-                    .flatMap { try? JSONDecoder().decode([String: ScopedFile].self, from: $0) } ?? [:]
-                self.loadedScope = scope
-            }
-            var seen = Set<String>()
-            var events: [String: TokenEvent] = [:]
-            var failed = false
-            var foundDirectory = false
-            var cacheChanged = false
-            for home in paths {
-                let homeScope = Self.digest(home.path)
-                for directory in ["sessions", "archived_sessions"] {
-                    let root = home.appendingPathComponent(directory)
-                    guard FileManager.default.fileExists(atPath: root.path) else { continue }
-                    foundDirectory = true
-                    guard let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey], options: [.skipsHiddenFiles], errorHandler: { _, _ in failed = true; return true }) else {
-                        failed = true
-                        continue
-                    }
-                    for case let file as URL in files where file.pathExtension == "jsonl" {
-                        let fileKey = Self.digest(file.path)
-                        seen.insert(fileKey)
-                        do {
-                            let attributes = try file.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey, .creationDateKey])
-                            let modified = attributes.contentModificationDate ?? .distantPast
-                            let size = attributes.fileSize ?? 0
-                            let created = attributes.creationDate ?? .distantPast
-                            let cached = self.cache[fileKey]?.file
-                            if cached?.modified != modified || cached?.size != size || cached?.created != created {
-                                self.cache[fileKey] = ScopedFile(homeScope: homeScope, file: try Self.readIncrement(file, cached: cached))
-                                cacheChanged = true
-                            }
-                            for event in self.cache[fileKey]?.file.events ?? [] { events[homeScope + "|" + event.key] = event }
-                        } catch { failed = true }
-                    }
-                }
-            }
-            // An inaccessible directory must not erase already collected history.
-            if !foundDirectory && !self.cache.isEmpty { failed = true }
-            if !failed {
-                let previousCount = self.cache.count
-                self.cache = self.cache.filter { seen.contains($0.key) }
-                cacheChanged = cacheChanged || self.cache.count != previousCount
-            }
-            if failed {
-                for file in self.cache.values {
-                    for event in file.file.events { events[file.homeScope + "|" + event.key] = event }
-                }
-            }
-            var totals: [String: Double] = [:]
-            for event in events.values { totals[event.dateID, default: 0] += event.tokens }
-            let records = totals.sorted { $0.key < $1.key }.map { ActivityDay(dateID: $0.key, value: $0.value) }
-            let message = failed ? "activity.read_failed" : (!foundDirectory || records.isEmpty ? "activity.tokens_empty" : nil)
             do {
-                try FileManager.default.createDirectory(at: self.cacheDirectory, withIntermediateDirectories: true)
-                if cacheChanged {
-                    try JSONEncoder().encode(self.cache).write(to: self.cacheURL(scope, "index"), options: .atomic)
-                }
-                if !failed {
-                    try JSONEncoder().encode(records).write(to: self.cacheURL(scope, "summary"), options: .atomic)
-                }
-                try Self.pruneCache(at: self.cacheDirectory, currentScope: scope)
+                let result = try self.collect(paths: paths, scope: scope)
+                self.finishRefresh(scope: scope, records: result.records, message: result.message)
             } catch {
-                // Keep displaying data if disk caching is temporarily unavailable.
+                // Preserve the displayed summary on a read, migration or disk failure.
+                self.finishRefresh(scope: scope, records: nil, message: "activity.read_failed")
             }
-            DispatchQueue.main.async {
-                self.isLoading = false
-                if Self.scope(for: self.resolvedPaths()) == scope {
-                    if !failed || !records.isEmpty { self.records = records }
-                    self.status = message.map { StatsL10n.text($0) }
-                } else {
-                    self.refreshPending = true
+        }
+    }
+
+    private func collect(paths: Set<URL>, scope: String) throws -> (records: [ActivityDay], message: String?) {
+        try FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+        if loadedScope != scope {
+            index = nil
+            loadedScope = nil
+            let database = try TokenActivityIndex(url: cacheDirectory.appendingPathComponent("\(scope)-index.sqlite"))
+            var metadata = try database.metadata()
+            let legacy = cacheURL(scope, "index")
+            if FileManager.default.fileExists(atPath: legacy.path) {
+                if metadata.isEmpty {
+                    let old = try JSONDecoder().decode([String: ScopedFile].self, from: Data(contentsOf: legacy))
+                    try database.transaction {
+                        for (key, value) in old { try database.update(key: key, value: value, replacingEvents: true) }
+                    }
+                    metadata = try database.metadata()
                 }
-                if self.refreshPending {
-                    self.refreshPending = false
-                    self.refresh()
+                // Removal follows a successful import; an interrupted import can safely retry.
+                try? FileManager.default.removeItem(at: legacy)
+            }
+            indexedRecords = try database.records()
+            cache = metadata
+            index = database
+            loadedScope = scope
+        }
+        guard let index else { throw CocoaError(.fileReadUnknown) }
+        var seen = Set<String>()
+        var updates: [String: ScopedFile] = [:]
+        var failed = false
+        var foundDirectory = false
+        for home in paths {
+            let homeScope = Self.digest(home.path)
+            for directory in ["sessions", "archived_sessions"] {
+                let root = home.appendingPathComponent(directory)
+                guard FileManager.default.fileExists(atPath: root.path) else { continue }
+                foundDirectory = true
+                guard let files = FileManager.default.enumerator(at: root,
+                    includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey, .creationDateKey],
+                    options: [.skipsHiddenFiles], errorHandler: { _, _ in failed = true; return true }) else {
+                    failed = true
+                    continue
                 }
+                for case let file as URL in files where file.pathExtension == "jsonl" {
+                    let fileKey = Self.digest(file.path)
+                    seen.insert(fileKey)
+                    do {
+                        let attributes = try file.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey, .creationDateKey])
+                        let cached = cache[fileKey]?.file
+                        if cached?.modified != attributes.contentModificationDate || cached?.size != attributes.fileSize || cached?.created != attributes.creationDate {
+                            // Metadata contains no old events: only the newly appended tail is retained in memory.
+                            updates[fileKey] = ScopedFile(homeScope: homeScope, file: try Self.readIncrement(file, cached: cached))
+                        }
+                    } catch { failed = true }
+                }
+            }
+        }
+        if !foundDirectory && !cache.isEmpty { failed = true }
+        let removed = failed ? Set<String>() : Set(cache.keys).subtracting(seen)
+        let changed = !updates.isEmpty || !removed.isEmpty
+        if changed {
+            try index.transaction {
+                for (key, value) in updates {
+                    let previous = cache[key]?.file
+                    let append = previous.map { $0.created == value.file.created && value.file.size > $0.size } ?? false
+                    try index.update(key: key, value: value, replacingEvents: !append)
+                }
+                try index.remove(keys: removed)
+            }
+            cache = try index.metadata()
+            indexedRecords = try index.records()
+        }
+        if !failed && (changed || !FileManager.default.fileExists(atPath: cacheURL(scope, "summary").path)) {
+            try JSONEncoder().encode(indexedRecords).write(to: cacheURL(scope, "summary"), options: .atomic)
+        }
+        try? Self.pruneCache(at: cacheDirectory, currentScope: scope)
+        let message = failed ? "activity.read_failed" : (!foundDirectory || indexedRecords.isEmpty ? "activity.tokens_empty" : nil)
+        return (indexedRecords, message)
+    }
+
+    private func finishRefresh(scope: String, records: [ActivityDay]?, message: String?) {
+        DispatchQueue.main.async {
+            self.isLoading = false
+            if Self.scope(for: self.resolvedPaths()) == scope {
+                if let records { self.records = records }
+                self.status = message.map { StatsL10n.text($0) }
+            } else {
+                self.refreshPending = true
+            }
+            if self.refreshPending {
+                self.refreshPending = false
+                self.refresh()
             }
         }
     }
@@ -196,7 +220,7 @@ final class CodexTokenActivityService: ObservableObject {
         var scopes: [String: [(URL, Date)]] = [:]
         for file in files {
             let name = file.lastPathComponent
-            guard let suffix = ["-index.json", "-summary.json"].first(where: { name.hasSuffix($0) }) else { continue }
+            guard let suffix = ["-index.json", "-summary.json", "-index.sqlite", "-index.sqlite-journal", "-index.sqlite-wal", "-index.sqlite-shm"].first(where: { name.hasSuffix($0) }) else { continue }
             let scope = String(name.dropLast(suffix.count))
             let hash = scope.hasPrefix("v2-") ? String(scope.dropFirst(3)) : scope
             guard hash.count == 64, hash.allSatisfy({ "0123456789abcdef".contains($0) }) else { continue }

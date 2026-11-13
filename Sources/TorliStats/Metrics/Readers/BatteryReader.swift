@@ -22,18 +22,18 @@ enum BatteryReader {
             let current = (description[kIOPSCurrentCapacityKey] as? NSNumber)?.doubleValue ?? 0
             let maximum = (description[kIOPSMaxCapacityKey] as? NSNumber)?.doubleValue ?? 100
             let design = (description[kIOPSDesignCapacityKey] as? NSNumber)?.doubleValue
-            let health = design.map { max(0, min(100, maximum / max($0, 1) * 100)) }
-                ?? BatteryHealthReader.snapshot() ?? registry.health
-            let state = description[kIOPSPowerSourceStateKey] as? String ?? ""
-            let charging = state == kIOPSACPowerValue
+            let health = registry.health ?? design.map { max(0, min(100, maximum / max($0, 1) * 100)) }
+                ?? BatteryHealthReader.snapshot()
+            let (externalPower, charging) = powerState(description)
             return BatterySnapshot(
                 percentage: maximum > 0 ? current / maximum * 100 : 0,
                 health: health,
                 thermalState: SystemThermalState(ProcessInfo.processInfo.thermalState),
                 cycleCount: registry.cycleCount,
-                adapterWatts: charging ? adapterWatts() : nil,
+                adapterWatts: externalPower ? adapterWatts() : nil,
                 isCharging: charging,
-                powerSource: charging ? StatsL10n.text("dashboard.power_source.plugged_in") : StatsL10n.text("dashboard.power_source.battery")
+                isOnExternalPower: externalPower,
+                powerSource: externalPower ? StatsL10n.text("dashboard.power_source.plugged_in") : StatsL10n.text("dashboard.power_source.battery")
             )
         }
 
@@ -43,7 +43,8 @@ enum BatteryReader {
             thermalState: SystemThermalState(ProcessInfo.processInfo.thermalState),
             cycleCount: registry.cycleCount,
             adapterWatts: adapterWatts(),
-            isCharging: true,
+            isCharging: false,
+            isOnExternalPower: true,
             powerSource: StatsL10n.text("dashboard.power_source.plugged_in")
         )
     }
@@ -57,54 +58,37 @@ enum BatteryReader {
         return watts
     }
 
+    static func powerState(_ description: [String: Any]) -> (externalPower: Bool, charging: Bool) {
+        (description[kIOPSPowerSourceStateKey] as? String == kIOPSACPowerValue,
+         (description[kIOPSIsChargingKey] as? NSNumber)?.boolValue ?? false)
+    }
+
     private static func registrySnapshot() -> BatteryRegistrySnapshot {
         let now = ProcessInfo.processInfo.systemUptime
         if let cachedRegistry, now - lastRegistryRead < 60 { return cachedRegistry }
         lastRegistryRead = now
 
-        let process = Process()
-        let pipe = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/sbin/ioreg")
-        process.arguments = ["-r", "-c", "AppleSmartBattery", "-d", "2"]
-        process.standardOutput = pipe
-
-        do {
-            try process.run()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard let output = String(data: data, encoding: .utf8) else {
-                return cachedRegistry ?? BatteryRegistrySnapshot(health: nil, cycleCount: nil)
-            }
-            let design = registryValue("DesignCapacity", in: output)
-            let fullCharge = registryValue("NominalChargeCapacity", in: output)
-                ?? registryValue("AppleRawMaxCapacity", in: output)
-            let health: Double? = if let design, let fullCharge, design > 0 {
-                max(0, min(100, fullCharge / design * 100))
-            } else {
-                nil
-            }
-            let cycleCount = registryValue("CycleCount", in: output).map(Int.init)
-            let snapshot = BatteryRegistrySnapshot(health: health, cycleCount: cycleCount)
-            cachedRegistry = snapshot
-            return snapshot
-        } catch {
+        guard let values = IORegistryReader.properties(matching: "AppleSmartBattery").first else {
             return cachedRegistry ?? BatteryRegistrySnapshot(health: nil, cycleCount: nil)
         }
+        let snapshot = BatteryRegistrySnapshot(health: registryHealth(values), cycleCount: (values["CycleCount"] as? NSNumber)?.intValue)
+        cachedRegistry = snapshot
+        return snapshot
     }
 
-    private static func registryValue(_ key: String, in output: String) -> Double? {
-        // ioreg may change indentation and spacing around `=`. Parse the
-        // key/value pair itself instead of relying on a particular line shape.
-        let pattern = #"\"\#(key)\"\s*=\s*([0-9]+(?:\.[0-9]+)?)"#
-        guard let regex = try? NSRegularExpression(pattern: pattern),
-              let match = regex.firstMatch(
-                in: output,
-                range: NSRange(output.startIndex..<output.endIndex, in: output)
-              ),
-              let range = Range(match.range(at: 1), in: output) else {
-            return nil
+    static func registryHealth(_ values: [String: Any]) -> Double? {
+        // Newer systems nest raw capacity counters under BatteryData.
+        let batteryData = values["BatteryData"] as? [String: Any] ?? [:]
+        func number(_ key: String) -> Double? {
+            (values[key] as? NSNumber)?.doubleValue ?? (batteryData[key] as? NSNumber)?.doubleValue
         }
-        return Double(output[range])
+        if let percent = number("MaximumCapacityPercent"), percent.isFinite {
+            return min(100, max(0, percent))
+        }
+        guard let design = number("DesignCapacity"), design.isFinite, design > 0,
+              let full = number("NominalChargeCapacity") ?? number("AppleRawMaxCapacity") ?? number("FullChargeCapacity"),
+              full.isFinite else { return nil }
+        return min(100, max(0, full / design * 100))
     }
 }
 
@@ -117,26 +101,14 @@ private enum BatteryHealthReader {
         if now - lastRead < 60 { return cached }
         lastRead = now
 
-        let process = Process()
-        let pipe = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
-        process.arguments = ["SPPowerDataType"]
-        process.standardOutput = pipe
-
-        do {
-            try process.run()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard let output = String(data: data, encoding: .utf8) else { return cached }
-            let pattern = #"Maximum Capacity:\s*([0-9]+)%"#
-            guard let regex = try? NSRegularExpression(pattern: pattern),
-                  let match = regex.firstMatch(in: output, range: NSRange(output.startIndex..<output.endIndex, in: output)),
-                  let range = Range(match.range(at: 1), in: output),
-                  let value = Double(output[range]) else { return cached }
-            cached = value
-            return value
-        } catch {
-            return cached
-        }
+        guard let data = BoundedProcess.output("/usr/sbin/system_profiler", arguments: ["SPPowerDataType"], timeout: 5),
+              let output = String(data: data, encoding: .utf8) else { return cached }
+        let pattern = #"Maximum Capacity:\s*([0-9]+)%"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: output, range: NSRange(output.startIndex..<output.endIndex, in: output)),
+              let range = Range(match.range(at: 1), in: output),
+              let value = Double(output[range]) else { return cached }
+        cached = value
+        return value
     }
 }

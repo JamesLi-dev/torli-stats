@@ -4,6 +4,28 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
+## [1.12.6] - 2026-11-13
+
+### English
+
+- Remove duplicate menu-bar updates and update dashboard cards only when their observed metrics change.
+- Stop unnecessary sensor polling while the dashboard is closed, while retaining readings needed by menu-bar temperatures and cooling modes. Explain helper connection failures and offer a reinstall entry point.
+- Find Codex and Node installed through common package and version managers when launching from Finder, and preserve proxy settings in Codex subprocesses.
+- Prefer recent session-log quota snapshots, falling back to serialized app-server requests across accounts. Refresh after wake, recognize authentication failures, and force-stop subprocesses that ignore termination.
+- Use 64-bit network counters to avoid rate drops at the 4 GB boundary. Read GPU, battery and Bluetooth HID data through system interfaces, and bound remaining collection commands with timeouts.
+- Distinguish external power from active charging and support battery capacity fields nested under newer macOS registry data.
+- Migrate Token activity caches to an incremental SQLite index, preserving account separation and archive deduplication without rewriting the complete event history. Add regression tests for collection, quota parsing, process handling and cache migration.
+
+### 中文
+
+- 去掉每次采样时重复的菜单栏更新，面板卡片只随自身读取的指标变化而刷新。
+- 面板关闭时停止不必要的传感器轮询，保留菜单栏温度和散热策略所需的采样；助手连接异常时说明原因，并提供重新安装入口。
+- 从 Finder 启动时可找到常见包管理器、版本管理器安装的 Codex 和 Node，Codex 子进程保留代理等环境设置。
+- Codex 额度优先读取近期会话日志，不可用时由 app-server 兜底；多个账号排队请求，唤醒后补刷，并修复登录失效识别和子进程无法退出的问题。
+- 网络流量改用 64 位计数，避免超过 4 GB 后出现速率归零；GPU、电池和蓝牙 HID 数据改用系统接口读取，仍需运行的采集命令增加超时限制。
+- 区分“接通电源”和“正在充电”，兼容新版 macOS 嵌套存放的电池容量字段。
+- Token 活动缓存自动迁移到增量 SQLite 索引，保留账号隔离和归档去重，不再重写完整事件历史；补充采集、额度解析、子进程及缓存迁移回归测试。
+
 ## [1.12.5] - 2026-11-13
 
 ### English

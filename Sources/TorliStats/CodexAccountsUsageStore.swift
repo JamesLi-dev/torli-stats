@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import AppKit
 
 final class CodexAccountsUsageStore: ObservableObject {
     let objectWillChange = ObservableObjectPublisher()
@@ -9,6 +10,7 @@ final class CodexAccountsUsageStore: ObservableObject {
     private var stores: [UUID: CodexUsageStore] = [:]
     private var storeCancellables: [UUID: AnyCancellable] = [:]
     private var automaticRefreshPaused = false
+    private var wakeObserver: NSObjectProtocol?
 
     init(
         configurationsProvider: @escaping () -> [CodexAccountConfiguration],
@@ -19,6 +21,20 @@ final class CodexAccountsUsageStore: ObservableObject {
         self.refreshSettingsProvider = refreshSettingsProvider
         self.automaticRefreshPaused = automaticRefreshPaused
         synchronize()
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            let wakeDate = Date()
+            // Allow networking and the monitoring policy to resume first. A refresh
+            // already started by that policy must not be duplicated.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+                self?.stores.values.forEach { $0.refreshAfterWake(since: wakeDate) }
+            }
+        }
+    }
+
+    deinit {
+        if let wakeObserver { NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver) }
     }
 
     var accounts: [CodexAccountConfiguration] {
@@ -58,7 +74,7 @@ final class CodexAccountsUsageStore: ObservableObject {
         for account: CodexAccountConfiguration,
         completion: @escaping (Result<CodexUsageSnapshot, CodexUsageError>) -> Void
     ) {
-        CodexUsageClient(homePathProvider: { account.homePath }).fetch(completion: completion)
+        CodexUsageClient(homePathProvider: { account.homePath }).fetch(preferLocal: false, completion: completion)
     }
 
     func synchronize() {
