@@ -293,6 +293,14 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
         if !monitoringPauseController.isPaused {
             checkForUpdatesIfNeeded()
         }
+        TorliApplication.instanceController?.whenReady { [weak self] in
+            self?.showExistingApplication()
+        }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        TorliApplication.instanceController?.requestActivation()
+        return false
     }
 
     private func makeDashboardController() -> NSViewController {
@@ -333,6 +341,7 @@ final class TorliAppDelegate: NSObject, NSApplicationDelegate {
 
     @discardableResult
     private func installStatusItem() -> Bool {
+        if statusItem != nil { return statusItem.button != nil }
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         guard let button = statusItem.button else { return false }
         button.target = self

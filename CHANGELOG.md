@@ -4,6 +4,20 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
+## [1.12.5] - 2026-11-13
+
+### English
+
+- Prevent duplicate app processes and menu-bar items when launching another copy, including directly running the executable. Release the instance lock automatically on exit or crash, and detect already-running older versions during upgrades.
+- Show the existing dashboard or settings window when the app is reopened, and preserve reopen requests received during startup.
+- Guard against repeated menu-bar item creation and report failures to acquire the startup lock.
+
+### 中文
+
+- 防止重复启动产生多个进程和菜单栏图标，覆盖直接运行可执行文件的情况；退出或崩溃后自动释放占用，升级时识别已运行的旧版本。
+- 再次打开应用时显示已有面板或设置窗口，启动期间收到的打开请求会在界面就绪后处理。
+- 增加菜单栏重复创建保护，启动锁异常时显示明确错误。
+
 ## [1.12.4] - 2026-11-12
 
 ### English

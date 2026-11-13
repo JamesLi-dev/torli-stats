@@ -588,3 +588,5 @@
 "wakatime.credential_unavailable" = "无法读取已保存的凭据，请检查钥匙串权限并重试；这不代表尚未配置 Token。";
 
 "wakatime.last_14_days" = "近 14 天";
+"startup.failed" = "Torli Stats 无法启动";
+"startup.instance_lock_failed" = "无法检查 Torli Stats 是否已在运行。请退出正在运行的程序后重试。";

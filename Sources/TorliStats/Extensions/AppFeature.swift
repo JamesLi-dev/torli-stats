@@ -65,7 +65,22 @@ final class FeatureRegistry: ObservableObject {
 }
 
 public enum TorliApplication {
+    static var instanceController: SingleInstanceController?
+
     public static func run(features: [any TorliFeature] = [], statistics: (any TorliStatisticsProvider)? = nil) {
+        let controller = SingleInstanceController(identifier: Bundle.main.bundleIdentifier ?? "local.torli.stats")
+        do {
+            guard try controller.start() else { return }
+        } catch {
+            NSApplication.shared.setActivationPolicy(.accessory)
+            let alert = NSAlert()
+            alert.messageText = StatsL10n.text("startup.failed")
+            alert.informativeText = StatsL10n.text("startup.instance_lock_failed") + "\n\n" + error.localizedDescription
+            NSApp.activate(ignoringOtherApps: true)
+            alert.runModal()
+            return
+        }
+        instanceController = controller
         FeatureRegistry.shared.statistics = statistics
         FeatureRegistry.shared.register(features)
         TorliStatsApp.main()

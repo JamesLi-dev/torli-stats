@@ -57,21 +57,34 @@ extension TorliAppDelegate {
     }
 
     private func togglePopover() {
-        guard let button = statusItem.button else { return }
-
         if dashboardPanel.isShown {
             closePopover()
         } else {
-            dashboardPanel.present(
-                relativeTo: button.bounds,
-                of: button,
-                preferredEdge: .minY
-            )
-            updatePopoverSize()
-            monitoringPauseController.setDashboardVisible(true)
-            updateMetricsCollectionRequirements()
-            startOutsideClickMonitors()
+            showPopover()
         }
+    }
+
+    func showExistingApplication() {
+        NSApp.activate(ignoringOtherApps: true)
+        if let settingsWindow, settingsWindow.isVisible {
+            settingsWindow.makeKeyAndOrderFront(nil)
+        } else if dashboardPanel.isShown {
+            dashboardPanel.makeKeyAndOrderFront(nil)
+        } else if statusItem?.button?.window?.screen != nil {
+            showPopover()
+        } else {
+            // A crowded menu bar can hide the status button entirely.
+            openSettings()
+        }
+    }
+
+    private func showPopover() {
+        guard let button = statusItem?.button else { return }
+        dashboardPanel.present(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        updatePopoverSize()
+        monitoringPauseController.setDashboardVisible(true)
+        updateMetricsCollectionRequirements()
+        startOutsideClickMonitors()
     }
 
     func closePopover() {
