@@ -37,7 +37,7 @@ struct DashboardView: View {
     @State private var measuredContent: DashboardContentSize?
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var features = FeatureRegistry.shared
-    @ObservedObject var store: MetricsStore
+    let store: MetricsStore
     @ObservedObject var settings: AppSettings
     @ObservedObject var codexUsageStore: CodexAccountsUsageStore
     @ObservedObject var codexTokenActivityService: CodexTokenActivityService
@@ -70,12 +70,14 @@ struct DashboardView: View {
         VStack(spacing: 0) {
             VStack(spacing: moduleSpacing) {
                 if settings.showDashboardDeviceInfo {
-                    DeviceInfoView(
-                        info: store.deviceInfo,
-                        isPrivacyMode: settings.privacyMode,
-                        density: settings.dashboardDensity
-                    )
-                    .fixedSize(horizontal: false, vertical: true)
+                    MetricObservationContent {
+                        DeviceInfoView(
+                            info: store.deviceInfo,
+                            isPrivacyMode: settings.privacyMode,
+                            density: settings.dashboardDensity
+                        )
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
 
                 dashboardTabs
@@ -90,20 +92,22 @@ struct DashboardView: View {
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: moduleSpacing) {
-                    if store.isMonitoringPaused || store.isAdaptiveLowFrequency {
-                        HStack(spacing: 6) {
-                            Image(systemName: store.isMonitoringPaused ? "moon.zzz.fill" : "leaf.fill")
-                            Text(monitoringStatusMessage)
-                        }
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(monitoringStatusColor)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
-                        .background(monitoringStatusColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                .stroke(monitoringStatusColor.opacity(0.16), lineWidth: 0.6)
+                    MetricObservationContent {
+                        if store.isMonitoringPaused || store.isAdaptiveLowFrequency {
+                            HStack(spacing: 6) {
+                                Image(systemName: store.isMonitoringPaused ? "moon.zzz.fill" : "leaf.fill")
+                                Text(monitoringStatusMessage)
+                            }
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(monitoringStatusColor)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(monitoringStatusColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .stroke(monitoringStatusColor.opacity(0.16), lineWidth: 0.6)
+                            }
                         }
                     }
 
@@ -126,11 +130,11 @@ struct DashboardView: View {
                         case let .metrics(modules):
                             LazyVGrid(columns: columns, spacing: metricGridSpacing) {
                                 ForEach(modules) { module in
-                                    metricCard(for: module)
+                                    MetricObservationContent { metricCard(for: module) }
                                 }
                             }
                         case let .module(module):
-                            moduleView(for: module)
+                            MetricObservationContent { moduleView(for: module) }
                         }
                     }
                 }
@@ -881,4 +885,11 @@ extension View {
     public func dashboardCardSurface(interactive: Bool = false) -> some View {
         modifier(DashboardCardSurfaceModifier(isInteractive: interactive))
     }
+}
+
+/// Evaluate metric reads in the child body so each card tracks only its own dependencies.
+private struct MetricObservationContent<Content: View>: View {
+    let content: () -> Content
+    init(@ViewBuilder content: @escaping () -> Content) { self.content = content }
+    var body: some View { content() }
 }

@@ -185,6 +185,13 @@ extension TorliAppDelegate {
         if includesRunner { installRunnerFrame(statusLogoImage, in: button) }
 
         var tooltipLines: [String] = []
+        if settings.showCPUTemperatureStatusItem || settings.showGPUTemperatureStatusItem {
+            if let reason = settings.sensorHelperRepairReason {
+                tooltipLines.append(reason.message)
+            } else if !settings.sensorHelperEnabled && !settings.sensorHelperChecking {
+                tooltipLines.append(StatsL10n.text("sensor.temperature.helper_required"))
+            }
+        }
         if settings.showTypingStatusItem,
            settings.typingStatsEnabled,
            settings.statusBarMetricOrder.contains(.typing),
@@ -325,8 +332,9 @@ extension TorliAppDelegate {
             guard isCPU ? settings.showCPUTemperatureStatusItem : settings.showGPUTemperatureStatusItem else {
                 return StatusBarGroupContent(firstLine: nil, secondLine: nil)
             }
-            let temperature = isCPU ? store.cpuTemperature : store.gpuTemperature
-            let value = temperature.map { String(format: "%.0f°C", $0) } ?? "--°C"
+            let temperature = settings.sensorHelperEnabled ? (isCPU ? store.cpuTemperature : store.gpuTemperature) : nil
+            let needsRepair = settings.sensorHelperRepairReason != nil
+            let value = temperature.map { String(format: "%.0f°C", $0) } ?? (needsRepair ? "⚠ --°C" : "--°C")
             return StatusBarGroupContent(
                 firstLine: statusBarText(isCPU ? "CPU" : "GPU", attributes: attributes),
                 secondLine: statusBarText(

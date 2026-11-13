@@ -12,66 +12,28 @@ enum BluetoothReader {
         if now - lastReadTime < cacheDuration { return cached }
         lastReadTime = now
 
-        let process = Process()
-        let pipe = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
-        process.arguments = ["SPBluetoothDataType"]
-        process.standardOutput = pipe
-
-        do {
-            try process.run()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard let output = String(data: data, encoding: .utf8) else { return cached }
-            cached = merged(parse(output), with: hidBatterySnapshots())
-            return cached
-        } catch {
-            let supplementalSnapshots = hidBatterySnapshots()
-            if !supplementalSnapshots.isEmpty {
-                cached = merged(cached, with: supplementalSnapshots)
-            }
-            return cached
+        let supplemental = hidBatterySnapshots()
+        if let data = BoundedProcess.output("/usr/sbin/system_profiler", arguments: ["SPBluetoothDataType"], timeout: 5),
+           let output = String(data: data, encoding: .utf8) {
+            cached = merged(parse(output), with: supplemental)
+        } else if !supplemental.isEmpty {
+            cached = merged(supplemental, with: cached)
         }
+        return cached
     }
 
     private static func hidBatterySnapshots() -> [BluetoothBatterySnapshot] {
-        let process = Process()
-        let pipe = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/sbin/ioreg")
-        process.arguments = ["-a", "-r", "-c", "AppleDeviceManagementHIDEventService"]
-        process.standardOutput = pipe
-
-        do {
-            try process.run()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0,
-                  let devices = try PropertyListSerialization.propertyList(from: data, format: nil) as? [[String: Any]] else {
-                return []
-            }
-
-            return devices.compactMap { device in
-                guard let name = device["Product"] as? String,
-                      !name.isEmpty,
-                      let percentage = (device["BatteryPercent"] as? NSNumber)?.doubleValue,
-                      (0...100).contains(percentage) else {
-                    return nil
-                }
-                if (device["Built-In"] as? NSNumber)?.boolValue == true { return nil }
-
-                let isBluetooth = (device["Transport"] as? String)?.caseInsensitiveCompare("Bluetooth") == .orderedSame
-                    || (device["BluetoothDevice"] as? NSNumber)?.boolValue == true
-                guard isBluetooth else { return nil }
-
-                return BluetoothBatterySnapshot(
-                    name: name,
-                    percentage: percentage,
-                    detail: StatsL10n.format("bluetooth.battery.level", Int(percentage)),
-                    kind: BluetoothDeviceKind.detect(name: name, majorType: "", minorType: "")
-                )
-            }
-        } catch {
-            return []
+        IORegistryReader.properties(matching: "AppleDeviceManagementHIDEventService").compactMap { device in
+            guard let name = device["Product"] as? String, !name.isEmpty,
+                  let percentage = (device["BatteryPercent"] as? NSNumber)?.doubleValue,
+                  (0...100).contains(percentage),
+                  (device["Built-In"] as? NSNumber)?.boolValue != true else { return nil }
+            let bluetooth = (device["Transport"] as? String)?.caseInsensitiveCompare("Bluetooth") == .orderedSame
+                || (device["BluetoothDevice"] as? NSNumber)?.boolValue == true
+            guard bluetooth else { return nil }
+            return BluetoothBatterySnapshot(name: name, percentage: percentage,
+                detail: StatsL10n.format("bluetooth.battery.level", Int(percentage)),
+                kind: BluetoothDeviceKind.detect(name: name, majorType: "", minorType: ""))
         }
     }
 

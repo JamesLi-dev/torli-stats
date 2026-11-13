@@ -251,6 +251,7 @@ final class AppSettings: ObservableObject {
     @Published private(set) var sensorGPUTemperatureReason: String
     @Published private(set) var sensorOperationDiagnostic: String?
     @Published private(set) var sensorHelperMessage: String?
+    @Published private(set) var sensorHelperRepairReason: SensorHelperRepairReason?
     @Published var fanControlMode: FanControlMode
     @Published var fanControlApplying: Bool
     @Published var fanControlTransitioning = false
@@ -449,6 +450,7 @@ final class AppSettings: ObservableObject {
             successMessage: StatsL10n.text("sensor.operation.uninstalled")
         ) { [weak self] in
             self?.sensorHelperEnabled = false
+            self?.sensorHelperRepairReason = nil
             self?.sensorHelperReachable = false
             self?.sensorFanAvailable = false
             self?.sensorCPUTemperatureAvailable = false
@@ -532,11 +534,12 @@ final class AppSettings: ObservableObject {
                     guard let self else { return }
                     guard self.sensorProbeGeneration == generation else { return }
                     let protocolIsCompatible = values.protocolVersion == SensorServiceConstants.protocolVersion
-                    let helperIsVerified = values.isHelperReachable && installation.signatureIsValid && protocolIsCompatible
+                    let helperIsVerified = values.isHelperReachable && installation.signatureIsValid
+                        && installation.clientIsAuthorized && protocolIsCompatible
 
                     // launchd/SMC may still be starting during the first request.
                     // Retry only verified installations and transient failures.
-                    if retriesRemaining > 0, installation.signatureIsValid,
+                    if retriesRemaining > 0, installation.signatureIsValid, installation.clientIsAuthorized,
                        !values.isHelperReachable || (protocolIsCompatible && !values.isAvailable) {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
                             guard let self, self.sensorProbeGeneration == generation else { return }
@@ -544,6 +547,12 @@ final class AppSettings: ObservableObject {
                         }
                     }
                     self.sensorHelperChecking = false
+                    let repairReason = installation.repairReason(
+                        isReachable: values.isHelperReachable,
+                        protocolVersion: values.protocolVersion,
+                        retriesRemaining: retriesRemaining
+                    )
+                    self.sensorHelperRepairReason = repairReason
                     self.sensorHelperReachable = values.isHelperReachable
                     self.sensorHelperEnabled = helperIsVerified
                     self.sensorHelperVersion = values.helperVersion
@@ -556,7 +565,10 @@ final class AppSettings: ObservableObject {
                     self.sensorCPUTemperatureAvailable = helperIsVerified && values.isAvailable && values.cpuTemperature != nil
                     self.sensorGPUTemperatureAvailable = helperIsVerified && values.isAvailable && values.gpuTemperature != nil
 
-                    if helperIsVerified && values.isAvailable {
+                    if let repairReason {
+                        self.sensorLastReadAt = nil
+                        self.sensorHelperMessage = repairReason.message
+                    } else if helperIsVerified && values.isAvailable {
                         self.sensorLastReadAt = Date()
                         self.sensorHelperMessage = StatsL10n.text("sensor.operation.running_verified")
                     } else if !values.isHelperReachable {

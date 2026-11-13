@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import Observation
 
 private struct HighFrequencySnapshot {
     let cpu: Double
@@ -29,10 +30,10 @@ private struct LowFrequencySnapshot {
     let deviceInfo: DeviceInfo?
 }
 
+@Observable
 final class MetricsStore: ObservableObject {
-    // Publish one change after each completed snapshot instead of once per
-    // field. This keeps SwiftUI from scheduling several redraws for one tick.
-    let objectWillChange = ObservableObjectPublisher()
+    // Compatibility publisher for the menu bar; SwiftUI observes individual metrics.
+    @ObservationIgnored let objectWillChange = ObservableObjectPublisher()
 
     private(set) var cpu = 0.0
     private(set) var cpuPerCore: [Double] = []
@@ -78,71 +79,69 @@ final class MetricsStore: ObservableObject {
     // only changed in apply* methods on the main queue. Keeping the high- and
     // low-frequency queues separate prevents a slow battery/Bluetooth/process
     // read from delaying CPU, GPU, or network updates.
-    private let highMetricsQueue = DispatchQueue(label: "local.torli.stats.metrics.high", qos: .userInitiated)
-    private let lowMetricsQueue = DispatchQueue(label: "local.torli.stats.metrics.low", qos: .utility)
-    private let networkApplicationsQueue = DispatchQueue(label: "local.torli.stats.metrics.network-applications", qos: .utility)
-    private var highTimer: DispatchSourceTimer?
-    private var lowTimer: DispatchSourceTimer?
-    private var networkApplicationsTimer: DispatchSourceTimer?
-    private let monitoringPauseLock = NSLock()
-    private var monitoringPaused = false
-    private var adaptiveLowFrequency = false
+    @ObservationIgnored private let highMetricsQueue = DispatchQueue(label: "local.torli.stats.metrics.high", qos: .userInitiated)
+    @ObservationIgnored private let lowMetricsQueue = DispatchQueue(label: "local.torli.stats.metrics.low", qos: .utility)
+    @ObservationIgnored private let networkApplicationsQueue = DispatchQueue(label: "local.torli.stats.metrics.network-applications", qos: .utility)
+    @ObservationIgnored private var highTimer: DispatchSourceTimer?
+    @ObservationIgnored private var lowTimer: DispatchSourceTimer?
+    @ObservationIgnored private var networkApplicationsTimer: DispatchSourceTimer?
+    @ObservationIgnored private let monitoringPauseLock = NSLock()
+    @ObservationIgnored private var monitoringPaused = false
+    @ObservationIgnored private var adaptiveLowFrequency = false
     private(set) var isMonitoringPaused = false
     private(set) var monitoringPauseMessage: String?
     private(set) var isAdaptiveLowFrequency = false
-    private var cpuSampler = CPUSampler()
+    @ObservationIgnored private var cpuSampler = CPUSampler()
     // The first valid interval after launch can include app startup work. Keep
     // that warm-up interval out of the UI so a fresh build does not briefly
     // report a misleading 100% CPU value.
-    private var cpuWarmupSamples = 1
-    private var previousNetwork: NetworkTotals?
-    private var previousNetworkTime: TimeInterval?
-    private var workerGPU = 0.0
-    private var hasGPUSample = false
-    private var gpuMonitoringEnabled = true
-    private var lastGPUSampleTime: TimeInterval?
-    // GPU usage is sourced from an `ioreg` subprocess. Ten seconds keeps the
-    // dashboard informative while avoiding an expensive process launch on
-    // every general metrics tick.
-    private let gpuSampleInterval: TimeInterval = 10
-    private var recentGPUSamples: [Double] = []
-    private var workerCPUHistory = Array(repeating: 0.0, count: 24)
-    private var workerGPUHistory = Array(repeating: 0.0, count: 24)
-    private var workerMemoryHistory = Array(repeating: 0.0, count: 24)
-    private var workerDownloadHistory = Array(repeating: 0.0, count: 24)
-    private var workerUploadHistory = Array(repeating: 0.0, count: 24)
-    private var workerIntervalSeconds = 3
-    private var batteryRefreshIntervalSeconds = 10
-    private var lowBatterySavingEnabled = true
-    private var lowBatteryThreshold = 20
-    private var isUsingBatteryPower = false
-    private var batteryPercentage = 100.0
-    private var processLimit = 5
-    private var processSort: ProcessSortOption = .cpu
-    private var powerSavingMode = false
-    private var sensorHelperEnabled = false
-    private var diskMonitoringEnabled = false
-    private var bluetoothMonitoringEnabled = false
-    private var processMonitoringEnabled = false
-    private var networkApplicationMonitoringEnabled = false
-    private var sensorReadingsNeeded = true
-    private var sensorPollingStopped = false
+    @ObservationIgnored private var cpuWarmupSamples = 1
+    @ObservationIgnored private var previousNetwork: NetworkTotals?
+    @ObservationIgnored private var previousNetworkTime: TimeInterval?
+    @ObservationIgnored private var workerGPU = 0.0
+    @ObservationIgnored private var hasGPUSample = false
+    @ObservationIgnored private var gpuMonitoringEnabled = true
+    @ObservationIgnored private var lastGPUSampleTime: TimeInterval?
+    // Throttle registry traversal independently of CPU/network sampling.
+    @ObservationIgnored private let gpuSampleInterval: TimeInterval = 10
+    @ObservationIgnored private var recentGPUSamples: [Double] = []
+    @ObservationIgnored private var workerCPUHistory = Array(repeating: 0.0, count: 24)
+    @ObservationIgnored private var workerGPUHistory = Array(repeating: 0.0, count: 24)
+    @ObservationIgnored private var workerMemoryHistory = Array(repeating: 0.0, count: 24)
+    @ObservationIgnored private var workerDownloadHistory = Array(repeating: 0.0, count: 24)
+    @ObservationIgnored private var workerUploadHistory = Array(repeating: 0.0, count: 24)
+    @ObservationIgnored private var workerIntervalSeconds = 3
+    @ObservationIgnored private var batteryRefreshIntervalSeconds = 10
+    @ObservationIgnored private var lowBatterySavingEnabled = true
+    @ObservationIgnored private var lowBatteryThreshold = 20
+    @ObservationIgnored private var isUsingBatteryPower = false
+    @ObservationIgnored private var batteryPercentage = 100.0
+    @ObservationIgnored private var processLimit = 5
+    @ObservationIgnored private var processSort: ProcessSortOption = .cpu
+    @ObservationIgnored private var powerSavingMode = false
+    @ObservationIgnored private var sensorHelperEnabled = false
+    @ObservationIgnored private var diskMonitoringEnabled = false
+    @ObservationIgnored private var bluetoothMonitoringEnabled = false
+    @ObservationIgnored private var processMonitoringEnabled = false
+    @ObservationIgnored private var networkApplicationMonitoringEnabled = false
+    @ObservationIgnored private var sensorReadingsNeeded = false
+    @ObservationIgnored private var sensorPollingStopped = false
     // Temperature can change substantially during a short compile or render.
     // Sample it independently of the 30-second low-frequency collectors, but
     // retain a modest throttle because each read crosses the privileged XPC
     // boundary and queries multiple SMC keys.
-    private let sensorSampleInterval: TimeInterval = 5
-    private var sensorRetryAfter: TimeInterval = 0
-    private var lastSensorSampleUptime: TimeInterval?
-    private var deviceInfoLoaded = false
-    private let sensorClient = SensorClient()
+    @ObservationIgnored private let sensorSampleInterval: TimeInterval = 5
+    @ObservationIgnored private var sensorRetryAfter: TimeInterval = 0
+    @ObservationIgnored private var lastSensorSampleUptime: TimeInterval?
+    @ObservationIgnored private var deviceInfoLoaded = false
+    @ObservationIgnored private let sensorClient = SensorClient()
     private(set) var intervalSeconds: Int
 
-    init(refreshInterval: Int = 3) {
+    init(refreshInterval: Int = 3, startsMonitoring: Bool = true) {
         let resolvedInterval = AppSettings.supportedRefreshIntervals.contains(refreshInterval) ? refreshInterval : 3
         intervalSeconds = resolvedInterval
         workerIntervalSeconds = resolvedInterval
-        startMonitoring()
+        if startsMonitoring { startMonitoring() }
     }
 
     /// Explicit user refreshes remain available during quiet hours.
@@ -315,6 +314,7 @@ final class MetricsStore: ObservableObject {
             if !sensorReadings {
                 self.lastSensorSampleUptime = nil
                 DispatchQueue.main.async {
+                    self.objectWillChange.send()
                     self.fanRPM = nil
                     self.fanMaxRPM = nil
                     self.cpuTemperature = nil
@@ -477,19 +477,18 @@ final class MetricsStore: ObservableObject {
         let elapsed = previousNetworkTime.map { max(now - $0, 0.001) } ?? 0
         let download: Double
         let upload: Double
-        if let previousNetwork, elapsed > 0 {
-            download = totals.received >= previousNetwork.received
-                ? Double(totals.received - previousNetwork.received) / elapsed
-                : 0
-            upload = totals.sent >= previousNetwork.sent
-                ? Double(totals.sent - previousNetwork.sent) / elapsed
-                : 0
+        if let totals, let previousNetwork, elapsed > 0 {
+            let delta = totals.delta(since: previousNetwork)
+            download = Double(delta.received) / elapsed
+            upload = Double(delta.sent) / elapsed
         } else {
             download = 0
             upload = 0
         }
-        previousNetwork = totals
-        previousNetworkTime = now
+        if let totals {
+            previousNetwork = totals
+            previousNetworkTime = now
+        }
 
         append(&workerCPUHistory, sampledCPU)
         append(&workerGPUHistory, workerGPU)
@@ -582,7 +581,7 @@ final class MetricsStore: ObservableObject {
             guard let self else { return }
             let wasUsingBattery = self.isUsingBatteryPower
             let wasLowBattery = self.isLowBattery
-            self.isUsingBatteryPower = !battery.isCharging
+            self.isUsingBatteryPower = !battery.isOnExternalPower
             self.batteryPercentage = battery.percentage
 
             guard wasUsingBattery != self.isUsingBatteryPower || wasLowBattery != self.isLowBattery else { return }
@@ -624,7 +623,8 @@ final class MetricsStore: ObservableObject {
         sensorClient.read { [weak self] values in
             guard let self else { return }
             self.lowMetricsQueue.async {
-                guard (force || !self.isAutomaticallyPaused), self.sensorHelperEnabled, !self.sensorPollingStopped else { return }
+                guard (force || !self.isAutomaticallyPaused), self.sensorHelperEnabled,
+                      self.sensorReadingsNeeded, !self.sensorPollingStopped else { return }
                 // Startup and wake can temporarily interrupt the helper.
                 // Back off instead of permanently disabling sensor polling.
                 guard values.isAvailable else {

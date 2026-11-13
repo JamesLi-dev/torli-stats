@@ -66,7 +66,10 @@ extension AppSettings {
 
         let scriptURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("torli-stats-codex-login-\(account.id.uuidString).command")
-        let script = "#!/bin/bash\nexport CODEX_HOME=\(shellQuoted(account.homePath))\n\(shellQuoted(executable.path)) login\nrm -f -- \"$0\"\n"
+        let environment = CodexCommandEnvironment().environment(
+            executable: executable, codexHome: URL(fileURLWithPath: account.homePath)
+        )
+        let script = "#!/bin/bash\nexport PATH=\(shellQuoted(environment["PATH"]!))\nexport CODEX_HOME=\(shellQuoted(account.homePath))\n\(shellQuoted(executable.path)) login\nrm -f -- \"$0\"\n"
         do {
             try script.write(to: scriptURL, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: scriptURL.path)

@@ -589,4 +589,11 @@
 
 "wakatime.last_14_days" = "Last 14 days";
 "startup.failed" = "Torli Stats could not start";
+"sensor.repair.title" = "Sensor helper needs attention";
+"sensor.repair.open_settings" = "Open Sensor Settings";
+"sensor.repair.later" = "Later";
+"sensor.repair.invalid_signature" = "The installed sensor helper could not be verified. Reinstall it in Settings → Monitoring to restore fan and temperature readings.";
+"sensor.repair.changed_app" = "The installed sensor helper does not authorize this copy of Torli Stats. This can happen after an app update or rebuild. Reinstall the helper in Settings → Monitoring to restore fan and temperature readings.";
+"sensor.repair.connection_unavailable" = "The installed sensor helper is still unreachable after several attempts. Check or reinstall it in Settings → Monitoring to restore fan and temperature readings.";
+"sensor.temperature.helper_required" = "Temperature is unavailable. Authorize or check the sensor helper in Settings → Monitoring.";
 "startup.instance_lock_failed" = "Could not check whether Torli Stats is already running. Please quit any running copy and try again.";
