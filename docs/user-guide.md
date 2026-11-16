@@ -173,6 +173,14 @@ Codex 支持配置多个账号及各自的 Codex Home，查看额度、重置时
 
 社区版显示今日输入与 WakaTime 开发统计；历史分析和邮箱验证码由 Pro 扩展提供。便签和 Codex 功能属于公共核心。
 
+#### 加密设置备份
+
+在 **设置 > 系统** 中选择“导出设置”，输入并确认密码后保存 `.torlibackup` 文件；密码无法找回，请妥善保管。导入时选择文件并输入密码，确认替换后应用会退出，重新打开才会应用设置。
+
+备份包含社区版和便签偏好、开机启动状态、Codex 账号配置及路径、WakaTime OAuth 令牌；文件使用密码派生密钥和认证加密。它不包含便签正文和图片、统计历史、Codex 登录文件、Pro 私有数据或系统权限。换 Mac 后路径和显示器 ID 可能不可用，Codex 可能需要重新登录；这些数据和授权需另行迁移或设置。便签内容请使用下文的独立备份。
+
+错误密码或损坏文件不会应用设置。开机启动状态无法确定或系统拒绝恢复时，需先在系统设置中处理。钥匙串、登录项与偏好设置不是同一个事务：如果写入及回滚均失败，应用会警告状态不确定，需检查登录项和 WakaTime 凭据。
+
 ### 9. 便签与图片
 
 1. 从状态栏右键菜单启用便签，再选择“新建便签”或“全部便签”。便签相关入口已单独分组。
@@ -393,6 +401,14 @@ Codex supports multiple accounts and their Codex Home directories, quotas, reset
 Manual and night pauses stop automatic monitoring and Codex/WakaTime refreshes; manual refresh remains available. The default night window is 23:30–07:00. Optional adaptive sampling reduces frequency after 25 minutes of inactivity.
 
 Community shows today's typing and WakaTime statistics. Historical analysis and email verification codes are Pro extensions. Notes and Codex are part of the public core.
+
+#### Encrypted settings backup
+
+In **Settings > System**, choose **Export Settings**, enter and confirm a password, and save the `.torlibackup` file. Keep the password safe: it cannot be recovered. To restore, select the file and enter its password. After confirming replacement, the app quits; reopen it to apply the settings.
+
+The password-derived, authenticated-encrypted backup contains Community and Notes preferences, the launch-at-login state, Codex account configuration and paths, and the WakaTime OAuth token. It does not contain note bodies or images, statistics history, Codex sign-in files, private Pro data, or system permissions. Paths and display IDs may not work on another Mac, and Codex may require signing in again; migrate or configure those separately. Use the separate Notes backup below for note contents.
+
+A wrong password or damaged file does not apply settings. If the login-item status is unavailable or macOS refuses to restore it, check System Settings first. Keychain, login items, and preferences are not a single transaction: if an operation and rollback both fail, the app warns that the state is uncertain; check the login item and WakaTime credential.
 
 ### 9. Notes and images
 

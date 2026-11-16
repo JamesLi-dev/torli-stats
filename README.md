@@ -23,6 +23,7 @@ A lightweight, local system monitor for the macOS menu bar. Torli Stats keeps th
 - Multiple Codex accounts, quota tracking, and local token activity
 - Automatic and manual GitHub Release update checks
 - Configurable refresh interval, process count, and sorting
+- Password-encrypted backup and restore of Community and Notes settings
 - Launch at login
 
 ## Download
@@ -30,6 +31,15 @@ A lightweight, local system monitor for the macOS menu bar. Torli Stats keeps th
 Download the Apple Silicon (arm64) archive from [Latest Release](https://github.com/JamesLi-dev/torli-stats/releases/latest), extract it, and move `TorliStats.app` to `/Applications`. Launch it, then click the menu-bar item to open the dashboard or right-click to open Settings.
 
 Current releases use ad-hoc signing and are not Developer ID notarized. macOS may block first launch or request permissions again after an upgrade. The release workflow does not currently publish Intel or Universal packages.
+
+For Homebrew, after this Cask is available on the repository's default branch:
+
+```bash
+brew tap jamesli-dev/torli-stats https://github.com/JamesLi-dev/torli-stats
+brew install --cask jamesli-dev/torli-stats/torli-stats
+```
+
+The Cask installs **Community**, not Pro. Both editions use the same bundle ID and installation path; installing one in place of the other replaces the app, and they cannot run as independent identities. Do not replace Pro unintentionally. Releases remain ad-hoc signed and unnotarized; Homebrew does not bypass Gatekeeper. Uninstalling the Cask does not remove the optional sensor helper; use the app's sensor settings to remove it. Pro is built and distributed separately and has no Cask in this repository.
 
 ## Requirements
 
@@ -82,5 +92,5 @@ This repository provides the standalone Community app and the `TorliStatsCore` S
 
 - [Architecture](ARCHITECTURE.md)
 - [Development, signing, changelog, and release workflow](docs/development.md)
-- [Product roadmap](TODO.md) · [Notes roadmap](note-todo.md)
+- [Community roadmap / 社区版计划](ROADMAP.md)
 - [Changelog](CHANGELOG.md)

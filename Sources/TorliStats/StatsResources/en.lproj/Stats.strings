@@ -597,3 +597,26 @@
 "sensor.repair.connection_unavailable" = "The installed sensor helper is still unreachable after several attempts. Check or reinstall it in Settings → Monitoring to restore fan and temperature readings.";
 "sensor.temperature.helper_required" = "Temperature is unavailable. Authorize or check the sensor helper in Settings → Monitoring.";
 "startup.instance_lock_failed" = "Could not check whether Torli Stats is already running. Please quit any running copy and try again.";
+
+"settings.backup.description" = "Encrypted backup includes community and Notes preferences, launch at login, Codex account paths, and the WakaTime OAuth token. Paths and display IDs may not work on another Mac. Notes, statistics, Codex sign-in files, Pro data and system permissions are not included.";
+"settings.backup.export" = "Export Settings…";
+"settings.backup.import" = "Import Settings…";
+"settings.backup.new_password" = "Choose a Backup Password";
+"settings.backup.password" = "Backup Password";
+"settings.backup.confirm_password" = "Confirm Password";
+"settings.backup.password_help" = "Keep this password safe. It cannot be recovered.";
+"settings.backup.continue" = "Continue";
+"settings.backup.cancel" = "Cancel";
+"settings.backup.password_invalid" = "Enter a nonempty password; both entries must match.";
+"settings.backup.confirm_title" = "Replace Settings and Quit?";
+"settings.backup.confirm_body" = "The backup replaces community and Notes preferences, launch at login and the WakaTime token. Existing Codex paths will be replaced; sign-in files, notes, statistics and Pro data remain untouched. Quit and reopen the app to apply settings.";
+"settings.backup.restore_quit" = "Restore and Quit";
+"settings.backup.restored" = "Settings Restored";
+"settings.backup.restart_required" = "The app will quit. Reopen it to apply the restored settings. You may need to adjust local paths and sign in to Codex again.";
+"settings.backup.failed" = "Settings Backup Failed";
+"settings.backup.failed_help" = "Check the password, file and Keychain access, then try again. A damaged or unsupported backup cannot be imported.";
+"settings.backup.rollback_failed" = "Settings State Uncertain";
+"settings.backup.rollback_failed_help" = "Restoring the login item or WakaTime credential failed, and the previous state could not be confirmed. Preferences were not replaced. Check Login Items and the WakaTime credential manually.";
+"settings.backup.notes_unsaved" = "Could not save open notes. Settings were not restored; resolve the note save error and try again.";
+"settings.backup.login_failed" = "Launch at Login Could Not Be Read or Restored";
+"settings.backup.login_failed_help" = "The login item is unavailable, requires approval, or macOS rejected the change. Check Login Items in System Settings and try again. Preferences were not replaced.";

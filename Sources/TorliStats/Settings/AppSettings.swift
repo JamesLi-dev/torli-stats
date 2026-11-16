@@ -376,6 +376,13 @@ final class AppSettings: ObservableObject {
         return value
     }
 
+    func flushCodexTextPersistence() {
+        codexTextPersistenceWorkItem?.cancel()
+        codexTextPersistenceWorkItem = nil
+        defaults.set(codexDefaultAccountName, forKey: "codexDefaultAccountName")
+        defaults.set(codexHomePath, forKey: "codexHomePath")
+    }
+
     private func scheduleCodexTextPersistence() {
         codexTextPersistenceWorkItem?.cancel()
         let displayName = codexDefaultAccountName

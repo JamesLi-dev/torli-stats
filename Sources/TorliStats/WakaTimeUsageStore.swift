@@ -1083,6 +1083,23 @@ enum WakaTimeKeychain {
     static var configurationHint: WakaTimeCredentialHint {
         WakaTimeCredentialHint.load(from: .standard)
     }
+    /// Backup must not migrate or delete an existing credential while reading it.
+    static func readOAuthTokenForBackup() throws -> String? {
+        let stored = try SharedCredentialVault.shared.read("wakatime.oauth")
+        let data: Data?
+        if let stored {
+            data = stored
+        } else {
+            data = try readLegacyOAuthData(allowInteraction: true)
+        }
+        guard let data, !data.isEmpty else { return nil }
+        guard let token = String(data: data, encoding: .utf8),
+              !token.contains(where: { $0.isWhitespace || $0.isNewline }) else {
+            throw CredentialVaultError.malformed
+        }
+        return token
+    }
+
     static func readOAuthToken(allowInteraction: Bool = false) throws -> String? {
         let vault = allowInteraction ? SharedCredentialVault.shared : SharedCredentialVault.nonInteractive
         let token = try readOAuthToken(read: {

@@ -23,6 +23,7 @@ Torli Stats 是一款运行在 macOS 状态栏中的本地系统监控工具，�
 - Codex 多账号额度和本地 Token 活动统计
 - 自动与手动检查 GitHub Release 更新
 - 可配置更新间隔、进程数量和排序方式
+- 社区版与便签设置的密码加密备份和恢复
 - 开机启动
 
 ## 下载与安装
@@ -30,6 +31,15 @@ Torli Stats 是一款运行在 macOS 状态栏中的本地系统监控工具，�
 从[最新 Release](https://github.com/JamesLi-dev/torli-stats/releases/latest) 下载 Apple Silicon（arm64）压缩包，解压后将 `TorliStats.app` 移到 `/Applications`。启动后点击状态栏项目打开面板，右键打开设置。
 
 当前发布包采用 ad-hoc 签名，尚未配置 Developer ID 公证。macOS 可能拦截首次打开，升级后也可能要求重新授权；发布流程目前不提供 Intel 或 Universal 安装包。
+
+Homebrew 安装（Cask 合并到仓库默认分支后可用）：
+
+```bash
+brew tap jamesli-dev/torli-stats https://github.com/JamesLi-dev/torli-stats
+brew install --cask jamesli-dev/torli-stats/torli-stats
+```
+
+此 Cask 安装的是**社区版**，不是 Pro。两个版本共用 Bundle ID 和安装路径，原地安装会替换另一版本，也不能作为独立身份同时运行；请勿误覆盖 Pro。发布包仍为 ad-hoc 签名、未经公证，Homebrew 不会绕过 Gatekeeper。卸载 Cask 不会移除可选的传感器辅助进程；请在应用的传感器设置中卸载。Pro 独立构建和分发，本仓库不提供 Pro Cask。
 
 ## 系统要求
 
@@ -82,5 +92,5 @@ macOS 没有稳定的公开 GPU 使用率 API。Torli Stats 会在可用时读�
 
 - [架构说明](ARCHITECTURE.md)
 - [开发、签名、Changelog 与发布流程](docs/development.md)
-- [产品计划](TODO.md) · [便签计划](note-todo.md)
+- [社区版计划 / Community roadmap](ROADMAP.md)
 - [更新记录](CHANGELOG.md)

@@ -4,6 +4,18 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-11-16
+
+### English
+
+- Add password-encrypted Community and Notes settings backups, including the WakaTime OAuth token; importing restores settings after reopening the app. Notes contents, statistics, Codex sign-in files, Pro data and system permissions remain separate.
+- Add a Community Homebrew Cask and generate release checksums and Cask updates from the published arm64 archive. Pro remains separately distributed.
+
+### 中文
+
+- 新增社区版和便签设置的密码加密备份，包含 WakaTime OAuth 令牌；导入后重新打开应用以恢复设置。便签内容、统计、Codex 登录文件、Pro 数据和系统权限不在备份中。
+- 增加社区版 Homebrew Cask，并根据发布的 arm64 压缩包生成校验值和 Cask 更新；Pro 继续独立分发。
+
 ## [1.12.6] - 2026-11-13
 
 ### English
