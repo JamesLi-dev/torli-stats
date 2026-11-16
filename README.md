@@ -32,12 +32,14 @@ Download the Apple Silicon (arm64) archive from [Latest Release](https://github.
 
 Current releases use ad-hoc signing and are not Developer ID notarized. macOS may block first launch or request permissions again after an upgrade. The release workflow does not currently publish Intel or Universal packages.
 
-For Homebrew, after this Cask is available on the repository's default branch:
+For Homebrew, use the Community tap:
 
 ```bash
-brew tap jamesli-dev/torli-stats https://github.com/JamesLi-dev/torli-stats
-brew install --cask jamesli-dev/torli-stats/torli-stats
+brew tap torli-dev/torli-stats
+brew install --cask torli-dev/torli-stats/torli-stats
 ```
+
+To use the shorter `brew install --cask torli-stats`, first trust this Cask with `brew trust --cask torli-dev/torli-stats/torli-stats`.
 
 The Cask installs **Community**, not Pro. Both editions use the same bundle ID and installation path; installing one in place of the other replaces the app, and they cannot run as independent identities. Do not replace Pro unintentionally. Releases remain ad-hoc signed and unnotarized; Homebrew does not bypass Gatekeeper. Uninstalling the Cask does not remove the optional sensor helper; use the app's sensor settings to remove it. Pro is built and distributed separately and has no Cask in this repository.
 

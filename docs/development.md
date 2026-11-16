@@ -92,7 +92,7 @@ git add CHANGELOG.md
 
 提交生成的 `VERSION`、`Info.plist` 和已检查的 Changelog 后，将它们推送到 `main`。GitHub Actions 只在 `main` 上运行：它会构建 arm64 App 压缩包；若该版本尚未发布，则自动创建对应的 `vX.Y.Z` 标签和 GitHub Release。请不要依赖手动推送版本标签来触发工作流。
 
-本仓库也作为自定义 URL 的 Homebrew tap，提供社区版 `Casks/torli-stats.rb`，不包含 Pro。发布流程按实际 ZIP 计算 SHA256，随新 Release 上传 `SHA256SUMS` 和 Cask，并尝试将 Cask 版本和摘要提交到 `main`；若分支保护阻止 Actions 推送，或并发更新导致推送失败，需要维护者处理后重新运行。重新运行已发布版本时会下载现有 ZIP 并同步 Cask；如果 `main` 的版本已推进，则不会把旧版本写回。
+社区版 Homebrew Cask 维护在独立仓库 [torli-dev/homebrew-torli-stats](https://github.com/torli-dev/homebrew-torli-stats)，不包含 Pro。本仓库随新 Release 上传 ZIP 的 `SHA256SUMS`；Tap 工作流每小时或手动检查最新公开 Release，下载实际 ZIP 后计算 SHA256 并更新 Cask。同步只需 Tap 自身的 `GITHUB_TOKEN`，无需跨仓库写入凭据；若 Tap 分支保护阻止 Actions 推送，需要维护者处理后重新运行。
 
 当前为 ad-hoc 签名、未经公证，安装提示仍可能出现；不要将 Homebrew 安装描述为绕过 Gatekeeper。Cask 卸载不会卸载传感器辅助进程。Pro 与社区版目前共用 Bundle ID 和安装路径，属于原地替换而非并行安装；Pro 产物在私有仓库发布，不应放入公共 Cask。若要提供 Pro Cask，须先确定面向用户的授权下载源和更新机制；并行安装还需要单独设计身份、数据与 Helper 的隔离和迁移。
 
@@ -178,7 +178,7 @@ The script uses `codex` when available and otherwise `claude`; `AI_CHANGELOG_COM
 
 Commit the resulting `VERSION`, `Info.plist`, and reviewed changelog changes, then push them to `main`. The GitHub Actions workflow runs on `main`, builds an arm64 archive, and—when that version has not already been released—creates the matching `vX.Y.Z` tag and GitHub Release automatically. Do not rely on manually pushing a version tag to start the workflow.
 
-This repository also serves as a custom-URL Homebrew tap for the Community Cask, `Casks/torli-stats.rb`; it does not distribute Pro. The workflow hashes the actual ZIP, publishes `SHA256SUMS` and a Cask with new releases, and attempts to commit the updated Cask to `main`. A protected branch or concurrent push may require maintainer intervention and a rerun. Rerunning an existing release downloads its ZIP to synchronize the Cask; it will not write an older version if `main` has advanced.
+The Community Homebrew Cask is maintained in the separate [torli-dev/homebrew-torli-stats](https://github.com/torli-dev/homebrew-torli-stats) repository; it does not distribute Pro. This repository publishes `SHA256SUMS` with new releases. The tap checks the latest public Release hourly or on manual dispatch, downloads the actual ZIP, and computes its SHA256 before updating the Cask. Synchronization uses only the tap's own `GITHUB_TOKEN`, with no cross-repository write credential; a protected tap branch may require maintainer intervention.
 
 The app remains ad-hoc signed and unnotarized: Homebrew does not bypass Gatekeeper. Cask uninstall does not remove the sensor helper. Pro and Community currently share a bundle ID and installation path, so they replace each other rather than run as isolated installations. Pro is published in a private repository and must not be added to the public Cask. A Pro Cask needs an authorized customer download and update channel; side-by-side installation also requires a separate identity, data and helper isolation, and migration design.
 

@@ -32,12 +32,14 @@ Torli Stats 是一款运行在 macOS 状态栏中的本地系统监控工具，�
 
 当前发布包采用 ad-hoc 签名，尚未配置 Developer ID 公证。macOS 可能拦截首次打开，升级后也可能要求重新授权；发布流程目前不提供 Intel 或 Universal 安装包。
 
-Homebrew 安装（Cask 合并到仓库默认分支后可用）：
+Homebrew 安装社区版：
 
 ```bash
-brew tap jamesli-dev/torli-stats https://github.com/JamesLi-dev/torli-stats
-brew install --cask jamesli-dev/torli-stats/torli-stats
+brew tap torli-dev/torli-stats
+brew install --cask torli-dev/torli-stats/torli-stats
 ```
+
+如需使用更短的 `brew install --cask torli-stats`，请先执行 `brew trust --cask torli-dev/torli-stats/torli-stats` 信任此 Cask。
 
 此 Cask 安装的是**社区版**，不是 Pro。两个版本共用 Bundle ID 和安装路径，原地安装会替换另一版本，也不能作为独立身份同时运行；请勿误覆盖 Pro。发布包仍为 ad-hoc 签名、未经公证，Homebrew 不会绕过 Gatekeeper。卸载 Cask 不会移除可选的传感器辅助进程；请在应用的传感器设置中卸载。Pro 独立构建和分发，本仓库不提供 Pro Cask。
 

@@ -4,6 +4,14 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
+### English
+
+- Move the Community Homebrew Cask to the dedicated `torli-dev/homebrew-torli-stats` tap, which updates from public releases without a cross-repository write token.
+
+### 中文
+
+- 将社区版 Homebrew Cask 迁至独立的 `torli-dev/homebrew-torli-stats` Tap，从公开发布自动更新，无需跨仓库写入令牌。
+
 ## [1.13.0] - 2026-11-16
 
 ### English
