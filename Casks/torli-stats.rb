@@ -1,6 +1,6 @@
 cask "torli-stats" do
-  version "1.12.6"
-  sha256 "aac9d05b9c55d69931b55c203dc30bacdbbec96dc8c8c6de734882154a3b2f74"
+  version "1.13.0"
+  sha256 "860407f869ef884102afd66ebb6aecb291717db751fe8160cb91415995d412e3"
 
   url "https://github.com/JamesLi-dev/torli-stats/releases/download/v#{version}/TorliStats-#{version}-macos-arm64.zip"
   name "Torli Stats"
