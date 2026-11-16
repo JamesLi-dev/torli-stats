@@ -15,6 +15,7 @@ concurrency:
 
 jobs:
   release:
+    if: github.ref == 'refs/heads/main'
     # The integrated Notes UI uses macOS 15 SwiftUI APIs (for example,
     # WindowDragGesture), so the release compiler must use the macOS 15/Xcode 16 image.
     runs-on: macos-15
@@ -76,12 +77,38 @@ jobs:
           ARCHIVE_NAME: ${{ steps.version.outputs.archive }}
         run: ditto -c -k --sequesterRsrc --keepParent TorliStats.app "$ARCHIVE_NAME"
 
+      - name: Prepare Homebrew cask and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          ARCHIVE_NAME: ${{ steps.version.outputs.archive }}
+        run: |
+          if [[ ! -f "$ARCHIVE_NAME" ]]; then
+            gh release download "$TAG" --pattern "$ARCHIVE_NAME"
+          fi
+          SHA256="$(shasum -a 256 "$ARCHIVE_NAME" | cut -d ' ' -f 1)"
+          export SHA256
+          ruby -e '
+            cask = File.read("Casks/torli-stats.rb")
+            abort "Expected one cask version" unless cask.scan(/^  version "[^"]+"$/).size == 1
+            abort "Expected one cask sha256" unless cask.scan(/^  sha256 "[0-9a-f]{64}"$/).size == 1
+            cask.sub!(/^  version "[^"]+"$/, "  version \"#{ENV.fetch("VERSION")}\"")
+            cask.sub!(/^  sha256 "[0-9a-f]{64}"$/, "  sha256 \"#{ENV.fetch("SHA256")}\"")
+            File.write("torli-stats.rb", cask)
+          '
+          shasum -a 256 "$ARCHIVE_NAME" torli-stats.rb > SHA256SUMS
+
+
       - name: Upload build artifact
         if: steps.release.outputs.publish == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: TorliStats-${{ steps.version.outputs.version }}-macos-arm64
-          path: ${{ steps.version.outputs.archive }}
+          path: |
+            ${{ steps.version.outputs.archive }}
+            torli-stats.rb
+            SHA256SUMS
           if-no-files-found: error
           retention-days: 30
 
@@ -121,13 +148,35 @@ jobs:
           ' CHANGELOG.md > "$NOTES_FILE"
 
           if [[ -s "$NOTES_FILE" ]]; then
-            gh release create "$TAG" "$ARCHIVE_NAME" \
+            gh release create "$TAG" "$ARCHIVE_NAME" torli-stats.rb SHA256SUMS \
               --title "Torli Stats $VERSION" \
               --notes-file "$NOTES_FILE" \
               --verify-tag
           else
-            gh release create "$TAG" "$ARCHIVE_NAME" \
+            gh release create "$TAG" "$ARCHIVE_NAME" torli-stats.rb SHA256SUMS \
               --title "Torli Stats $VERSION" \
               --generate-notes \
               --verify-tag
           fi
+
+      - name: Update Homebrew cask on main
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          cp torli-stats.rb "$RUNNER_TEMP/torli-stats.rb"
+          git fetch origin main
+          git checkout -B update-homebrew-cask FETCH_HEAD
+          CURRENT_VERSION="$(tr -d '[:space:]' < VERSION)"
+          if [[ "$CURRENT_VERSION" != "$VERSION" ]]; then
+            echo "main has advanced to $CURRENT_VERSION; not updating the cask for $VERSION."
+            exit 0
+          fi
+          cp "$RUNNER_TEMP/torli-stats.rb" Casks/torli-stats.rb
+          git add Casks/torli-stats.rb
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update Homebrew cask to $VERSION"
+          git push origin HEAD:main

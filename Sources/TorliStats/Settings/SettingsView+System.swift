@@ -71,6 +71,16 @@ extension SettingsView {
 
                 Divider()
 
+                Text(StatsL10n.text("settings.backup.description"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Button(StatsL10n.text("settings.backup.export")) { exportSettingsBackup() }
+                    Button(StatsL10n.text("settings.backup.import")) { importSettingsBackup() }
+                }
+
+                Divider()
+
                 SettingsDestructiveActionRow(
                     title: StatsL10n.text("settings.system.restore_defaults"),
                     actionTitle: StatsL10n.text("settings.system.restore_defaults")

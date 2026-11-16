@@ -92,6 +92,12 @@ git add CHANGELOG.md
 
 提交生成的 `VERSION`、`Info.plist` 和已检查的 Changelog 后，将它们推送到 `main`。GitHub Actions 只在 `main` 上运行：它会构建 arm64 App 压缩包；若该版本尚未发布，则自动创建对应的 `vX.Y.Z` 标签和 GitHub Release。请不要依赖手动推送版本标签来触发工作流。
 
+本仓库也作为自定义 URL 的 Homebrew tap，提供社区版 `Casks/torli-stats.rb`，不包含 Pro。发布流程按实际 ZIP 计算 SHA256，随新 Release 上传 `SHA256SUMS` 和 Cask，并尝试将 Cask 版本和摘要提交到 `main`；若分支保护阻止 Actions 推送，或并发更新导致推送失败，需要维护者处理后重新运行。重新运行已发布版本时会下载现有 ZIP 并同步 Cask；如果 `main` 的版本已推进，则不会把旧版本写回。
+
+当前为 ad-hoc 签名、未经公证，安装提示仍可能出现；不要将 Homebrew 安装描述为绕过 Gatekeeper。Cask 卸载不会卸载传感器辅助进程。Pro 与社区版目前共用 Bundle ID 和安装路径，属于原地替换而非并行安装；Pro 产物在私有仓库发布，不应放入公共 Cask。若要提供 Pro Cask，须先确定面向用户的授权下载源和更新机制；并行安装还需要单独设计身份、数据与 Helper 的隔离和迁移。
+
+Pro 固定引用社区核心的提交；本次设置备份不会自动进入已发布的 Pro，需公共核心合并后按 Pro 的核心同步流程更新并验证。备份当前只覆盖公共设置和 WakaTime OAuth，不迁移 Pro 专属邮箱或设备绑定的 TOTP 数据。
+
 
 ## Developer distribution guide
 
@@ -171,4 +177,10 @@ The script uses `codex` when available and otherwise `claude`; `AI_CHANGELOG_COM
 ```
 
 Commit the resulting `VERSION`, `Info.plist`, and reviewed changelog changes, then push them to `main`. The GitHub Actions workflow runs on `main`, builds an arm64 archive, and—when that version has not already been released—creates the matching `vX.Y.Z` tag and GitHub Release automatically. Do not rely on manually pushing a version tag to start the workflow.
+
+This repository also serves as a custom-URL Homebrew tap for the Community Cask, `Casks/torli-stats.rb`; it does not distribute Pro. The workflow hashes the actual ZIP, publishes `SHA256SUMS` and a Cask with new releases, and attempts to commit the updated Cask to `main`. A protected branch or concurrent push may require maintainer intervention and a rerun. Rerunning an existing release downloads its ZIP to synchronize the Cask; it will not write an older version if `main` has advanced.
+
+The app remains ad-hoc signed and unnotarized: Homebrew does not bypass Gatekeeper. Cask uninstall does not remove the sensor helper. Pro and Community currently share a bundle ID and installation path, so they replace each other rather than run as isolated installations. Pro is published in a private repository and must not be added to the public Cask. A Pro Cask needs an authorized customer download and update channel; side-by-side installation also requires a separate identity, data and helper isolation, and migration design.
+
+Pro pins a Community core revision. This settings-backup change does not appear in already released Pro builds; merge the core first, then update and validate Pro through its core-sync process. The backup covers shared settings and WakaTime OAuth, not Pro-specific mail or device-bound TOTP data.
 

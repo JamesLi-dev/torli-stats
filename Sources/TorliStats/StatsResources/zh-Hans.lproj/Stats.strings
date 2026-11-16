@@ -597,3 +597,26 @@
 "sensor.repair.connection_unavailable" = "多次尝试后仍无法连接已安装的传感器助手。请在“设置 → 监控”中检查或重新安装，以恢复风扇和温度读数。";
 "sensor.temperature.helper_required" = "温度暂不可用，请在“设置 → 监控”中授权或检查传感器助手。";
 "startup.instance_lock_failed" = "无法检查 Torli Stats 是否已在运行。请退出正在运行的程序后重试。";
+
+"settings.backup.description" = "加密备份包含社区版和便签设置、开机启动、Codex 账户路径及 WakaTime OAuth 令牌。路径和显示器 ID 在其他 Mac 上可能不可用。不包含便签正文、统计、Codex 登录文件、Pro 数据及系统权限。";
+"settings.backup.export" = "导出设置…";
+"settings.backup.import" = "导入设置…";
+"settings.backup.new_password" = "设置备份密码";
+"settings.backup.password" = "备份密码";
+"settings.backup.confirm_password" = "确认密码";
+"settings.backup.password_help" = "请妥善保管密码，密码无法找回。";
+"settings.backup.continue" = "继续";
+"settings.backup.cancel" = "取消";
+"settings.backup.password_invalid" = "密码不能为空，两次输入必须一致。";
+"settings.backup.confirm_title" = "替换设置并退出？";
+"settings.backup.confirm_body" = "备份将替换社区版和便签设置、开机启动状态及 WakaTime 令牌，并替换现有 Codex 路径；登录文件、便签、统计和 Pro 数据不受影响。退出并重新打开应用后设置才会生效。";
+"settings.backup.restore_quit" = "恢复并退出";
+"settings.backup.restored" = "设置已恢复";
+"settings.backup.restart_required" = "应用将退出。请重新打开以应用恢复的设置，可能需要调整本机路径并重新登录 Codex。";
+"settings.backup.failed" = "设置备份失败";
+"settings.backup.failed_help" = "请检查密码、文件和钥匙串访问权限后重试。损坏或不受支持的备份无法导入。";
+"settings.backup.rollback_failed" = "设置状态不确定";
+"settings.backup.rollback_failed_help" = "恢复开机启动或 WakaTime 凭据失败，且无法确认原状态已恢复。偏好设置未被替换。请手动检查系统登录项和 WakaTime 凭据。";
+"settings.backup.notes_unsaved" = "无法保存打开的便签，尚未恢复设置。请解决便签保存问题后重试。";
+"settings.backup.login_failed" = "无法读取或恢复开机启动";
+"settings.backup.login_failed_help" = "登录项不可用、需要批准或 macOS 拒绝了更改。请检查系统设置中的登录项后重试。偏好设置未被替换。";
