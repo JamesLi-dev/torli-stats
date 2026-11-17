@@ -2,7 +2,7 @@
 
 All notable changes to Torli Stats are documented here.
 
-## [Unreleased]
+## [1.14.0] - 2026-11-17
 
 ### English
 
