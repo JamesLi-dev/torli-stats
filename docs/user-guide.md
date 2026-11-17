@@ -173,6 +173,14 @@ Codex 支持配置多个账号及各自的 Codex Home，查看额度、重置时
 
 社区版显示今日输入与 WakaTime 开发统计；历史分析和邮箱验证码由 Pro 扩展提供。便签和 Codex 功能属于公共核心。
 
+#### 应用内更新
+
+在 **设置 > 系统** 选择“检查更新”。发现新版本后，窗口会尝试显示该版本的 GitHub Release 更新说明，并提供下载安装或打开 GitHub Releases 手动下载。应用会识别常见 Homebrew 安装；无法确定来源时，请选择实际安装方式，使用自定义 Homebrew 路径时需选择对应的 `brew` 可执行文件。更新前请保存工作；当前发布包使用 ad-hoc 签名，更新后可能需要重新授予输入监控和钥匙串权限，并重新安装传感器辅助进程。
+
+下载的 ZIP 会与同一 GitHub Release 的 SHA256 校验值比对。该校验可发现传输损坏，但不是独立的发行者身份认证；当前发布包尚未使用 Developer ID 公证。只有信任发布来源时才继续。
+
+应用内更新仅支持 `/Applications/TorliStats.app` 中的社区版，且 `/Applications` 须可写；开发版、改名或链接的应用需手动更新。更新前会保存便签，退出后再替换并重启；若新进程未能启动，更新器会尝试恢复旧版。若 Homebrew 更新或回滚失败，按提示检查保留的备份并修复 Homebrew 记录。进程启动检查不保证应用所有功能均已完成初始化；更新说明加载受 GitHub API 访问和限额影响，失败时可打开 Release 页面。
+
 #### 加密设置备份
 
 在 **设置 > 系统** 中选择“导出设置”，输入并确认密码后保存 `.torlibackup` 文件；密码无法找回，请妥善保管。导入时选择文件并输入密码，确认替换后应用会退出，重新打开才会应用设置。
@@ -401,6 +409,14 @@ Codex supports multiple accounts and their Codex Home directories, quotas, reset
 Manual and night pauses stop automatic monitoring and Codex/WakaTime refreshes; manual refresh remains available. The default night window is 23:30–07:00. Optional adaptive sampling reduces frequency after 25 minutes of inactivity.
 
 Community shows today's typing and WakaTime statistics. Historical analysis and email verification codes are Pro extensions. Notes and Codex are part of the public core.
+
+#### In-app updates
+
+In **Settings > System**, choose **Check for Updates**. When a new version is available, the update window attempts to show its GitHub Release notes and offers download and installation or a link to GitHub Releases. The app recognizes common Homebrew installations; if the source is uncertain, select the actual installation method and, for a custom Homebrew path, its `brew` executable. Save your work first. Current releases are ad-hoc signed; after updating, you may need to grant Input Monitoring and Keychain access again and reinstall the sensor helper.
+
+The downloaded ZIP is checked against the SHA256 value from the same GitHub Release. This detects transfer corruption but is not independent publisher authentication; current releases are not Developer ID notarized. Continue only if you trust the release source.
+
+In-app updates support only the Community app at `/Applications/TorliStats.app`, with a writable `/Applications`; update development, renamed, or symlinked copies manually. Notes are saved before the app exits; replacement and restart follow. If the new process fails to start, the updater attempts to restore the previous app. If a Homebrew update or rollback fails, follow the prompt to check the retained backup and repair Homebrew's records. A running-process check does not guarantee that every app feature has finished initializing. Release notes depend on GitHub API availability and rate limits; use the Release page if loading fails.
 
 #### Encrypted settings backup
 

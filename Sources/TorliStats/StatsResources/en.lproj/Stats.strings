@@ -443,9 +443,22 @@
 "window.settings_title" = "Torli Stats Settings";
 "window.statistics_title" = "Statistics Details";
 "update.alert.title" = "Torli Stats %@ is available";
-"update.alert.message" = "Download the current version from the GitHub Releases page.";
-"update.alert.download" = "View Download";
+"update.alert.message" = "The SHA256 checksum comes from the same source as the download and cannot authenticate the publisher. Releases are ad-hoc signed and macOS may block them. You may need to grant Input Monitoring and Keychain access again and reinstall the sensor Helper. Installation requires a writable app location. Continue only if you trust this release.";
+"update.alert.download" = "Open GitHub Releases";
 "update.alert.later" = "Later";
+"update.confirm.title" = "Install this update?";
+"update.install.confirm_cancel" = "Cancel";
+"update.install.action" = "Download and Install";
+"update.install.retry" = "Retry";
+"update.install.preparing" = "Downloading and preparing the update… Closing this window cancels installation, but the download will continue in the background and its files will be discarded.";
+"update.install.cancel" = "Close Window";
+"update.notes.title" = "Release Notes";
+"update.notes.loading" = "Loading release notes…";
+"update.notes.empty" = "No release notes were provided.";
+"update.notes.failed" = "Could not load release notes. GitHub's unauthenticated API is limited to 60 requests per hour per IP, or the network or response may be unavailable. Open GitHub Releases below to read them.";
+"update.install.failed" = "Update could not be installed: %@\n\nResolve the issue and try again, or open GitHub Releases for manual installation.";
+"update.install.notes_unsaved" = "Some notes could not be saved. Resolve the note save error and retry; the app has not been replaced.";
+"update.install.termination_cancelled" = "The app did not quit, so the update was not installed. Resolve the reason termination was cancelled and retry.";
 
 "monitoring.pause_reason.night" = "Monitoring paused at night";
 "monitoring.pause_reason.system_sleep" = "System asleep; monitoring paused";

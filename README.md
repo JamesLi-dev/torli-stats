@@ -21,7 +21,7 @@ A lightweight, local system monitor for the macOS menu bar. Torli Stats keeps th
 - Today’s typing count, active time, and WakaTime coding time (historical analysis is available in Pro)
 - Torli Notes: edge deck, floating notes, search, archive, task lists, PNG/JPEG insertion, resizing, cropping, and image-inclusive backups
 - Multiple Codex accounts, quota tracking, and local token activity
-- Automatic and manual GitHub Release update checks
+- GitHub Release update checks, release notes and in-app Community updates
 - Configurable refresh interval, process count, and sorting
 - Password-encrypted backup and restore of Community and Notes settings
 - Launch at login

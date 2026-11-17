@@ -443,9 +443,22 @@
 "window.settings_title" = "Torli Stats 设置";
 "window.statistics_title" = "详细统计";
 "update.alert.title" = "Torli Stats %@ 已可更新";
-"update.alert.message" = "当前版本可在 GitHub Releases 页面下载。";
-"update.alert.download" = "查看下载";
+"update.alert.message" = "SHA256 校验文件与下载包同源，无法验证发行者身份。发布包使用 ad-hoc 签名，macOS 可能阻止运行。更新后可能需要重新授予输入监控和钥匙串权限，并重新安装传感器 Helper。安装位置必须可写。仅在信任此发布包时继续。";
+"update.alert.download" = "打开 GitHub Releases";
 "update.alert.later" = "稍后";
+"update.confirm.title" = "安装此更新？";
+"update.install.confirm_cancel" = "取消";
+"update.install.action" = "下载并安装";
+"update.install.retry" = "重试";
+"update.install.preparing" = "正在下载并准备更新…关闭窗口会取消安装，但下载仍会在后台继续，完成后下载的文件将被清理。";
+"update.install.cancel" = "关闭窗口";
+"update.notes.title" = "更新说明";
+"update.notes.loading" = "正在加载更新说明…";
+"update.notes.empty" = "此版本未提供更新说明。";
+"update.notes.failed" = "无法加载更新说明。GitHub 未认证 API 每个 IP 每小时限额 60 次，也可能是网络或响应不可用。可通过下方的 GitHub Releases 链接查看。";
+"update.install.failed" = "无法安装更新：%@\n\n请解决问题后重试，或打开 GitHub Releases 手动安装。";
+"update.install.notes_unsaved" = "部分便签无法保存。请解决便签保存问题后重试；应用尚未被替换。";
+"update.install.termination_cancelled" = "应用未能退出，因此未安装更新。请解决退出被取消的原因后重试。";
 
 "monitoring.pause_reason.night" = "夜间暂停监控";
 "monitoring.pause_reason.system_sleep" = "系统睡眠，监控已暂停";

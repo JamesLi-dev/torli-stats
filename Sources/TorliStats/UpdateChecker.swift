@@ -38,6 +38,8 @@ final class AppUpdateChecker: ObservableObject {
     @Published private(set) var status: AppUpdateCheckStatus = .idle
     private let defaults: UserDefaults
     private var task: URLSessionDataTask?
+    private var completions: [(AppUpdateRelease?) -> Void] = []
+    var installationController: UpdateInstallationController?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -57,6 +59,7 @@ final class AppUpdateChecker: ObservableObject {
             completion?(nil)
             return
         }
+        if let completion { completions.append(completion) }
         guard task == nil else { return }
         status = .checking
 
@@ -78,21 +81,27 @@ final class AppUpdateChecker: ObservableObject {
                       let remoteVersion = Version(release.version),
                       let installedVersion = Version(self.currentVersion) else {
                     self.status = .failed
-                    completion?(nil)
+                    self.finishCheck(nil)
                     return
                 }
 
                 self.defaults.set(Date(), forKey: Self.lastCheckKey)
                 if remoteVersion > installedVersion {
                     self.status = .available(release)
-                    completion?(release)
+                    self.finishCheck(release)
                 } else {
                     self.status = .upToDate(Date())
-                    completion?(nil)
+                    self.finishCheck(nil)
                 }
             }
         }
         task?.resume()
+    }
+
+    private func finishCheck(_ release: AppUpdateRelease?) {
+        let callbacks = completions
+        completions.removeAll()
+        callbacks.forEach { $0(release) }
     }
 
     var checksAvailable: Bool {
@@ -137,5 +146,94 @@ final class AppUpdateChecker: ObservableObject {
             }
             return false
         }
+    }
+}
+
+// Release notes are untrusted text. The API URL is built only from a validated
+// official release tag, and the response is bounded while it is received.
+enum AppUpdateReleaseNotes {
+    static let maximumResponseBytes = 512 * 1024
+    private static let tagPattern = #"\A[vV]?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-((?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z"#
+
+    static func requestURL(for release: AppUpdateRelease) -> URL? {
+        guard let components = URLComponents(url: release.downloadURL, resolvingAgainstBaseURL: false),
+              components.scheme == "https", components.host == "github.com",
+              components.user == nil, components.password == nil, components.port == nil,
+              components.query == nil, components.fragment == nil else { return nil }
+        let prefix = "/JamesLi-dev/torli-stats/releases/tag/"
+        guard components.path.hasPrefix(prefix) else { return nil }
+        let tag = String(components.path.dropFirst(prefix.count))
+        guard tag.range(of: tagPattern, options: .regularExpression) != nil else { return nil }
+        let version = tag.first == "v" || tag.first == "V" ? String(tag.dropFirst()) : tag
+        guard version == release.version else { return nil }
+        var api = URLComponents()
+        api.scheme = "https"
+        api.host = "api.github.com"
+        api.path = "/repos/JamesLi-dev/torli-stats/releases/tags/\(tag)"
+        return api.url
+    }
+
+    static func parse(_ data: Data, expectedTag: String) -> String? {
+        guard data.count <= maximumResponseBytes,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              json["tag_name"] as? String == expectedTag,
+              let body = json["body"] else { return nil }
+        if body is NSNull { return "" }
+        return body as? String
+    }
+
+    static func load(release: AppUpdateRelease, completion: @escaping (String?) -> Void) {
+        guard let url = requestURL(for: release) else {
+            completion(nil)
+            return
+        }
+        let delegate = ReleaseNotesRequest(url: url, tag: release.downloadURL.lastPathComponent, completion: completion)
+        let session = URLSession(configuration: .ephemeral, delegate: delegate, delegateQueue: nil)
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 12
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("TorliStats", forHTTPHeaderField: "User-Agent")
+        session.dataTask(with: request).resume()
+    }
+}
+
+private final class ReleaseNotesRequest: NSObject, URLSessionDataDelegate {
+    private let url: URL
+    private let tag: String
+    private let completion: (String?) -> Void
+    private var data = Data()
+    private var accepted = false
+
+    init(url: URL, tag: String, completion: @escaping (String?) -> Void) {
+        self.url = url
+        self.tag = tag
+        self.completion = completion
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+        completionHandler(nil)
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
+                    completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        accepted = response.url == url && (response as? HTTPURLResponse)?.statusCode == 200 &&
+            (response.expectedContentLength < 0 || response.expectedContentLength <= Int64(AppUpdateReleaseNotes.maximumResponseBytes))
+        completionHandler(accepted ? .allow : .cancel)
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive chunk: Data) {
+        guard chunk.count <= AppUpdateReleaseNotes.maximumResponseBytes - data.count else {
+            accepted = false
+            dataTask.cancel()
+            return
+        }
+        data.append(chunk)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        let notes = error == nil && accepted ? AppUpdateReleaseNotes.parse(data, expectedTag: tag) : nil
+        session.finishTasksAndInvalidate()
+        DispatchQueue.main.async { self.completion(notes) }
     }
 }

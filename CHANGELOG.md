@@ -2,15 +2,17 @@
 
 All notable changes to Torli Stats are documented here.
 
-## [Unreleased]
+## [1.14.0] - 2026-11-17
 
 ### English
 
 - Move the Community Homebrew Cask to the dedicated `torli-dev/homebrew-torli-stats` tap, which updates from public releases without a cross-repository write token.
+- Show GitHub Release notes in the update window and support in-app Community updates with SHA256 integrity checks, restart and recovery handling; Homebrew installations update through brew.
 
 ### 中文
 
 - 将社区版 Homebrew Cask 迁至独立的 `torli-dev/homebrew-torli-stats` Tap，从公开发布自动更新，无需跨仓库写入令牌。
+- 更新窗口展示 GitHub Release 更新说明，社区版支持应用内下载、SHA256 完整性校验、重启和失败恢复；Homebrew 安装通过 brew 执行升级。
 
 ## [1.13.0] - 2026-11-16
 

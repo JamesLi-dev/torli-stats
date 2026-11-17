@@ -50,7 +50,7 @@
 
 - [x] 支持可选的智能节能采样：Dashboard 打开时实时采样，连续 25 分钟无输入后将高/低频采样降至 30 / 120 秒，并在屏幕锁定、显示器休眠或系统睡眠时完全暂停；Runner 在低频和暂停状态静止。
 
-- [x] GitHub Releases 更新检查与手动检查更新。
+- [x] GitHub Releases 更新检查、更新说明和社区版应用内下载、校验、替换与重启；Homebrew 安装通过 brew 升级。
 
 - [x] 可选 WakaTime 基础统计：用户个人 OAuth Token（`read_summaries`）保存至本机钥匙串，展示今日开发时长；未配置时不请求也不展示。
 
@@ -71,6 +71,7 @@
 Developer ID 需要先申请，相关签名、公证及升级验收排在最后；申请完成前先推进不依赖证书的功能、验证和发布检查。
 
 - [ ] 补充不同 Mac、无风扇机型与睡眠唤醒的人工验证记录。
+- [ ] 在独立测试 Mac 或账户中人工验证应用内升级：普通安装、Homebrew、自定义前缀、权限拒绝、退出被取消、启动失败回滚及升级后的授权。
 - [ ] 验证稳定 Developer ID 签名下的输入监控、Keychain 和 Helper 跨版本升级。
 - [ ] 配置 CI 的 Developer ID 签名、公证、stapling 和产物检查；当前发布采用 ad-hoc 签名。
 - [ ] 发布前检查签名、Gatekeeper、Info.plist 和产物架构，并随 Release 提供 SHA256；区分当前 ad-hoc 与未来正式签名的适用检查。
