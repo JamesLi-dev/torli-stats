@@ -2,6 +2,18 @@
 
 All notable changes to Torli Stats are documented here.
 
+## [1.14.1] - 2026-11-17
+
+### English
+
+- Add a compact, cancellable update-check window and a wider release-notes view with rounded app icons, current/new versions, and formatted headings and lists.
+- Show real download bytes and progress when the total is known, distinguish verification and Homebrew preparation, and wait for “Install and Relaunch” before replacing the app. Cancelling dismisses stale check results and prevents installation of cancelled updates.
+
+### 中文
+
+- 新增紧凑、可取消的检查更新窗口；更新详情加宽，统一圆角图标，显示当前与目标版本，并排版更新说明的标题和列表。
+- 下载时展示真实字节数和已知总大小的进度，区分校验与 Homebrew 准备阶段；准备完成后点击“安装并重新启动”才替换应用。取消后不再弹出过期检查结果或安装已取消的更新。
+
 ## [1.14.0] - 2026-11-17
 
 ### English
