@@ -56,12 +56,13 @@ extension SettingsView {
 
                 HStack(spacing: 8) {
                     Toggle(StatsL10n.text("settings.system.automatic_updates"), isOn: $settings.automaticUpdateChecks)
+                        .disabled(!updateChecker.checksAvailable)
                     Spacer(minLength: 0)
                     Button(StatsL10n.text("settings.system.check_updates")) {
                         onCheckForUpdates()
                     }
                     .buttonStyle(.bordered)
-                    .disabled(updateChecker.status == .checking)
+                    .disabled(!updateChecker.checksAvailable || updateChecker.status == .checking)
                 }
                 SettingsStatusMessage(
                     text: updateChecker.status.description,
