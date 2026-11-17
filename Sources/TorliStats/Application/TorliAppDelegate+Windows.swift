@@ -57,13 +57,35 @@ extension TorliAppDelegate {
 
     func checkForUpdatesIfNeeded() {
         updateChecker.checkIfNeeded(isEnabled: settings.automaticUpdateChecks) { [weak self] release in
-            self?.announceAvailableUpdate(release, manual: false)
+            guard let self, self.updateChecker.checkingController == nil else { return }
+            self.announceAvailableUpdate(release, manual: false)
         }
     }
 
     @objc func checkForUpdates() {
-        updateChecker.check { [weak self] release in
-            self?.announceAvailableUpdate(release, manual: true)
+        if let controller = updateChecker.installationController, controller.isVisible {
+            controller.show()
+            return
+        }
+        if let controller = updateChecker.checkingController {
+            controller.show()
+            return
+        }
+        let controller = UpdateCheckController { [weak checker = updateChecker] cancelled in
+            if cancelled { checker?.cancelCheck() }
+            checker?.checkingController = nil
+        }
+        updateChecker.checkingController = controller
+        controller.show()
+        updateChecker.check { [weak self, weak controller] release in
+            guard let self, let controller, controller.isChecking,
+                  self.updateChecker.checkingController === controller else { return }
+            if let release {
+                controller.finish()
+                self.announceAvailableUpdate(release, manual: true)
+            } else {
+                controller.showResult(status: self.updateChecker.status, currentVersion: self.updateChecker.currentVersion)
+            }
         }
     }
 
@@ -75,68 +97,156 @@ extension TorliAppDelegate {
         }
         guard manual || announcedUpdateVersion != release.version else { return }
         announcedUpdateVersion = release.version
-        if let controller = updateChecker.installationController, controller.isPreparing {
-            controller.show()
-        } else {
-            let controller = UpdateInstallationController(release: release)
-            updateChecker.installationController = controller
-            controller.show()
-        }
+        let controller = UpdateInstallationController(release: release, currentVersion: updateChecker.currentVersion)
+        updateChecker.installationController = controller
+        controller.show()
     }
 }
 
-final class UpdateInstallationController: NSObject, ObservableObject, NSWindowDelegate {
-    enum State {
-        case ready
-        case preparing
-        case failed(String)
+final class UpdateCheckController: NSObject, ObservableObject, NSWindowDelegate {
+    struct ResultMessage {
+        let title: String
+        let detail: String
     }
 
-    enum NotesState {
-        case loading
-        case loaded(String)
-        case failed
-    }
-
-    let release: AppUpdateRelease
-    @Published private(set) var state: State = .ready
-    @Published private(set) var notesState: NotesState = .loading
+    @Published private(set) var result: ResultMessage?
+    private(set) var isChecking = true
     private var window: NSWindow?
-    private var cancelled = false
-    private var isConfirming = false
+    private var onClose: ((Bool) -> Void)?
 
-    init(release: AppUpdateRelease) {
-        self.release = release
+    init(onClose: @escaping (Bool) -> Void) {
+        self.onClose = onClose
         super.init()
-        AppUpdateReleaseNotes.load(release: release) { [weak self] notes in
-            self?.notesState = notes.map { .loaded($0) } ?? .failed
-        }
-    }
-
-    var isVisible: Bool { window?.isVisible == true }
-    var isPreparing: Bool {
-        if case .preparing = state { return true }
-        return false
-    }
-
-    var actionTitle: String {
-        if case .failed = state { return StatsL10n.text("update.install.retry") }
-        return StatsL10n.text("update.install.action")
     }
 
     func show() {
         if window == nil {
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 500, height: 400),
+                contentRect: NSRect(x: 0, y: 0, width: 380, height: 110),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = StatsL10n.text("update.window.title")
+            window.isReleasedWhenClosed = false
+            window.delegate = self
+            let hosting = NSHostingController(rootView: UpdateCheckView(controller: self))
+            hosting.sizingOptions = []
+            window.contentViewController = hosting
+            window.setContentSize(NSSize(width: 380, height: 110))
+            window.center()
+            self.window = window
+        }
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func showResult(status: AppUpdateCheckStatus, currentVersion: String) {
+        guard isChecking else { return }
+        isChecking = false
+        switch status {
+        case .upToDate:
+            result = ResultMessage(
+                title: StatsL10n.text("update.check.current_title"),
+                detail: StatsL10n.format("update.check.current_detail", currentVersion)
+            )
+        case .unavailable:
+            result = ResultMessage(
+                title: StatsL10n.text("update.window.title"),
+                detail: StatsL10n.text("update.unavailable")
+            )
+        default:
+            result = ResultMessage(
+                title: StatsL10n.text("update.failed"),
+                detail: StatsL10n.text("update.check.failed_detail")
+            )
+        }
+        window?.styleMask.insert(.resizable)
+        window?.contentMinSize = NSSize(width: 380, height: 170)
+        window?.setContentSize(NSSize(width: 380, height: 170))
+    }
+
+    func finish() {
+        isChecking = false
+        close()
+    }
+
+    func close() {
+        window?.close()
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        let cancelled = isChecking
+        isChecking = false
+        window = nil
+        let callback = onClose
+        onClose = nil
+        callback?(cancelled)
+    }
+}
+
+final class UpdateInstallationController: NSObject, ObservableObject, NSWindowDelegate {
+    enum State {
+        case details
+        case preparing
+        case prepared
+        case failed(String)
+    }
+
+    enum NotesState {
+        case loading
+        case loaded([UpdateReleaseNoteLine])
+        case failed
+    }
+
+    let release: AppUpdateRelease
+    let currentVersion: String
+    @Published private(set) var state: State = .details
+    @Published private(set) var notesState: NotesState = .loading
+    @Published private(set) var progress: UpdatePreparationProgress = .preparing
+    private(set) var usesHomebrew = false
+    private var window: NSWindow?
+    private var preparationTask: UpdatePreparationTask?
+    private var preparedUpdate: PreparedAppUpdate?
+    private var operation = 0
+    private var isConfirming = false
+    private var isInstalling = false
+
+    init(release: AppUpdateRelease, currentVersion: String) {
+        self.release = release
+        self.currentVersion = currentVersion
+        super.init()
+        AppUpdateReleaseNotes.load(release: release) { [weak self] notes in
+            self?.notesState = notes.map { .loaded(UpdateReleaseNoteLine.parse($0)) } ?? .failed
+        }
+    }
+
+    var isVisible: Bool { window?.isVisible == true }
+
+    var actionTitle: String {
+        switch state {
+        case .prepared: return StatsL10n.text("update.install.relaunch")
+        case .failed: return StatsL10n.text("update.install.retry")
+        default: return StatsL10n.text("update.install.action")
+        }
+    }
+
+    func show() {
+        if window == nil {
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 500, height: 350),
                 styleMask: [.titled, .closable, .resizable],
                 backing: .buffered,
                 defer: false
             )
-            window.title = StatsL10n.format("update.alert.title", release.version)
+            window.title = StatsL10n.text("update.window.title")
             window.isReleasedWhenClosed = false
-            window.minSize = NSSize(width: 460, height: 320)
+            window.contentMinSize = NSSize(width: 500, height: 350)
             window.delegate = self
-            window.contentViewController = NSHostingController(rootView: UpdateInstallationView(controller: self))
+            let hosting = NSHostingController(rootView: UpdateInstallationView(controller: self))
+            hosting.sizingOptions = []
+            window.contentViewController = hosting
+            window.setContentSize(NSSize(width: 500, height: 350))
             window.center()
             self.window = window
         }
@@ -145,17 +255,38 @@ final class UpdateInstallationController: NSObject, ObservableObject, NSWindowDe
     }
 
     func windowWillClose(_ notification: Notification) {
-        if isPreparing { cancelled = true }
+        operation += 1
+        preparationTask?.cancel()
+        preparationTask = nil
+        preparedUpdate = nil
+        state = .details
         window = nil
     }
 
     func cancel() {
-        if isPreparing { cancelled = true }
         window?.close()
     }
 
+    private func transition(to state: State) {
+        self.state = state
+        let size: NSSize
+        switch state {
+        case .details: size = NSSize(width: 500, height: 350)
+        case .preparing: size = NSSize(width: 400, height: 146)
+        case .prepared: size = NSSize(width: 400, height: 210)
+        case .failed: size = NSSize(width: 500, height: 320)
+        }
+        window?.contentMinSize = size
+        window?.setContentSize(size)
+    }
+
     func install() {
-        guard !isPreparing, !isConfirming else { return }
+        guard !isConfirming, !isInstalling, preparationTask == nil, isVisible else { return }
+        if case .prepared = state {
+            installPreparedUpdate()
+            return
+        }
+        if case .preparing = state { return }
         isConfirming = true
         let alert = NSAlert()
         alert.alertStyle = .warning
@@ -166,97 +297,47 @@ final class UpdateInstallationController: NSObject, ObservableObject, NSWindowDe
         let confirmed = alert.runModal() == .alertFirstButtonReturn
         isConfirming = false
         guard confirmed, isVisible else { return }
-        cancelled = false
-        state = .preparing
-        AppUpdateInstaller().prepare(release: release) { [self] result in
-            guard !cancelled else {
-                state = .ready
-                return
-            }
+        operation += 1
+        let currentOperation = operation
+        usesHomebrew = false
+        progress = .preparing
+        transition(to: .preparing)
+        preparationTask = AppUpdateInstaller().prepare(release: release, progress: { [weak self] progress in
+            guard let self, self.operation == currentOperation, self.isVisible else { return }
+            if case .homebrew = progress { self.usesHomebrew = true }
+            self.progress = progress
+        }, completion: { [weak self] result in
+            guard let self, self.operation == currentOperation, self.isVisible else { return }
+            self.preparationTask = nil
             switch result {
             case let .failure(error):
-                state = .failed(error.localizedDescription)
+                self.transition(to: .failed(error.localizedDescription))
             case let .success(prepared):
-                guard NoteStore.shared.flushAll() else {
-                    state = .failed(StatsL10n.text("update.install.notes_unsaved"))
-                    return
-                }
-                do {
-                    try prepared.launchInstaller()
-                    NSApp.terminate(nil)
-                    prepared.cancelInstaller()
-                    state = .failed(StatsL10n.text("update.install.termination_cancelled"))
-                } catch {
-                    state = .failed(error.localizedDescription)
-                }
+                self.preparedUpdate = prepared
+                self.transition(to: .prepared)
             }
-        }
+        })
     }
-}
 
-private struct UpdateInstallationView: View {
-    @ObservedObject var controller: UpdateInstallationController
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(StatsL10n.format("update.alert.title", controller.release.version))
-                .font(.headline)
-            Text(StatsL10n.text("update.notes.title"))
-                .font(.subheadline.weight(.semibold))
-            ScrollView {
-                Group {
-                    switch controller.notesState {
-                    case .loading:
-                        Text(StatsL10n.text("update.notes.loading"))
-                            .foregroundStyle(.secondary)
-                    case let .loaded(notes):
-                        Text(verbatim: notes.isEmpty ? StatsL10n.text("update.notes.empty") : notes)
-                            .textSelection(.enabled)
-                    case .failed:
-                        Text(StatsL10n.text("update.notes.failed"))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .frame(minHeight: 90, maxHeight: .infinity)
-            .padding(8)
-            .background(Color.primary.opacity(0.025))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-            switch controller.state {
-            case .ready:
-                EmptyView()
-            case .preparing:
-                HStack {
-                    ProgressView().controlSize(.small)
-                    Text(StatsL10n.text("update.install.preparing"))
-                }
-            case let .failed(message):
-                ScrollView {
-                    Text(StatsL10n.format("update.install.failed", message))
-                        .foregroundStyle(.red)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(maxHeight: 120)
-            }
-            Spacer(minLength: 0)
-            HStack {
-                Button(StatsL10n.text("update.alert.download")) {
-                    NSWorkspace.shared.open(controller.release.downloadURL)
-                }
-                Spacer()
-                Button(StatsL10n.text(controller.isPreparing ? "update.install.cancel" : "update.alert.later")) {
-                    controller.cancel()
-                }
-                Button(controller.actionTitle) {
-                    controller.install()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(controller.isPreparing)
-            }
+    private func installPreparedUpdate() {
+        guard let prepared = preparedUpdate else { return }
+        guard NoteStore.shared.flushAll() else {
+            preparedUpdate = nil
+            transition(to: .failed(StatsL10n.text("update.install.notes_unsaved")))
+            return
         }
-        .padding(20)
-        .frame(minWidth: 460, minHeight: 320, alignment: .topLeading)
+        isInstalling = true
+        defer { isInstalling = false }
+        do {
+            try prepared.launchInstaller()
+            NSApp.terminate(nil)
+            prepared.cancelInstaller()
+            preparedUpdate = nil
+            transition(to: .failed(StatsL10n.text("update.install.termination_cancelled")))
+        } catch {
+            prepared.cancelInstaller()
+            preparedUpdate = nil
+            transition(to: .failed(error.localizedDescription))
+        }
     }
 }

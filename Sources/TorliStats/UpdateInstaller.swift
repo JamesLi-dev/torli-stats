@@ -71,12 +71,79 @@ private func signalUpdateOnNormalExit() {
     updateExitDescriptor = -1
 }
 
+enum UpdatePreparationProgress {
+    case preparing
+    case downloading(received: Int64, total: Int64?)
+    case verifying
+    case homebrew
+}
+
+final class UpdatePreparationTask {
+    // Callbacks may cancel their own task, so main-queue delivery is reentrant.
+    private let lock = NSRecursiveLock()
+    private var cancelled = false
+    private var request: URLSessionTask?
+    private let progress: (UpdatePreparationProgress) -> Void
+
+    init(progress: @escaping (UpdatePreparationProgress) -> Void = { _ in }) {
+        self.progress = progress
+    }
+
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        let active = request
+        lock.unlock()
+        active?.cancel()
+    }
+
+    fileprivate func checkCancellation() throws {
+        lock.lock()
+        defer { lock.unlock() }
+        if cancelled { throw URLError(.cancelled) }
+    }
+
+    func start(_ request: URLSessionTask) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        if cancelled { throw URLError(.cancelled) }
+        self.request = request
+        // Registration and resume must be atomic with respect to cancellation.
+        request.resume()
+    }
+
+    fileprivate func clear(_ request: URLSessionTask) {
+        lock.lock()
+        defer { lock.unlock() }
+        if self.request === request { self.request = nil }
+    }
+
+    func report(_ value: UpdatePreparationProgress) {
+        DispatchQueue.main.async {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            guard !self.cancelled else { return }
+            self.progress(value)
+        }
+    }
+
+    func complete<Value>(_ result: Result<Value, Error>, completion: @escaping (Result<Value, Error>) -> Void) {
+        DispatchQueue.main.async {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            completion(self.cancelled ? .failure(URLError(.cancelled)) : result)
+        }
+    }
+}
+
 final class PreparedAppUpdate {
     fileprivate let configuration: UpdateHelperConfiguration
+    private let preparation: UpdatePreparationTask
     private var transferred = false
 
-    fileprivate init(configuration: UpdateHelperConfiguration) {
+    fileprivate init(configuration: UpdateHelperConfiguration, preparation: UpdatePreparationTask) {
         self.configuration = configuration
+        self.preparation = preparation
     }
 
     deinit {
@@ -84,6 +151,7 @@ final class PreparedAppUpdate {
     }
 
     func launchInstaller() throws {
+        try preparation.checkCancellation()
         guard updateExitDescriptor == -1 else { throw updateError("An update is already waiting for the app to quit.") }
         let process = Process()
         guard let executable = Bundle.main.executableURL else { throw updateError("Cannot find the running app executable.") }
@@ -138,11 +206,15 @@ public final class AppUpdateInstaller {
         self.homebrewExecutable = homebrewExecutable
     }
 
-    func prepare(release: AppUpdateRelease, completion: @escaping (Result<PreparedAppUpdate, Error>) -> Void) {
+    @discardableResult
+    func prepare(release: AppUpdateRelease, progress: @escaping (UpdatePreparationProgress) -> Void, completion: @escaping (Result<PreparedAppUpdate, Error>) -> Void) -> UpdatePreparationTask {
+        let task = UpdatePreparationTask(progress: progress)
+        task.report(.preparing)
         DispatchQueue.global(qos: .userInitiated).async {
-            let result = Result { try Self.prepareUpdate(release, homebrewExecutable: self.homebrewExecutable) }
-            DispatchQueue.main.async { completion(result) }
+            let result = Result { try Self.prepareUpdate(release, homebrewExecutable: self.homebrewExecutable, task: task) }
+            task.complete(result, completion: completion)
         }
+        return task
     }
 
     public static func runHelperIfRequested() -> Bool {
@@ -152,7 +224,8 @@ public final class AppUpdateInstaller {
         return true
     }
 
-    private static func prepareUpdate(_ release: AppUpdateRelease, homebrewExecutable: URL?) throws -> PreparedAppUpdate {
+    private static func prepareUpdate(_ release: AppUpdateRelease, homebrewExecutable: URL?, task: UpdatePreparationTask) throws -> PreparedAppUpdate {
+        try task.checkCancellation()
         let target = try installedApp()
         let version = try validatedVersion(release)
         let installed = try bundleVersion(at: target)
@@ -161,51 +234,71 @@ public final class AppUpdateInstaller {
         }
         let fm = FileManager.default
         let directory = target.deletingLastPathComponent().appendingPathComponent(".TorliStats-update-\(UUID().uuidString)", isDirectory: true)
+        try task.checkCancellation()
         do {
             try fm.createDirectory(at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         } catch {
             throw updateError("Cannot create a private update directory in /Applications. Install the app in a writable /Applications folder or update it manually.")
         }
         do {
+            try task.checkCancellation()
             let brew: String?
             if let homebrewExecutable {
                 brew = homebrewExecutable.standardizedFileURL.path
+                task.report(.homebrew)
                 try validateHomebrewCask(brew!)
             } else {
                 if let detected = try homebrewForInstalledCask() {
                     brew = detected
+                    task.report(.homebrew)
                 } else {
-                    switch DispatchQueue.main.sync(execute: chooseInstallationSource) {
+                    switch try DispatchQueue.main.sync(execute: {
+                        try task.checkCancellation()
+                        return chooseInstallationSource()
+                    }) {
                     case .manual:
                         brew = nil
                     case let .homebrew(url):
                         brew = url.standardizedFileURL.path
+                        try task.checkCancellation()
+                        task.report(.homebrew)
                         try validateHomebrewCask(brew!)
                     case .cancel:
                         throw updateError("Update cancelled. Homebrew installations must be updated through their own brew executable.")
                     }
                 }
             }
+            try task.checkCancellation()
             if let brew {
-                try prepareHomebrew(brew, version: version)
+                try prepareHomebrew(brew, version: version, task: task)
+                try task.checkCancellation()
                 // Keep a private copy in case Homebrew removes the app before failing.
                 try runCommand("/usr/bin/ditto", [target.path, directory.appendingPathComponent("TorliStats.app").path])
             } else {
                 let archiveName = "TorliStats-\(version)-macos-arm64.zip"
                 let base = "https://github.com/JamesLi-dev/torli-stats/releases/download/v\(version)/"
-                let sums = try UpdateDownload.get(URL(string: base + "SHA256SUMS")!, limit: 256 * 1024)
-                let archive = try UpdateDownload.get(URL(string: base + archiveName)!, limit: 128 * 1024 * 1024)
+                let sums = try UpdateDownload.get(URL(string: base + "SHA256SUMS")!, limit: 256 * 1024, task: task)
+                let archive = try UpdateDownload.get(URL(string: base + archiveName)!, limit: 128 * 1024 * 1024, task: task, reportProgress: true)
+                try task.checkCancellation()
+                task.report(.verifying)
                 try verifyChecksum(sums: sums, archive: archive, name: archiveName)
+                try task.checkCancellation()
                 try validateArchive(archive)
+                try task.checkCancellation()
                 let zip = directory.appendingPathComponent("release.zip")
                 try archive.write(to: zip, options: .atomic)
+                try task.checkCancellation()
                 try runCommand("/usr/bin/ditto", ["-x", "-k", zip.path, directory.path])
                 try fm.removeItem(at: zip)
+                try task.checkCancellation()
                 try validateExtractedTree(directory.appendingPathComponent("TorliStats.app"))
+                try task.checkCancellation()
                 try validateBundle(directory.appendingPathComponent("TorliStats.app"), version: version)
+                try task.checkCancellation()
                 try quarantine(directory.appendingPathComponent("TorliStats.app"))
             }
-            return PreparedAppUpdate(configuration: UpdateHelperConfiguration(parent: getpid(), target: target.path, directory: directory.path, version: version, installedVersion: installed, brew: brew))
+            try task.checkCancellation()
+            return PreparedAppUpdate(configuration: UpdateHelperConfiguration(parent: getpid(), target: target.path, directory: directory.path, version: version, installedVersion: installed, brew: brew), preparation: task)
         } catch {
             try? fm.removeItem(at: directory)
             throw error
@@ -351,15 +444,18 @@ private func homebrewForInstalledCask() throws -> String? {
     return nil
 }
 
-private func prepareHomebrew(_ brew: String, version: String) throws {
+private func prepareHomebrew(_ brew: String, version: String, task: UpdatePreparationTask) throws {
     var environment = ProcessInfo.processInfo.environment
     environment["HOMEBREW_NO_AUTO_UPDATE"] = "1"
     environment["HOMEBREW_NO_INSTALL_CLEANUP"] = "1"
     environment["HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK"] = "1"
     environment["NONINTERACTIVE"] = "1"
+    try task.checkCancellation()
     do { try runCommand(brew, ["update"], environment: environment) }
     catch { throw updateError("Homebrew could not refresh its tap. Run brew update and brew upgrade --cask \(updateCask) in Terminal.") }
+    try task.checkCancellation()
     let data = try executeUpdateCommand(brew, ["info", "--cask", "--json=v2", updateCask], environment: environment, timeout: 60, capture: true)
+    try task.checkCancellation()
     let archiveName = "TorliStats-\(version)-macos-arm64.zip"
     let base = "https://github.com/JamesLi-dev/torli-stats/releases/download/v\(version)/"
     guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -370,7 +466,7 @@ private func prepareHomebrew(_ brew: String, version: String) throws {
           let installed = casks[0]["installed"] as? String, !installed.isEmpty else {
         throw updateError("The Homebrew tap has not published this version yet, or this Cask is not installed. Try again later or run brew update && brew upgrade --cask \(updateCask).")
     }
-    let sums = try UpdateDownload.get(URL(string: base + "SHA256SUMS")!, limit: 256 * 1024)
+    let sums = try UpdateDownload.get(URL(string: base + "SHA256SUMS")!, limit: 256 * 1024, task: task)
     guard try checksum(sums: sums, name: archiveName) == caskHash.lowercased() else {
         throw updateError("The Homebrew Cask checksum does not match the official release checksum. Update manually after the tap is corrected.")
     }
@@ -396,25 +492,52 @@ private func checksum(sums: Data, name: String) throws -> String {
     return matches[0].lowercased()
 }
 
-private final class UpdateDownload: NSObject, URLSessionDataDelegate {
+final class UpdateDownload: NSObject, URLSessionDataDelegate {
     private let limit: Int
+    private let preparation: UpdatePreparationTask
+    private let reportProgress: Bool
     private var data = Data()
+    private var expectedLength: Int64?
+    private var lastProgressTime: TimeInterval = 0
+    private var lastReportedBytes: Int64 = -1
+    private var lastReportedTotal: Int64?
     private var failure: Error?
     private let done = DispatchSemaphore(value: 0)
-    private var session: URLSession!
-    private init(limit: Int) { self.limit = limit }
 
-    static func get(_ url: URL, limit: Int) throws -> Data {
-        let delegate = UpdateDownload(limit: limit)
-        let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 300
-        delegate.session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
-        delegate.session.dataTask(with: url).resume()
+    private init(limit: Int, preparation: UpdatePreparationTask, reportProgress: Bool) {
+        self.limit = limit
+        self.preparation = preparation
+        self.reportProgress = reportProgress
+    }
+
+    static func get(_ url: URL, limit: Int, task: UpdatePreparationTask, reportProgress: Bool = false, configuration: URLSessionConfiguration = .ephemeral) throws -> Data {
+        try task.checkCancellation()
+        let delegate = UpdateDownload(limit: limit, preparation: task, reportProgress: reportProgress)
+        configuration.timeoutIntervalForRequest = 30
+        configuration.timeoutIntervalForResource = 300
+        let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
+        let request = session.dataTask(with: url)
+        defer {
+            task.clear(request)
+            session.invalidateAndCancel()
+        }
+        try task.start(request)
         delegate.done.wait()
-        delegate.session.finishTasksAndInvalidate()
+        try task.checkCancellation()
         if let failure = delegate.failure { throw failure }
         return delegate.data
+    }
+
+    private func reportDownloadProgress(force: Bool = false) {
+        guard reportProgress else { return }
+        let received = Int64(data.count)
+        let now = ProcessInfo.processInfo.systemUptime
+        guard force || now - lastProgressTime >= 0.1 else { return }
+        guard received != lastReportedBytes || expectedLength != lastReportedTotal else { return }
+        lastProgressTime = now
+        lastReportedBytes = received
+        lastReportedTotal = expectedLength
+        preparation.report(.downloading(received: received, total: expectedLength))
     }
 
     private func allowed(_ url: URL) -> Bool {
@@ -431,14 +554,24 @@ private final class UpdateDownload: NSObject, URLSessionDataDelegate {
             failure = updateError("The release download returned an invalid response or is too large.")
             completionHandler(.cancel); return
         }
+        let encoded = response.value(forHTTPHeaderField: "Content-Encoding")?.lowercased()
+        let expected = response.expectedContentLength
+        expectedLength = expected > 0 && (encoded == nil || encoded == "identity") ? expected : nil
+        reportDownloadProgress(force: true)
         completionHandler(.allow)
     }
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive chunk: Data) {
         guard chunk.count <= limit - data.count else { failure = updateError("The release download exceeds its size limit."); dataTask.cancel(); return }
         data.append(chunk)
+        if let expectedLength, Int64(data.count) > expectedLength { self.expectedLength = nil }
+        reportDownloadProgress()
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         if failure == nil, let error { failure = error }
+        if failure == nil {
+            if let expectedLength, expectedLength != Int64(data.count) { self.expectedLength = nil }
+            reportDownloadProgress(force: true)
+        }
         done.signal()
     }
 }

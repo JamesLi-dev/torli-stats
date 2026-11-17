@@ -450,8 +450,8 @@
 "update.install.confirm_cancel" = "Cancel";
 "update.install.action" = "Download and Install";
 "update.install.retry" = "Retry";
-"update.install.preparing" = "Downloading and preparing the update… Closing this window cancels installation, but the download will continue in the background and its files will be discarded.";
-"update.install.cancel" = "Close Window";
+"update.install.preparing" = "Preparing the update…";
+"update.install.cancel" = "Cancel";
 "update.notes.title" = "Release Notes";
 "update.notes.loading" = "Loading release notes…";
 "update.notes.empty" = "No release notes were provided.";
@@ -459,6 +459,23 @@
 "update.install.failed" = "Update could not be installed: %@\n\nResolve the issue and try again, or open GitHub Releases for manual installation.";
 "update.install.notes_unsaved" = "Some notes could not be saved. Resolve the note save error and retry; the app has not been replaced.";
 "update.install.termination_cancelled" = "The app did not quit, so the update was not installed. Resolve the reason termination was cancelled and retry.";
+"update.window.title" = "Software Update";
+"update.check.current_title" = "You're up to date";
+"update.check.current_detail" = "Torli Stats %@ is the latest version.";
+"update.check.failed_detail" = "Check your internet connection and try again.";
+"update.check.close" = "Close";
+"update.version.transition" = "Version %@ → %@";
+"update.install.downloading" = "Downloading the update…";
+"update.install.verifying" = "Verifying the update…";
+"update.install.homebrew" = "Preparing Homebrew…";
+"update.install.download_progress" = "%@ of %@ · %lld%%";
+"update.install.download_received" = "%@ received";
+"update.install.ready" = "Ready to install";
+"update.install.ready_detail" = "The update has been downloaded and verified. Install it now to quit and reopen Torli Stats.";
+"update.install.homebrew_ready" = "Ready to update with Homebrew";
+"update.install.homebrew_ready_detail" = "After Torli Stats quits, Homebrew will download and install the update, then reopen the app.";
+"update.install.relaunch" = "Install and Relaunch";
+"update.install.failed_title" = "Update not installed";
 
 "monitoring.pause_reason.night" = "Monitoring paused at night";
 "monitoring.pause_reason.system_sleep" = "System asleep; monitoring paused";

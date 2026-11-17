@@ -450,8 +450,8 @@
 "update.install.confirm_cancel" = "取消";
 "update.install.action" = "下载并安装";
 "update.install.retry" = "重试";
-"update.install.preparing" = "正在下载并准备更新…关闭窗口会取消安装，但下载仍会在后台继续，完成后下载的文件将被清理。";
-"update.install.cancel" = "关闭窗口";
+"update.install.preparing" = "正在准备更新…";
+"update.install.cancel" = "取消";
 "update.notes.title" = "更新说明";
 "update.notes.loading" = "正在加载更新说明…";
 "update.notes.empty" = "此版本未提供更新说明。";
@@ -459,6 +459,23 @@
 "update.install.failed" = "无法安装更新：%@\n\n请解决问题后重试，或打开 GitHub Releases 手动安装。";
 "update.install.notes_unsaved" = "部分便签无法保存。请解决便签保存问题后重试；应用尚未被替换。";
 "update.install.termination_cancelled" = "应用未能退出，因此未安装更新。请解决退出被取消的原因后重试。";
+"update.window.title" = "软件更新";
+"update.check.current_title" = "已是最新版本";
+"update.check.current_detail" = "Torli Stats %@ 已是最新版本。";
+"update.check.failed_detail" = "请检查网络连接后重试。";
+"update.check.close" = "关闭";
+"update.version.transition" = "版本 %@ → %@";
+"update.install.downloading" = "正在下载更新…";
+"update.install.verifying" = "正在校验更新…";
+"update.install.homebrew" = "正在准备 Homebrew…";
+"update.install.download_progress" = "%@ / %@ · %lld%%";
+"update.install.download_received" = "已接收 %@";
+"update.install.ready" = "可以安装了";
+"update.install.ready_detail" = "更新已下载并通过校验。点击安装后，Torli Stats 将退出并重新打开。";
+"update.install.homebrew_ready" = "Homebrew 已准备就绪";
+"update.install.homebrew_ready_detail" = "Torli Stats 退出后，Homebrew 将下载并安装更新，然后重新打开应用。";
+"update.install.relaunch" = "安装并重新启动";
+"update.install.failed_title" = "更新尚未安装";
 
 "monitoring.pause_reason.night" = "夜间暂停监控";
 "monitoring.pause_reason.system_sleep" = "系统睡眠，监控已暂停";

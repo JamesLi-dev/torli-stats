@@ -37,11 +37,15 @@ final class AppUpdateChecker: ObservableObject {
 
     @Published private(set) var status: AppUpdateCheckStatus = .idle
     private let defaults: UserDefaults
+    private let session: URLSession
+    private var generation: UInt64 = 0
     private var task: URLSessionDataTask?
     private var completions: [(AppUpdateRelease?) -> Void] = []
     var installationController: UpdateInstallationController?
+    var checkingController: UpdateCheckController?
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, session: URLSession = .shared) {
+        self.session = session
         self.defaults = defaults
         if !checksAvailable { status = .unavailable }
     }
@@ -62,6 +66,8 @@ final class AppUpdateChecker: ObservableObject {
         if let completion { completions.append(completion) }
         guard task == nil else { return }
         status = .checking
+        generation &+= 1
+        let requestGeneration = generation
 
         var request = URLRequest(url: Self.latestReleaseURL)
         request.timeoutInterval = 12
@@ -69,9 +75,9 @@ final class AppUpdateChecker: ObservableObject {
         request.setValue("TorliStats/\(currentVersion)", forHTTPHeaderField: "User-Agent")
         request.setValue("text/html", forHTTPHeaderField: "Accept")
 
-        task = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+        task = session.dataTask(with: request) { [weak self] data, response, error in
             DispatchQueue.main.async {
-                guard let self else { return }
+                guard let self, self.generation == requestGeneration else { return }
                 self.task = nil
 
                 guard error == nil,
@@ -98,6 +104,15 @@ final class AppUpdateChecker: ObservableObject {
         task?.resume()
     }
 
+    func cancelCheck() {
+        guard task != nil else { return }
+        generation &+= 1
+        task?.cancel()
+        task = nil
+        completions.removeAll()
+        status = .idle
+    }
+
     private func finishCheck(_ release: AppUpdateRelease?) {
         let callbacks = completions
         completions.removeAll()
@@ -108,7 +123,7 @@ final class AppUpdateChecker: ObservableObject {
         Bundle.main.object(forInfoDictionaryKey: "TorliUpdateChecksDisabled") as? Bool != true
     }
 
-    private var currentVersion: String {
+    var currentVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
     }
 

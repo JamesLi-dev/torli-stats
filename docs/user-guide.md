@@ -177,6 +177,8 @@ Codex 支持配置多个账号及各自的 Codex Home，查看额度、重置时
 
 在 **设置 > 系统** 选择“检查更新”。发现新版本后，窗口会尝试显示该版本的 GitHub Release 更新说明，并提供下载安装或打开 GitHub Releases 手动下载。应用会识别常见 Homebrew 安装；无法确定来源时，请选择实际安装方式，使用自定义 Homebrew 路径时需选择对应的 `brew` 可执行文件。更新前请保存工作；当前发布包使用 ad-hoc 签名，更新后可能需要重新授予输入监控和钥匙串权限，并重新安装传感器辅助进程。
 
+手动检查时会显示可取消的小窗口；没有更新或检查失败也会显示结果。详情窗口显示当前与目标版本，更新说明支持标题、列表与滚动查看。普通安装的下载进度来自实际收到的字节数；服务器未提供可信总大小时只显示已接收大小和不定进度，不推算百分比。校验通过后点击“安装并重新启动”才退出应用。Homebrew 准备阶段不显示虚假的下载百分比，实际下载和升级在退出后由 brew 执行。取消会停止网络下载并阻止安装；已启动的外部准备命令可能先执行结束，再清理临时文件。
+
 下载的 ZIP 会与同一 GitHub Release 的 SHA256 校验值比对。该校验可发现传输损坏，但不是独立的发行者身份认证；当前发布包尚未使用 Developer ID 公证。只有信任发布来源时才继续。
 
 应用内更新仅支持 `/Applications/TorliStats.app` 中的社区版，且 `/Applications` 须可写；开发版、改名或链接的应用需手动更新。更新前会保存便签，退出后再替换并重启；若新进程未能启动，更新器会尝试恢复旧版。若 Homebrew 更新或回滚失败，按提示检查保留的备份并修复 Homebrew 记录。进程启动检查不保证应用所有功能均已完成初始化；更新说明加载受 GitHub API 访问和限额影响，失败时可打开 Release 页面。
@@ -413,6 +415,8 @@ Community shows today's typing and WakaTime statistics. Historical analysis and 
 #### In-app updates
 
 In **Settings > System**, choose **Check for Updates**. When a new version is available, the update window attempts to show its GitHub Release notes and offers download and installation or a link to GitHub Releases. The app recognizes common Homebrew installations; if the source is uncertain, select the actual installation method and, for a custom Homebrew path, its `brew` executable. Save your work first. Current releases are ad-hoc signed; after updating, you may need to grant Input Monitoring and Keychain access again and reinstall the sensor helper.
+
+Manual checks show a compact, cancellable window, including explicit up-to-date or failure results. Details show the current and target versions and scrollable headings and lists. For manual installations, download progress uses received bytes; when a reliable total is unavailable, only received size and indeterminate progress are shown. After verification, choose **Install and Relaunch** to exit and install. Homebrew preparation does not invent a download percentage: brew downloads and upgrades after the app exits. Cancellation stops network downloads and prevents installation; an external preparation command already running may finish before temporary files are cleaned up.
 
 The downloaded ZIP is checked against the SHA256 value from the same GitHub Release. This detects transfer corruption but is not independent publisher authentication; current releases are not Developer ID notarized. Continue only if you trust the release source.
 
