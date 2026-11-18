@@ -4,6 +4,8 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
+## [1.14.3] - 2026-11-18
+
 ### English
 
 - Read compressed Codex session history (`.jsonl.zst`) when calculating Token activity, retaining incremental caching and deduplicating archived copies.
