@@ -2,6 +2,18 @@
 
 All notable changes to Torli Stats are documented here.
 
+## [1.14.2] - 2026-11-18
+
+### English
+
+- The shared update windows now support an optional authenticated release source. Community installations continue to check GitHub Releases and use their existing direct-download or Homebrew update flow.
+- The installer checks that the downloaded app matches the installed edition before replacing it.
+
+### 中文
+
+- 共享更新窗口支持接入需要凭据的发行源。社区版继续从 GitHub Releases 检查更新，按原安装方式直接下载或通过 Homebrew 更新。
+- 安装器在替换应用前校验发行包与当前安装的版本类型，防止两版相互覆盖。
+
 ## [1.14.1] - 2026-11-17
 
 ### English
