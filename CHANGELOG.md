@@ -2,6 +2,20 @@
 
 All notable changes to Torli Stats are documented here.
 
+## [Unreleased]
+
+### English
+
+- Read compressed Codex session history (`.jsonl.zst`) when calculating Token activity, retaining incremental caching and deduplicating archived copies.
+- Bundle the Zstandard decoder with the application and preserve the previous statistics when a history file is damaged or changes during reading.
+- Share local Codex Token activity with statistics extensions and allow explicit refreshes without enabling dashboard polling.
+
+### 中文
+
+- Token 活动支持读取 Codex 的压缩会话历史（`.jsonl.zst`），保留增量缓存和归档副本去重。
+- 应用内置 Zstandard 解码器；历史文件损坏或读取过程中发生变化时，保留已有统计并在后续刷新重试。
+- 统计扩展可复用本地 Codex Token 记录，并在不启用仪表盘后台轮询的情况下手动刷新。
+
 ## [1.14.2] - 2026-11-18
 
 ### English

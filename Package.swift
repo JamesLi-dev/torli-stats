@@ -13,6 +13,7 @@ let package = Package(
         .executable(name: "TorliStatsHelper", targets: ["TorliStatsHelper"])
     ],
     targets: [
+        .target(name: "CZstd"),
         .executableTarget(name: "TorliStatsCommunity", dependencies: ["TorliStats"]),
         .testTarget(
             name: "TorliStatsTests",
@@ -24,7 +25,7 @@ let package = Package(
         ),
         .target(
             name: "TorliStats",
-            dependencies: ["TorliStatsShared"],
+            dependencies: ["TorliStatsShared", "CZstd"],
             path: "Sources/TorliStats",
             resources: [
                 .process("NotesResources"),
