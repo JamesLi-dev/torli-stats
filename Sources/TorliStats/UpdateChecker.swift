@@ -10,6 +10,7 @@ struct AppUpdateRelease: Equatable {
 enum AppUpdateCheckStatus: Equatable {
     case idle
     case unavailable
+    case credentialRequired
     case checking
     case upToDate(Date)
     case available(AppUpdateRelease)
@@ -17,6 +18,7 @@ enum AppUpdateCheckStatus: Equatable {
 
     var description: String {
         switch self {
+        case .credentialRequired: return StatsL10n.text("update.credential_required")
         case .unavailable: return StatsL10n.text("update.unavailable")
         case .idle: return StatsL10n.text("update.idle")
         case .checking: return StatsL10n.text("update.checking")
@@ -33,7 +35,7 @@ final class AppUpdateChecker: ObservableObject {
     // API quota, so it remains reliable for users behind shared networks.
     private static let latestReleaseURL = URL(string: "https://github.com/JamesLi-dev/torli-stats/releases/latest")!
     private static let checkInterval: TimeInterval = 24 * 60 * 60
-    private static let lastCheckKey = "appUpdateLastCheckDate"
+    private var lastCheckKey: String { PrivateUpdateChannel.current.map { "appUpdateLastCheckDate." + $0.product } ?? "appUpdateLastCheckDate" }
 
     @Published private(set) var status: AppUpdateCheckStatus = .idle
     private let defaults: UserDefaults
@@ -52,7 +54,7 @@ final class AppUpdateChecker: ObservableObject {
 
     func checkIfNeeded(isEnabled: Bool, completion: ((AppUpdateRelease?) -> Void)? = nil) {
         guard isEnabled, checksAvailable else { return }
-        let lastCheck = defaults.object(forKey: Self.lastCheckKey) as? Date
+        let lastCheck = defaults.object(forKey: self.lastCheckKey) as? Date
         guard lastCheck.map({ Date().timeIntervalSince($0) >= Self.checkInterval }) ?? true else { return }
         check(completion: completion)
     }
@@ -69,7 +71,13 @@ final class AppUpdateChecker: ObservableObject {
         generation &+= 1
         let requestGeneration = generation
 
-        var request = URLRequest(url: Self.latestReleaseURL)
+        let channel = PrivateUpdateChannel.current
+        var request = URLRequest(url: channel?.latest ?? Self.latestReleaseURL)
+        do { try channel?.authorize(&request) } catch {
+            status = .credentialRequired
+            finishCheck(nil)
+            return
+        }
         request.timeoutInterval = 12
         request.httpMethod = "HEAD"
         request.setValue("TorliStats/\(currentVersion)", forHTTPHeaderField: "User-Agent")
@@ -80,10 +88,15 @@ final class AppUpdateChecker: ObservableObject {
                 guard let self, self.generation == requestGeneration else { return }
                 self.task = nil
 
+                if channel != nil, let http = response as? HTTPURLResponse, [401, 403].contains(http.statusCode) {
+                    self.status = .credentialRequired
+                    self.finishCheck(nil)
+                    return
+                }
                 guard error == nil,
                       let httpResponse = response as? HTTPURLResponse,
                       (200..<300).contains(httpResponse.statusCode),
-                      let release = Self.parseReleaseRedirect(response),
+                      let release = (channel == nil ? Self.parseReleaseRedirect(response) : channel?.release(from: httpResponse)),
                       let remoteVersion = Version(release.version),
                       let installedVersion = Version(self.currentVersion) else {
                     self.status = .failed
@@ -91,7 +104,7 @@ final class AppUpdateChecker: ObservableObject {
                     return
                 }
 
-                self.defaults.set(Date(), forKey: Self.lastCheckKey)
+                self.defaults.set(Date(), forKey: self.lastCheckKey)
                 if remoteVersion > installedVersion {
                     self.status = .available(release)
                     self.finishCheck(release)
@@ -101,6 +114,7 @@ final class AppUpdateChecker: ObservableObject {
                 }
             }
         }
+        if channel != nil { task?.delegate = RefuseUpdateRedirect.shared }
         task?.resume()
     }
 
@@ -120,7 +134,7 @@ final class AppUpdateChecker: ObservableObject {
     }
 
     var checksAvailable: Bool {
-        Bundle.main.object(forInfoDictionaryKey: "TorliUpdateChecksDisabled") as? Bool != true
+        PrivateUpdateChannel.current != nil || Bundle.main.object(forInfoDictionaryKey: "TorliUpdateChecksDisabled") as? Bool != true
     }
 
     var currentVersion: String {
@@ -171,6 +185,9 @@ enum AppUpdateReleaseNotes {
     private static let tagPattern = #"\A[vV]?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-((?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z"#
 
     static func requestURL(for release: AppUpdateRelease) -> URL? {
+        if let channel = PrivateUpdateChannel.current {
+            return (try? validatedVersion(release)) != nil ? channel.releaseURL(release.version) : nil
+        }
         guard let components = URLComponents(url: release.downloadURL, resolvingAgainstBaseURL: false),
               components.scheme == "https", components.host == "github.com",
               components.user == nil, components.password == nil, components.port == nil,
@@ -202,9 +219,10 @@ enum AppUpdateReleaseNotes {
             completion(nil)
             return
         }
+        var request = URLRequest(url: url)
+        do { try PrivateUpdateChannel.current?.authorize(&request) } catch { completion(nil); return }
         let delegate = ReleaseNotesRequest(url: url, tag: release.downloadURL.lastPathComponent, completion: completion)
         let session = URLSession(configuration: .ephemeral, delegate: delegate, delegateQueue: nil)
-        var request = URLRequest(url: url)
         request.timeoutInterval = 12
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("TorliStats", forHTTPHeaderField: "User-Agent")

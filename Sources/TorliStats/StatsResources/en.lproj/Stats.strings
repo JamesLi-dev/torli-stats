@@ -650,3 +650,5 @@
 "settings.backup.notes_unsaved" = "Could not save open notes. Settings were not restored; resolve the note save error and try again.";
 "settings.backup.login_failed" = "Launch at Login Could Not Be Read or Restored";
 "settings.backup.login_failed_help" = "The login item is unavailable, requires approval, or macOS rejected the change. Check Login Items in System Settings and try again. Preferences were not replaced.";
+
+"update.credential_required" = "Enter a valid update credential in System settings to check for updates.";

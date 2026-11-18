@@ -293,7 +293,7 @@ struct UpdateInstallationView: View {
 
     private func actions(showReleaseLink: Bool) -> some View {
         HStack(spacing: 10) {
-            if showReleaseLink {
+            if showReleaseLink && PrivateUpdateChannel.current == nil {
                 Link(StatsL10n.text("update.alert.download"), destination: controller.release.downloadURL)
             }
             Spacer(minLength: 0)
