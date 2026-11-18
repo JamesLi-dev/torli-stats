@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import SwiftUI
 import XCTest
 @testable import TorliStats
 
@@ -63,6 +64,47 @@ final class UpdateInstallerTests: XCTestCase {
         XCTAssertThrowsError(try validateArchive(zip([Entry("TorliStats.app/big", expanded: 300 * 1024 * 1024)])))
         XCTAssertThrowsError(try validateArchive(zip([Entry("/TorliStats.app/evil")])))
         XCTAssertThrowsError(try validateArchive(zip([Entry("TorliStats.app/Contents\\evil")])))
+    }
+
+    func testPrivateEditionRejectsCommunityBundlesAndArchivesInBothDirections() throws {
+        let privateChannel = PrivateUpdateChannel(origin: URL(string: "https://updates.example.test")!,
+                                                 product: "TorliStatsPro", credential: { "tester" },
+                                                 credentialSettings: { AnyView(EmptyView()) })
+        let proArchive = zip([Entry("TorliStatsPro.app/Contents/Info.plist")])
+        let communityArchive = zip([Entry("TorliStats.app/Contents/Info.plist")])
+        XCTAssertNoThrow(try validateArchive(proArchive, expectedRoot: "TorliStatsPro.app"))
+        XCTAssertThrowsError(try validateArchive(proArchive))
+        XCTAssertThrowsError(try validateArchive(communityArchive, expectedRoot: "TorliStatsPro.app"))
+        let contents = directory.appendingPathComponent("Contents")
+        try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: false)
+        for executable in ["TorliStats", "TorliStatsPro"] {
+            let info = ["CFBundleIdentifier": "local.torli.stats", "CFBundleExecutable": executable,
+                        "CFBundleShortVersionString": "2.0.0"]
+            try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+                .write(to: contents.appendingPathComponent("Info.plist"))
+            XCTAssertEqual(try? bundleVersion(at: directory, channel: nil), executable == "TorliStats" ? "2.0.0" : nil)
+            XCTAssertEqual(try? bundleVersion(at: directory, channel: privateChannel), executable == "TorliStatsPro" ? "2.0.0" : nil)
+        }
+    }
+
+    func testPrivateChannelChecksOriginAndReleaseVersionBeforeUsingCredentials() throws {
+        let channel = PrivateUpdateChannel(origin: URL(string: "https://updates.example.test")!,
+                                           product: "TorliStatsPro", credential: { "tester" },
+                                           credentialSettings: { AnyView(EmptyView()) })
+        var request = URLRequest(url: channel.latest)
+        try channel.authorize(&request)
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer tester")
+        for address in ["https://other.example.test/v1/pro/latest", "https://updates.example.test:8080/v1/pro/latest",
+                        "http://updates.example.test/v1/pro/latest", "https://updates.example.test/private"] {
+            var other = URLRequest(url: URL(string: address)!)
+            XCTAssertThrowsError(try channel.authorize(&other))
+            XCTAssertNil(other.value(forHTTPHeaderField: "Authorization"))
+        }
+        for version in ["1.2.3", "01.0.1", "2.0", "../release"] {
+            let response = HTTPURLResponse(url: channel.latest, statusCode: 200, httpVersion: nil,
+                                           headerFields: ["X-Torli-Version": version])!
+            XCTAssertEqual(channel.release(from: response)?.version, version == "1.2.3" ? version : nil)
+        }
     }
 
     func testZipRejectsMismatchedLocalNameAndTruncation() throws {

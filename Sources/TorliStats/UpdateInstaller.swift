@@ -28,8 +28,8 @@ private func updateError(_ message: String) -> Error {
     switch message {
     case "The selected release is not newer than the installed app.": chinese = "所选版本不比当前安装版本新。"
     case "The release does not have a trusted GitHub semantic-version tag.": chinese = "发行版本不是来自指定 GitHub 仓库的有效版本标签。"
-    case "This is not a valid Community app; Pro and unrecognized bundles cannot be replaced.": chinese = "这不是有效的社区版应用；不能替换 Pro 或无法识别的应用。"
-    case "Only the installed Community app at /Applications/TorliStats.app can be updated. Development, temporary, renamed and symlinked copies must be updated manually.": chinese = "只能更新安装在 /Applications/TorliStats.app 的社区版。开发、临时、改名或符号链接副本请手动更新。"
+    case "The app does not match the installed edition.": chinese = "此应用与当前安装的版本类型不符。"
+    case "Only a recognized installation in /Applications can be updated. Development, temporary, renamed and symlinked copies must be updated manually.": chinese = "只能更新安装在 /Applications 中且名称匹配的应用。开发、临时、改名或符号链接副本请手动更新。"
     case "The /Applications folder is not writable. Update the app manually with an authorized account.": chinese = "/Applications 文件夹不可写，请使用有权限的账户手动更新。"
     case "Cannot create a private update directory in /Applications. Install the app in a writable /Applications folder or update it manually.": chinese = "无法在 /Applications 创建私有更新目录。请使用有写入权限的账户或手动更新。"
     case "Update cancelled. Homebrew installations must be updated through their own brew executable.": chinese = "已取消更新。通过 Homebrew 安装的应用必须使用对应的 brew 更新。"
@@ -39,7 +39,7 @@ private func updateError(_ message: String) -> Error {
     case "The release ZIP has an unsafe or unsupported structure.": chinese = "发行 ZIP 的结构不安全或不受支持，已停止更新。"
     case "The release download redirected to an untrusted location.": chinese = "下载被重定向到不受信任的位置，已停止更新。"
     case "The release download returned an invalid response or is too large.", "The release download exceeds its size limit.": chinese = "下载响应无效或文件超过大小限制。"
-    case "The downloaded Community app has the wrong version or executable.", "The release does not contain the expected arm64 Community executable.": chinese = "下载的社区版应用版本或 arm64 可执行文件不正确。"
+    case "The downloaded app has the wrong version or executable.", "The release does not contain the expected arm64 executable.": chinese = "下载的应用版本或 arm64 可执行文件不正确。"
     case "The downloaded app failed its code-signature integrity check. Ad-hoc signatures do not authenticate its publisher.": chinese = "下载的应用未通过代码签名完整性检查。临时签名不能认证发布者身份。"
     case "Could not preserve the macOS quarantine for the downloaded app; install it manually.": chinese = "无法保留 macOS 隔离标记，请手动安装。"
     case "The selected Homebrew executable is unavailable.": chinese = "所选 Homebrew 可执行文件不可用。"
@@ -57,6 +57,14 @@ private func updateError(_ message: String) -> Error {
         }
     }
     return UpdateFailure.message(chinese)
+}
+
+private var updateProduct: String { PrivateUpdateChannel.current?.product ?? "TorliStats" }
+private var archiveRoot: String { updateProduct + ".app" }
+private var executablePath: String { "Contents/MacOS/" + updateProduct }
+
+private func supportedInstallPath(_ path: String) -> Bool {
+    path == "/Applications/TorliStats.app" || (PrivateUpdateChannel.current != nil && path == "/Applications/" + archiveRoot)
 }
 
 private let updateHelperArgument = "--torli-private-update-helper"
@@ -243,7 +251,9 @@ public final class AppUpdateInstaller {
         do {
             try task.checkCancellation()
             let brew: String?
-            if let homebrewExecutable {
+            if PrivateUpdateChannel.current != nil {
+                brew = nil
+            } else if let homebrewExecutable {
                 brew = homebrewExecutable.standardizedFileURL.path
                 task.report(.homebrew)
                 try validateHomebrewCask(brew!)
@@ -273,12 +283,12 @@ public final class AppUpdateInstaller {
                 try prepareHomebrew(brew, version: version, task: task)
                 try task.checkCancellation()
                 // Keep a private copy in case Homebrew removes the app before failing.
-                try runCommand("/usr/bin/ditto", [target.path, directory.appendingPathComponent("TorliStats.app").path])
+                try runCommand("/usr/bin/ditto", [target.path, directory.appendingPathComponent(archiveRoot).path])
             } else {
-                let archiveName = "TorliStats-\(version)-macos-arm64.zip"
-                let base = "https://github.com/JamesLi-dev/torli-stats/releases/download/v\(version)/"
-                let sums = try UpdateDownload.get(URL(string: base + "SHA256SUMS")!, limit: 256 * 1024, task: task)
-                let archive = try UpdateDownload.get(URL(string: base + archiveName)!, limit: 128 * 1024 * 1024, task: task, reportProgress: true)
+                let archiveName = "\(updateProduct)-\(version)-macos-arm64.zip"
+                let base = PrivateUpdateChannel.current?.releaseURL(version) ?? URL(string: "https://github.com/JamesLi-dev/torli-stats/releases/download/v\(version)/")!
+                let sums = try UpdateDownload.get(base.appendingPathComponent("SHA256SUMS"), limit: 256 * 1024, task: task)
+                let archive = try UpdateDownload.get(base.appendingPathComponent(archiveName), limit: 128 * 1024 * 1024, task: task, reportProgress: true)
                 try task.checkCancellation()
                 task.report(.verifying)
                 try verifyChecksum(sums: sums, archive: archive, name: archiveName)
@@ -291,11 +301,11 @@ public final class AppUpdateInstaller {
                 try runCommand("/usr/bin/ditto", ["-x", "-k", zip.path, directory.path])
                 try fm.removeItem(at: zip)
                 try task.checkCancellation()
-                try validateExtractedTree(directory.appendingPathComponent("TorliStats.app"))
+                try validateExtractedTree(directory.appendingPathComponent(archiveRoot))
                 try task.checkCancellation()
-                try validateBundle(directory.appendingPathComponent("TorliStats.app"), version: version)
+                try validateBundle(directory.appendingPathComponent(archiveRoot), version: version)
                 try task.checkCancellation()
-                try quarantine(directory.appendingPathComponent("TorliStats.app"))
+                try quarantine(directory.appendingPathComponent(archiveRoot))
             }
             try task.checkCancellation()
             return PreparedAppUpdate(configuration: UpdateHelperConfiguration(parent: getpid(), target: target.path, directory: directory.path, version: version, installedVersion: installed, brew: brew), preparation: task)
@@ -309,8 +319,12 @@ public final class AppUpdateInstaller {
 func validatedVersion(_ release: AppUpdateRelease) throws -> String {
     let value = release.version
     let parts = value.split(separator: ".", omittingEmptySubsequences: false)
-    guard parts.count == 3, parts.allSatisfy({ !$0.isEmpty && $0.count <= 9 && $0.allSatisfy(\.isNumber) && ($0.count == 1 || $0.first != "0") && $0.utf8.allSatisfy({ $0 >= 48 && $0 <= 57 }) }),
-          let url = URLComponents(url: release.downloadURL, resolvingAgainstBaseURL: false), url.scheme == "https", url.host == "github.com", url.port == nil, url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
+    guard parts.count == 3, parts.allSatisfy({ !$0.isEmpty && $0.count <= 9 && $0.allSatisfy(\.isNumber) && ($0.count == 1 || $0.first != "0") && $0.utf8.allSatisfy({ $0 >= 48 && $0 <= 57 }) }) else { throw updateError("Invalid release version.") }
+    if let channel = PrivateUpdateChannel.current {
+        guard release.downloadURL == channel.releaseURL(value) else { throw updateError("Invalid private release URL.") }
+        return value
+    }
+    guard let url = URLComponents(url: release.downloadURL, resolvingAgainstBaseURL: false), url.scheme == "https", url.host == "github.com", url.port == nil, url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
           url.percentEncodedPath == "/JamesLi-dev/torli-stats/releases/tag/v\(value)" else {
         throw updateError("The release does not have a trusted GitHub semantic-version tag.")
     }
@@ -325,25 +339,25 @@ private func compareVersions(_ lhs: String, _ rhs: String) -> ComparisonResult {
     return .orderedSame
 }
 
-private func bundleVersion(at url: URL) throws -> String {
+func bundleVersion(at url: URL, channel: PrivateUpdateChannel? = PrivateUpdateChannel.current) throws -> String {
     let data = try Data(contentsOf: url.appendingPathComponent("Contents/Info.plist"))
     guard let info = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
           info["CFBundleIdentifier"] as? String == "local.torli.stats",
-          info["CFBundleExecutable"] as? String == "TorliStats",
-          info["TorliUpdateChecksDisabled"] as? Bool != true,
+          info["CFBundleExecutable"] as? String == (channel?.product ?? "TorliStats"),
+          channel != nil || info["TorliUpdateChecksDisabled"] as? Bool != true,
           let version = info["CFBundleShortVersionString"] as? String,
           version.split(separator: ".").count == 3,
           version.split(separator: ".").allSatisfy({ !$0.isEmpty && $0.utf8.allSatisfy { $0 >= 48 && $0 <= 57 } }) else {
-        throw updateError("This is not a valid Community app; Pro and unrecognized bundles cannot be replaced.")
+        throw updateError("The app does not match the installed edition.")
     }
     return version
 }
 
 private func installedApp() throws -> URL {
     let target = Bundle.main.bundleURL.standardizedFileURL
-    guard target.path == "/Applications/TorliStats.app", target.resolvingSymlinksInPath().path == target.path,
-          Bundle.main.executableURL?.standardizedFileURL.path == target.appendingPathComponent("Contents/MacOS/TorliStats").path else {
-        throw updateError("Only the installed Community app at /Applications/TorliStats.app can be updated. Development, temporary, renamed and symlinked copies must be updated manually.")
+    guard supportedInstallPath(target.path), target.resolvingSymlinksInPath().path == target.path,
+          Bundle.main.executableURL?.standardizedFileURL.path == target.appendingPathComponent(executablePath).path else {
+        throw updateError("Only a recognized installation in /Applications can be updated. Development, temporary, renamed and symlinked copies must be updated manually.")
     }
     _ = try bundleVersion(at: target)
     guard FileManager.default.isWritableFile(atPath: "/Applications") else {
@@ -354,13 +368,13 @@ private func installedApp() throws -> URL {
 
 private func validateBundle(_ url: URL, version: String) throws {
     guard try bundleVersion(at: url) == version,
-          FileManager.default.isExecutableFile(atPath: url.appendingPathComponent("Contents/MacOS/TorliStats").path) else {
-        throw updateError("The downloaded Community app has the wrong version or executable.")
+          FileManager.default.isExecutableFile(atPath: url.appendingPathComponent(executablePath).path) else {
+        throw updateError("The downloaded app has the wrong version or executable.")
     }
-    let executable = try FileHandle(forReadingFrom: url.appendingPathComponent("Contents/MacOS/TorliStats"))
+    let executable = try FileHandle(forReadingFrom: url.appendingPathComponent(executablePath))
     defer { try? executable.close() }
     guard try executable.read(upToCount: 8) == Data([0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0x00, 0x00, 0x01]) else {
-        throw updateError("The release does not contain the expected arm64 Community executable.")
+        throw updateError("The release does not contain the expected arm64 executable.")
     }
     do { try runCommand("/usr/bin/codesign", ["--verify", "--deep", "--strict", url.path]) }
     catch { throw updateError("The downloaded app failed its code-signature integrity check. Ad-hoc signatures do not authenticate its publisher.") }
@@ -515,8 +529,10 @@ final class UpdateDownload: NSObject, URLSessionDataDelegate {
         let delegate = UpdateDownload(limit: limit, preparation: task, reportProgress: reportProgress)
         configuration.timeoutIntervalForRequest = 30
         configuration.timeoutIntervalForResource = 300
+        var urlRequest = URLRequest(url: url)
+        try PrivateUpdateChannel.current?.authorize(&urlRequest)
         let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
-        let request = session.dataTask(with: url)
+        let request = session.dataTask(with: urlRequest)
         defer {
             task.clear(request)
             session.invalidateAndCancel()
@@ -541,15 +557,23 @@ final class UpdateDownload: NSObject, URLSessionDataDelegate {
     }
 
     private func allowed(_ url: URL) -> Bool {
-        guard let c = URLComponents(url: url, resolvingAgainstBaseURL: false), c.scheme == "https", c.port == nil || c.port == 443, c.user == nil, c.password == nil else { return false }
+        guard let c = URLComponents(url: url, resolvingAgainstBaseURL: false), c.scheme == "https", c.user == nil, c.password == nil else { return false }
+        if let channel = PrivateUpdateChannel.current {
+            return c.host == channel.origin.host && c.port == channel.origin.port && c.path.hasPrefix("/v1/pro/releases/")
+        }
+        guard c.port == nil || c.port == 443 else { return false }
         if c.host == "github.com" { return c.path.hasPrefix("/JamesLi-dev/torli-stats/releases/download/") }
         return c.host == "release-assets.githubusercontent.com" || c.host == "objects.githubusercontent.com"
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
-        guard let url = request.url, allowed(url) else { failure = updateError("The release download redirected to an untrusted location."); completionHandler(nil); return }
+        guard PrivateUpdateChannel.current == nil, let url = request.url, allowed(url) else { failure = updateError("The release download redirected to an untrusted location."); completionHandler(nil); return }
         completionHandler(request)
     }
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        if PrivateUpdateChannel.current != nil, let http = response as? HTTPURLResponse, [401, 403].contains(http.statusCode) {
+            failure = UpdateFailure.message(StatsL10n.text("update.credential_required"))
+            completionHandler(.cancel); return
+        }
         guard let response = response as? HTTPURLResponse, response.statusCode == 200, let url = response.url, allowed(url), response.expectedContentLength <= Int64(limit) else {
             failure = updateError("The release download returned an invalid response or is too large.")
             completionHandler(.cancel); return
@@ -578,7 +602,7 @@ final class UpdateDownload: NSObject, URLSessionDataDelegate {
 
 // Inspect central and local ZIP records before asking ditto to extract anything.
 // ZIP64, encrypted entries, links, duplicate paths and special files are rejected.
-func validateArchive(_ data: Data) throws {
+func validateArchive(_ data: Data, expectedRoot: String = archiveRoot) throws {
     func bad() -> Error { updateError("The release ZIP has an unsafe or unsupported structure.") }
     func u16(_ offset: Int) throws -> Int {
         guard offset >= 0, offset <= data.count - 2 else { throw bad() }
@@ -642,10 +666,10 @@ func validateArchive(_ data: Data) throws {
         total += expanded
         let directory = name.hasSuffix("/")
         let components = name.split(separator: "/", omittingEmptySubsequences: false)
-        guard components.first == "TorliStats.app" || (components.first == "__MACOSX" && components.count > 1 && components[1] == "TorliStats.app"),
+        guard components.first == Substring(expectedRoot) || (components.first == "__MACOSX" && components.count > 1 && components[1] == Substring(expectedRoot)),
               !components.dropLast(directory ? 1 : 0).contains(where: { $0.isEmpty || $0 == "." || $0 == ".." }),
               paths.insert(name.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased().precomposedStringWithCanonicalMapping).inserted else { throw bad() }
-        if components.first == "TorliStats.app" { hasApp = true }
+        if components.first == Substring(expectedRoot) { hasApp = true }
         guard (!directory || expanded == 0), method != 0 || compressed == expanded else { throw bad() }
         if madeBy >> 8 == 3 {
             let type = (attributes >> 16) & 0o170000
@@ -730,8 +754,8 @@ private func runHelper() throws {
     let config = try JSONDecoder().decode(UpdateHelperConfiguration.self, from: line)
     let target = URL(fileURLWithPath: config.target).standardizedFileURL
     let directory = URL(fileURLWithPath: config.directory).standardizedFileURL
-    let candidate = directory.appendingPathComponent("TorliStats.app")
-    guard config.parent == getppid(), target.path == "/Applications/TorliStats.app",
+    let candidate = directory.appendingPathComponent(archiveRoot)
+    guard (PrivateUpdateChannel.current == nil || config.brew == nil), config.parent == getppid(), supportedInstallPath(target.path),
           Bundle.main.bundleURL.standardizedFileURL.path == target.path,
           target.resolvingSymlinksInPath().path == target.path,
           directory.deletingLastPathComponent().path == "/Applications",
@@ -743,7 +767,7 @@ private func runHelper() throws {
           info.st_uid == getuid(), (info.st_mode & 0o777) == 0o700 else { throw updateError("The update staging directory is not private.") }
     var parentPath = [CChar](repeating: 0, count: 4096)
     guard updateProcPath(config.parent, &parentPath, UInt32(parentPath.count)) > 0,
-          String(cString: parentPath) == target.appendingPathComponent("Contents/MacOS/TorliStats").path,
+          String(cString: parentPath) == target.appendingPathComponent(executablePath).path,
           try bundleVersion(at: target) == config.installedVersion else { throw updateError("The installed app changed while preparing the update.") }
     if config.brew == nil { try validateBundle(candidate, version: config.version) }
     var preserveDirectory = false
@@ -766,7 +790,7 @@ private func runHelper() throws {
         if let brew = config.brew {
             try performHomebrewUpdate(brew, target: target, backup: candidate, version: config.version, installedVersion: config.installedVersion)
         } else {
-            guard try homebrewForInstalledCask() == nil else { throw updateError("Homebrew now manages this app; update it with brew upgrade --cask \(updateCask).") }
+            guard try PrivateUpdateChannel.current != nil || homebrewForInstalledCask() == nil else { throw updateError("Homebrew now manages this app; update it with brew upgrade --cask \(updateCask).") }
             try validateBundle(candidate, version: config.version)
             try swapAndLaunch(target: target, replacement: candidate) { try openAndConfirm(target) }
         }
@@ -898,7 +922,7 @@ private func openAndConfirm(_ target: URL) throws {
                   let date = app.launchDate, date >= started.addingTimeInterval(-2) else { return false }
             var path = [CChar](repeating: 0, count: 4096)
             return updateProcPath(app.processIdentifier, &path, UInt32(path.count)) > 0 &&
-                String(cString: path) == target.appendingPathComponent("Contents/MacOS/TorliStats").path
+                String(cString: path) == target.appendingPathComponent(executablePath).path
         }
         if let pid = app?.processIdentifier {
             consecutive = previous == pid ? consecutive + 1 : 1

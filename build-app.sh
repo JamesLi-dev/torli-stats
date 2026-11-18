@@ -29,6 +29,10 @@ cp "$HELPER_BIN_DIR/TorliStatsHelper" \
 cp "$PACKAGE_ROOT/Info.plist" "$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP/Contents/Info.plist"
+if [[ -n "${TORLI_UPDATE_ORIGIN:-}" ]]; then
+  [[ "$TORLI_UPDATE_ORIGIN" =~ ^https://[a-zA-Z0-9.-]+$ || ( "${CI:-}" != true && "$TORLI_UPDATE_ORIGIN" == https://localhost:8787 ) ]] || { echo "Invalid TORLI_UPDATE_ORIGIN" >&2; exit 1; }
+  /usr/bin/plutil -replace TorliUpdateOrigin -string "$TORLI_UPDATE_ORIGIN" "$APP/Contents/Info.plist"
+fi
 cp "$ROOT/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 # SwiftPM library resources must travel with either application entry point.
 for resource_bundle in "$BIN_DIR"/*.bundle; do

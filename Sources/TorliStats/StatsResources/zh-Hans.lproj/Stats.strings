@@ -650,3 +650,5 @@
 "settings.backup.notes_unsaved" = "无法保存打开的便签，尚未恢复设置。请解决便签保存问题后重试。";
 "settings.backup.login_failed" = "无法读取或恢复开机启动";
 "settings.backup.login_failed_help" = "登录项不可用、需要批准或 macOS 拒绝了更改。请检查系统设置中的登录项后重试。偏好设置未被替换。";
+
+"update.credential_required" = "请在应用的系统设置中保存有效的更新凭据，再检查更新。";

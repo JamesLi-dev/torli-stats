@@ -150,6 +150,8 @@ final class UpdateCheckController: NSObject, ObservableObject, NSWindowDelegate 
                 title: StatsL10n.text("update.check.current_title"),
                 detail: StatsL10n.format("update.check.current_detail", currentVersion)
             )
+        case .credentialRequired:
+            result = ResultMessage(title: StatsL10n.text("update.window.title"), detail: status.description)
         case .unavailable:
             result = ResultMessage(
                 title: StatsL10n.text("update.window.title"),

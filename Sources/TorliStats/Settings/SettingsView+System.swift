@@ -64,6 +64,7 @@ extension SettingsView {
                     .buttonStyle(.bordered)
                     .disabled(!updateChecker.checksAvailable || updateChecker.status == .checking)
                 }
+                PrivateUpdateChannel.current?.credentialSettings()
                 SettingsStatusMessage(
                     text: updateChecker.status.description,
                     icon: "arrow.triangle.2.circlepath",
