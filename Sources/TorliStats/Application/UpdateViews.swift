@@ -1,6 +1,10 @@
 import AppKit
 import SwiftUI
 
+enum UpdateWindowLayout {
+    static let progressHeight: CGFloat = 110
+}
+
 private struct UpdateAppIcon: View {
     let size: CGFloat
 
@@ -181,7 +185,7 @@ struct UpdatePreparationView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .top, spacing: 14) {
                 UpdateAppIcon(size: 42)
                 VStack(alignment: .leading, spacing: 6) {
@@ -218,6 +222,11 @@ struct UpdatePreparationView: View {
 struct UpdateInstallationView: View {
     @ObservedObject var controller: UpdateInstallationController
 
+    private var contentPadding: CGFloat {
+        if case .preparing = controller.state { return 16 }
+        return 18
+    }
+
     var body: some View {
         Group {
             switch controller.state {
@@ -231,7 +240,7 @@ struct UpdateInstallationView: View {
                 failure(message)
             }
         }
-        .padding(18)
+        .padding(contentPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
