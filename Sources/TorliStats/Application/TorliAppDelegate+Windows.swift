@@ -123,7 +123,7 @@ final class UpdateCheckController: NSObject, ObservableObject, NSWindowDelegate 
     func show() {
         if window == nil {
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 380, height: 110),
+                contentRect: NSRect(x: 0, y: 0, width: 380, height: UpdateWindowLayout.progressHeight),
                 styleMask: [.titled, .closable],
                 backing: .buffered,
                 defer: false
@@ -134,7 +134,7 @@ final class UpdateCheckController: NSObject, ObservableObject, NSWindowDelegate 
             let hosting = NSHostingController(rootView: UpdateCheckView(controller: self))
             hosting.sizingOptions = []
             window.contentViewController = hosting
-            window.setContentSize(NSSize(width: 380, height: 110))
+            window.setContentSize(NSSize(width: 380, height: UpdateWindowLayout.progressHeight))
             window.center()
             self.window = window
         }
@@ -213,6 +213,7 @@ final class UpdateInstallationController: NSObject, ObservableObject, NSWindowDe
     private var preparedUpdate: PreparedAppUpdate?
     private var operation = 0
     private var isConfirming = false
+    private var hasConfirmedInstallation = false
     private var isInstalling = false
 
     init(release: AppUpdateRelease, currentVersion: String) {
@@ -262,6 +263,7 @@ final class UpdateInstallationController: NSObject, ObservableObject, NSWindowDe
         preparationTask?.cancel()
         preparationTask = nil
         preparedUpdate = nil
+        hasConfirmedInstallation = false
         state = .details
         window = nil
     }
@@ -275,7 +277,7 @@ final class UpdateInstallationController: NSObject, ObservableObject, NSWindowDe
         let size: NSSize
         switch state {
         case .details: size = NSSize(width: 500, height: 350)
-        case .preparing: size = NSSize(width: 400, height: 146)
+        case .preparing: size = NSSize(width: 400, height: UpdateWindowLayout.progressHeight)
         case .prepared: size = NSSize(width: 400, height: 210)
         case .failed: size = NSSize(width: 500, height: 320)
         }
@@ -290,16 +292,21 @@ final class UpdateInstallationController: NSObject, ObservableObject, NSWindowDe
             return
         }
         if case .preparing = state { return }
-        isConfirming = true
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = StatsL10n.text("update.confirm.title")
-        alert.informativeText = StatsL10n.text("update.alert.message")
-        alert.addButton(withTitle: StatsL10n.text("update.install.action"))
-        alert.addButton(withTitle: StatsL10n.text("update.install.confirm_cancel"))
-        let confirmed = alert.runModal() == .alertFirstButtonReturn
-        isConfirming = false
-        guard confirmed, isVisible else { return }
+        if !hasConfirmedInstallation {
+            isConfirming = true
+            let confirmationOperation = operation
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = StatsL10n.text("update.confirm.title")
+            alert.informativeText = StatsL10n.text("update.alert.message")
+            alert.addButton(withTitle: StatsL10n.text("update.install.action"))
+            alert.addButton(withTitle: StatsL10n.text("update.install.confirm_cancel"))
+            let confirmed = alert.runModal() == .alertFirstButtonReturn
+            isConfirming = false
+            guard confirmed, isVisible, operation == confirmationOperation else { return }
+            // The release is fixed for this controller; retries keep this window's consent.
+            hasConfirmedInstallation = true
+        }
         operation += 1
         let currentOperation = operation
         usesHomebrew = false

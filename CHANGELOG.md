@@ -4,6 +4,18 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
+## [1.14.4] - 2026-11-18
+
+### English
+
+- Retrying a failed update download in the same window no longer repeats the installation warning after confirmation. Closing the window clears the confirmation.
+- Match the download progress window height to the update-check window and reduce empty space around the cancel button.
+
+### 中文
+
+- 确认更新后，在同一窗口重试失败的下载不再重复弹出安装提示；关闭窗口后清除本次确认。
+- 下载进度窗口与检查更新窗口统一高度，收紧取消按钮周围的留白。
+
 ## [1.14.3] - 2026-11-18
 
 ### English
