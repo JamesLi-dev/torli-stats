@@ -12,6 +12,7 @@ extension TorliAppDelegate {
         let settings = SettingsView(
             settings: self.settings,
             codexUsageStore: codexUsageStore,
+            codexTokenActivityService: codexTokenActivityService,
             wakaTimeUsageStore: wakaTimeUsageStore,
             typingStats: typingStats,
             updateChecker: updateChecker,

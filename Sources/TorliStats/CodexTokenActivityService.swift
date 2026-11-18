@@ -3,10 +3,10 @@ import Foundation
 import CryptoKit
 
 /// Reads only token-count events; no conversation text is retained or published.
-final class CodexTokenActivityService: ObservableObject {
-    @Published private(set) var records: [ActivityDay] = []
-    @Published private(set) var isLoading = false
-    @Published private(set) var status: String?
+public final class CodexTokenActivityService: ObservableObject {
+    @Published public private(set) var records: [ActivityDay] = []
+    @Published public private(set) var isLoading = false
+    @Published public private(set) var status: String?
     private let homePaths: () -> [String]
     private let queue = DispatchQueue(label: "local.torli.stats.tokens", qos: .utility)
     private var timer: DispatchSourceTimer?
@@ -102,6 +102,12 @@ final class CodexTokenActivityService: ObservableObject {
 
     func refresh() {
         guard enabled else { return }
+        refreshForDisplay()
+    }
+
+    /// An explicit statistics-page request also works when the dashboard card is hidden.
+    /// This does not enable background polling or change the user's settings.
+    public func refreshForDisplay() {
         guard !isLoading else { refreshPending = true; return }
         let paths = resolvedPaths()
         let scope = Self.scope(for: paths)
@@ -160,7 +166,7 @@ final class CodexTokenActivityService: ObservableObject {
                     failed = true
                     continue
                 }
-                for case let file as URL in files where file.pathExtension == "jsonl" {
+                for case let file as URL in files where file.pathExtension == "jsonl" || file.lastPathComponent.hasSuffix(".jsonl.zst") {
                     let fileKey = Self.digest(file.path)
                     seen.insert(fileKey)
                     do {
@@ -181,7 +187,10 @@ final class CodexTokenActivityService: ObservableObject {
             try index.transaction {
                 for (key, value) in updates {
                     let previous = cache[key]?.file
-                    let append = previous.map { $0.created == value.file.created && value.file.size > $0.size } ?? false
+                    // Compressed files use offset 0 and always replace their previous event set.
+                    let append = value.file.offset > 0 && (previous.map {
+                        $0.created == value.file.created && value.file.size > $0.size
+                    } ?? false)
                     try index.update(key: key, value: value, replacingEvents: !append)
                 }
                 try index.remove(keys: removed)
@@ -208,7 +217,7 @@ final class CodexTokenActivityService: ObservableObject {
             }
             if self.refreshPending {
                 self.refreshPending = false
-                self.refresh()
+                self.refreshForDisplay()
             }
         }
     }
@@ -242,16 +251,21 @@ final class CodexTokenActivityService: ObservableObject {
     }
 
     static func readIncrement(_ url: URL, cached: CachedFile?) throws -> CachedFile {
+        var url = url
+        url.removeAllCachedResourceValues()
         let attributes = try url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey, .creationDateKey])
         let size = attributes.fileSize ?? 0
         let created = attributes.creationDate ?? .distantPast
         // Truncation, replacement and same-size edits require rebuilding this file only.
-        let resume = cached.flatMap { $0.created == created && size > $0.size ? $0 : nil }
-        let handle = try FileHandle(forReadingFrom: url)
-        defer { try? handle.close() }
+        let compressed = url.lastPathComponent.hasSuffix(".jsonl.zst")
+        let resume = (compressed ? nil : cached).flatMap { $0.created == created && size > $0.size ? $0 : nil }
+        let decoder = compressed ? try ZstdFileReader(url: url) : nil
+        let handle = compressed ? nil : try FileHandle(forReadingFrom: url)
+        defer { try? handle?.close() }
         var offset = resume?.offset ?? 0
-        try handle.seek(toOffset: offset)
+        try handle?.seek(toOffset: offset)
         var buffer = Data()
+        var scannedBytes = 0
         var events: [TokenEvent] = resume?.events ?? []
         var previous = resume?.previous ?? 0
         let fractional = ISO8601DateFormatter()
@@ -277,16 +291,27 @@ final class CodexTokenActivityService: ObservableObject {
             let key = "\(timestamp)|\(total)|\(delta)"
             events.append(TokenEvent(key: key, dateID: ActivityHeatmap.dateID(date), tokens: delta))
         }
-        while let chunk = try handle.read(upToCount: 256 * 1024), !chunk.isEmpty {
+        while let chunk = try (decoder != nil ? decoder?.read() : handle?.read(upToCount: 256 * 1024)), !chunk.isEmpty {
             buffer.append(chunk)
-            while let newline = buffer.firstIndex(of: 10) {
+            while let newline = buffer[buffer.index(buffer.startIndex, offsetBy: scannedBytes)...].firstIndex(of: 10) {
                 offset += UInt64(buffer.distance(from: buffer.startIndex, to: newline) + 1)
                 consume(Data(buffer[..<newline]))
                 buffer.removeSubrange(...newline)
+                scannedBytes = 0
             }
+            scannedBytes = buffer.count
+        }
+        if compressed && !buffer.isEmpty { consume(buffer) }
+        // A source being replaced or appended during a read is retried next scan.
+        var freshURL = url
+        freshURL.removeAllCachedResourceValues()
+        let after = try freshURL.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey, .creationDateKey])
+        guard after.contentModificationDate == attributes.contentModificationDate,
+              after.fileSize == attributes.fileSize, after.creationDate == attributes.creationDate else {
+            throw CocoaError(.fileReadUnknown)
         }
         // An unterminated last line may still be in the middle of a write.
         return CachedFile(modified: attributes.contentModificationDate ?? .distantPast, size: size,
-                          created: created, offset: offset, previous: previous, events: events)
+                          created: created, offset: compressed ? 0 : offset, previous: previous, events: events)
     }
 }

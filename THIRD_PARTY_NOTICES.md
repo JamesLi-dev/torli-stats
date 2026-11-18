@@ -29,3 +29,14 @@ archive, import/export, keyboard-shortcut, and localization implementation.
 - Copyright: Copyright 2026 Aymen Hamza
 - License: MIT License
 - License text: [`LICENSES/Notes-Engine-MIT.txt`](LICENSES/Notes-Engine-MIT.txt)
+
+## Zstandard decompressor
+
+The app includes the Zstandard 1.5.7 streaming decompressor from
+https://github.com/facebook/zstd/tree/v1.5.7 under its BSD license.
+Copyright (c) Meta Platforms, Inc. and affiliates. All rights reserved.
+
+The source in `Sources/CZstd/zstddeclib.c` was generated from the upstream
+`build/single_file_libs/zstddeclib-in.c` with `combine.py -r ../../lib -x legacy/zstd_legacy.h -o zstddeclib.c zstddeclib-in.c`.
+The public headers are copied from upstream `lib/zstd.h` and `lib/zstd_errors.h`.
+The license is included in `LICENSES/Zstandard-BSD.txt`.

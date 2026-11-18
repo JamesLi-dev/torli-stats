@@ -11,6 +11,7 @@ struct SettingsView: View {
     // Section extensions share this state so sheet and input lifetimes stay unchanged.
     @ObservedObject var settings: AppSettings
     @ObservedObject var codexUsageStore: CodexAccountsUsageStore
+    let codexTokenActivityService: CodexTokenActivityService
     @ObservedObject var wakaTimeUsageStore: WakaTimeUsageStore
     @ObservedObject var typingStats: TypingStatsService
     @ObservedObject var updateChecker: AppUpdateChecker
@@ -40,6 +41,7 @@ struct SettingsView: View {
     init(
         settings: AppSettings,
         codexUsageStore: CodexAccountsUsageStore,
+        codexTokenActivityService: CodexTokenActivityService,
         wakaTimeUsageStore: WakaTimeUsageStore,
         typingStats: TypingStatsService,
         updateChecker: AppUpdateChecker,
@@ -51,6 +53,7 @@ struct SettingsView: View {
         self.settings = settings
         self._initialLanguage = State(initialValue: settings.appLanguage)
         self.codexUsageStore = codexUsageStore
+        self.codexTokenActivityService = codexTokenActivityService
         self.wakaTimeUsageStore = wakaTimeUsageStore
         self._wakaTimeCredentialHint = State(initialValue: WakaTimeKeychain.configurationHint)
         self.typingStats = typingStats
@@ -198,6 +201,7 @@ struct SettingsView: View {
             StatisticsSettingsPage(
                 typingStats: typingStats,
                 wakaTimeUsageStore: wakaTimeUsageStore,
+                codexTokenActivityService: codexTokenActivityService,
                 selectedTab: $navigation.selectedStatisticsTab
             )
         case .notes:

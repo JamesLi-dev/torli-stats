@@ -562,7 +562,7 @@
 "activity.typing_source" = "来源：本地每日键数。空心方格表示当天没有输入记录。";
 "activity.metric" = "统计指标";
 "activity.coding_time" = "编码时长";
-"activity.wakatime_source" = "来源：WakaTime 每日汇总。空心方格表示接口未返回记录；AI Token 取决于编辑器上报。";
+"activity.wakatime_source" = "来源：WakaTime 每日编码时长汇总。空心方格表示接口未返回记录。";
 "activity.wakatime_history_error" = "年度记录暂不可用，展示已取得的近期数据。请检查网络或 WakaTime 历史访问权限。";
 "codex.settings.token_activity" = "显示本地 Token 活动热力图";
 "codex.settings.token_activity_help" = "读取已配置 Codex 目录的会话用量，每 5 分钟更新。汇总输入与输出 Token（缓存输入已包含），不保存对话内容；仅代表本机保留的记录。";
@@ -652,3 +652,6 @@
 "settings.backup.login_failed_help" = "登录项不可用、需要批准或 macOS 拒绝了更改。请检查系统设置中的登录项后重试。偏好设置未被替换。";
 
 "update.credential_required" = "请在应用的系统设置中保存有效的更新凭据，再检查更新。";
+"activity.codex_tokens" = "Codex Token";
+"activity.codex_source" = "来源：当前配置的 Codex 主目录中的本地会话记录，含压缩与归档历史。仅统计本机留存记录的 Token 数量，不代表账号额度消耗百分比。";
+"activity.refresh" = "刷新活动记录";

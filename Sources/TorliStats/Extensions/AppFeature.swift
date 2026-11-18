@@ -30,7 +30,7 @@ public extension TorliFeature {
 }
 
 public protocol TorliStatisticsProvider {
-    func details(tab: StatisticsDetailTab, typing: TypingStatsService, development: WakaTimeUsageStore) -> AnyView
+    func details(tab: StatisticsDetailTab, typing: TypingStatsService, development: WakaTimeUsageStore, codexActivity: CodexTokenActivityService) -> AnyView
     func typingTrend(records: [TypingDailyRecord]) -> AnyView
     func developmentSummary(store: WakaTimeUsageStore) -> AnyView
     func developmentHeadline(store: WakaTimeUsageStore) -> AnyView?

@@ -2,6 +2,34 @@ import XCTest
 @testable import TorliStats
 
 final class TokenActivityTests: XCTestCase {
+    @MainActor
+    func testStatisticsRefreshWorksWithoutEnablingDashboardPolling() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let sessions = root.appendingPathComponent("sessions")
+        try FileManager.default.createDirectory(at: sessions, withIntermediateDirectories: true)
+        let file = sessions.appendingPathComponent("test.jsonl")
+        try Data((event(100, at: "2026-09-10T01:00:00Z") + "\n").utf8).write(to: file)
+        let service = CodexTokenActivityService(homePaths: { [root.path] }, cacheDirectory: root.appendingPathComponent("cache"))
+        service.refresh()
+        XCTAssertFalse(service.isLoading)
+        XCTAssertTrue(service.records.isEmpty)
+
+        service.refreshForDisplay()
+        for _ in 0..<200 where service.isLoading { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertFalse(service.isLoading)
+        XCTAssertEqual(service.records.map(\.value), [100])
+
+        try Data((event(160, at: "2026-09-10T01:00:00Z") + "\n").utf8).write(to: file)
+        service.refresh()
+        XCTAssertFalse(service.isLoading)
+        XCTAssertEqual(service.records.map(\.value), [100], "Viewing statistics must not enable background refresh")
+        service.refreshForDisplay()
+        for _ in 0..<200 where service.isLoading { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertFalse(service.isLoading)
+        XCTAssertEqual(service.records.map(\.value), [160])
+    }
+
     func testRecentHistoryReplacesCorrectedDaysWithoutLosingOlderHistory() {
         let calendar = Calendar.autoupdatingCurrent
         let end = calendar.date(from: DateComponents(year: 2026, month: 9, day: 11))!

@@ -24,6 +24,7 @@ public enum StatisticsDetailTab: String, CaseIterable, Identifiable {
 struct StatisticsSettingsPage: View {
     @ObservedObject var typingStats: TypingStatsService
     @ObservedObject var wakaTimeUsageStore: WakaTimeUsageStore
+    let codexTokenActivityService: CodexTokenActivityService
     @Binding var selectedTab: StatisticsDetailTab
 
     var body: some View {
@@ -46,9 +47,9 @@ struct StatisticsSettingsPage: View {
             Group {
                 switch selectedTab {
                 case .typing:
-                    StatisticsContent(tab: .typing, typing: typingStats, development: wakaTimeUsageStore)
+                    StatisticsContent(tab: .typing, typing: typingStats, development: wakaTimeUsageStore, codexActivity: codexTokenActivityService)
                 case .development:
-                    StatisticsContent(tab: .development, typing: typingStats, development: wakaTimeUsageStore)
+                    StatisticsContent(tab: .development, typing: typingStats, development: wakaTimeUsageStore, codexActivity: codexTokenActivityService)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -60,16 +61,19 @@ struct StatisticsSettingsPage: View {
 struct StatisticsDetailView: View {
     @ObservedObject var typingStats: TypingStatsService
     @ObservedObject var wakaTimeUsageStore: WakaTimeUsageStore
+    let codexTokenActivityService: CodexTokenActivityService
 
     @State private var selectedTab: StatisticsDetailTab
 
     init(
         typingStats: TypingStatsService,
         wakaTimeUsageStore: WakaTimeUsageStore,
+        codexTokenActivityService: CodexTokenActivityService,
         initialTab: StatisticsDetailTab
     ) {
         self.typingStats = typingStats
         self.wakaTimeUsageStore = wakaTimeUsageStore
+        self.codexTokenActivityService = codexTokenActivityService
         _selectedTab = State(initialValue: initialTab)
     }
 
@@ -103,9 +107,9 @@ struct StatisticsDetailView: View {
                     Group {
                         switch selectedTab {
                         case .typing:
-                            StatisticsContent(tab: .typing, typing: typingStats, development: wakaTimeUsageStore)
+                            StatisticsContent(tab: .typing, typing: typingStats, development: wakaTimeUsageStore, codexActivity: codexTokenActivityService)
                         case .development:
-                            StatisticsContent(tab: .development, typing: typingStats, development: wakaTimeUsageStore)
+                            StatisticsContent(tab: .development, typing: typingStats, development: wakaTimeUsageStore, codexActivity: codexTokenActivityService)
                         }
                     }
                     .padding(.bottom, 4)
@@ -124,9 +128,10 @@ private struct StatisticsContent: View {
     let tab: StatisticsDetailTab
     @ObservedObject var typing: TypingStatsService
     @ObservedObject var development: WakaTimeUsageStore
+    let codexActivity: CodexTokenActivityService
     var body: some View {
         if let provider = FeatureRegistry.shared.statistics {
-            provider.details(tab: tab, typing: typing, development: development)
+            provider.details(tab: tab, typing: typing, development: development, codexActivity: codexActivity)
         } else {
             VStack(alignment: .leading, spacing: 16) {
                 if tab == .typing {
