@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum UpdateWindowLayout {
-    static let progressHeight: CGFloat = 110
+    static let promptSize = NSSize(width: 400, height: 140)
 }
 
 private struct UpdateAppIcon: View {
@@ -18,39 +18,55 @@ private struct UpdateAppIcon: View {
     }
 }
 
-struct UpdateCheckView: View {
-    @ObservedObject var controller: UpdateCheckController
+private struct UpdatePrompt<Content: View, Actions: View>: View {
+    let title: String
+    @ViewBuilder let content: () -> Content
+    @ViewBuilder let actions: () -> Actions
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 14) {
                 UpdateAppIcon(size: 42)
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(verbatim: controller.result?.title ?? StatsL10n.text("update.checking"))
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(verbatim: title)
                         .font(.headline)
                         .fixedSize(horizontal: false, vertical: true)
-                    if let result = controller.result {
-                        Text(verbatim: result.detail)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        ProgressView()
-                            .progressViewStyle(.linear)
-                    }
+                    content()
+                        .foregroundStyle(.secondary)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            Spacer(minLength: 0)
-            HStack {
-                Spacer()
-                Button(StatsL10n.text(controller.result == nil ? "update.install.cancel" : "update.check.close")) {
-                    controller.close()
-                }
-                .keyboardShortcut(.cancelAction)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            HStack(spacing: 10) {
+                actions()
             }
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+struct UpdateCheckView: View {
+    @ObservedObject var controller: UpdateCheckController
+
+    var body: some View {
+        UpdatePrompt(title: controller.result?.title ?? StatsL10n.text("update.checking")) {
+            if let result = controller.result {
+                ScrollView {
+                    Text(verbatim: result.detail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else {
+                ProgressView()
+                    .progressViewStyle(.linear)
+            }
+        } actions: {
+            Spacer()
+            Button(StatsL10n.text(controller.result == nil ? "update.install.cancel" : "update.check.close")) {
+                controller.close()
+            }
+            .keyboardShortcut(.cancelAction)
+        }
     }
 }
 
@@ -185,36 +201,26 @@ struct UpdatePreparationView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .top, spacing: 14) {
-                UpdateAppIcon(size: 42)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(verbatim: title)
-                        .font(.headline)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if let fraction {
-                        ProgressView(value: fraction)
-                            .progressViewStyle(.linear)
-                    } else {
-                        ProgressView()
-                            .progressViewStyle(.linear)
-                    }
-                    if let detail {
-                        Text(verbatim: detail)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+        UpdatePrompt(title: title) {
+            VStack(alignment: .leading, spacing: 2) {
+                if let fraction {
+                    ProgressView(value: fraction)
+                        .progressViewStyle(.linear)
+                } else {
+                    ProgressView()
+                        .progressViewStyle(.linear)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                if let detail {
+                    Text(verbatim: detail)
+                        .font(.subheadline)
+                        .monospacedDigit()
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-            Spacer(minLength: 0)
-            HStack {
-                Spacer()
-                Button(StatsL10n.text("update.install.cancel"), action: onCancel)
-                    .keyboardShortcut(.cancelAction)
-            }
+        } actions: {
+            Spacer()
+            Button(StatsL10n.text("update.install.cancel"), action: onCancel)
+                .keyboardShortcut(.cancelAction)
         }
     }
 }
@@ -222,16 +228,28 @@ struct UpdatePreparationView: View {
 struct UpdateInstallationView: View {
     @ObservedObject var controller: UpdateInstallationController
 
-    private var contentPadding: CGFloat {
-        if case .preparing = controller.state { return 16 }
-        return 18
-    }
-
     var body: some View {
         Group {
             switch controller.state {
             case .details:
                 details
+                    .padding(18)
+            case .confirming:
+                UpdatePrompt(title: StatsL10n.text("update.confirm.title")) {
+                    ScrollView {
+                        Text(StatsL10n.text("update.alert.message"))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                } actions: {
+                    Spacer()
+                    Button(StatsL10n.text("update.install.confirm_cancel")) {
+                        controller.cancelConfirmation()
+                    }
+                    .keyboardShortcut(.cancelAction)
+                    Button(StatsL10n.text("update.install.action")) { controller.install() }
+                        .buttonStyle(.borderedProminent)
+                        .keyboardShortcut(.defaultAction)
+                }
             case .preparing:
                 UpdatePreparationView(progress: controller.progress, onCancel: controller.cancel)
             case .prepared:
@@ -240,7 +258,6 @@ struct UpdateInstallationView: View {
                 failure(message)
             }
         }
-        .padding(contentPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
@@ -260,25 +277,25 @@ struct UpdateInstallationView: View {
     }
 
     private var ready: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header(
-                title: StatsL10n.text(controller.usesHomebrew ? "update.install.homebrew_ready" : "update.install.ready"),
-                subtitle: StatsL10n.text(controller.usesHomebrew ? "update.install.homebrew_ready_detail" : "update.install.ready_detail")
-            )
-            Spacer(minLength: 0)
+        UpdatePrompt(title: StatsL10n.text(controller.usesHomebrew ? "update.install.homebrew_ready" : "update.install.ready")) {
+            ScrollView {
+                Text(StatsL10n.text(controller.usesHomebrew ? "update.install.homebrew_ready_detail" : "update.install.ready_detail"))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        } actions: {
             actions(showReleaseLink: false)
         }
     }
 
     private func failure(_ message: String) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header(title: StatsL10n.text("update.install.failed_title"))
+        UpdatePrompt(title: StatsL10n.text("update.install.failed_title")) {
             ScrollView {
                 Text(verbatim: StatsL10n.format("update.install.failed", message))
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(maxHeight: .infinity)
+        } actions: {
             actions(showReleaseLink: true)
         }
     }

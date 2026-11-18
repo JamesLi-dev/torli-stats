@@ -123,7 +123,7 @@ final class UpdateCheckController: NSObject, ObservableObject, NSWindowDelegate 
     func show() {
         if window == nil {
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 380, height: UpdateWindowLayout.progressHeight),
+                contentRect: NSRect(origin: .zero, size: UpdateWindowLayout.promptSize),
                 styleMask: [.titled, .closable],
                 backing: .buffered,
                 defer: false
@@ -134,7 +134,7 @@ final class UpdateCheckController: NSObject, ObservableObject, NSWindowDelegate 
             let hosting = NSHostingController(rootView: UpdateCheckView(controller: self))
             hosting.sizingOptions = []
             window.contentViewController = hosting
-            window.setContentSize(NSSize(width: 380, height: UpdateWindowLayout.progressHeight))
+            window.setContentSize(UpdateWindowLayout.promptSize)
             window.center()
             self.window = window
         }
@@ -164,9 +164,6 @@ final class UpdateCheckController: NSObject, ObservableObject, NSWindowDelegate 
                 detail: StatsL10n.text("update.check.failed_detail")
             )
         }
-        window?.styleMask.insert(.resizable)
-        window?.contentMinSize = NSSize(width: 380, height: 170)
-        window?.setContentSize(NSSize(width: 380, height: 170))
     }
 
     func finish() {
@@ -191,6 +188,7 @@ final class UpdateCheckController: NSObject, ObservableObject, NSWindowDelegate 
 final class UpdateInstallationController: NSObject, ObservableObject, NSWindowDelegate {
     enum State {
         case details
+        case confirming
         case preparing
         case prepared
         case failed(String)
@@ -212,7 +210,6 @@ final class UpdateInstallationController: NSObject, ObservableObject, NSWindowDe
     private var preparationTask: UpdatePreparationTask?
     private var preparedUpdate: PreparedAppUpdate?
     private var operation = 0
-    private var isConfirming = false
     private var hasConfirmedInstallation = false
     private var isInstalling = false
 
@@ -277,33 +274,34 @@ final class UpdateInstallationController: NSObject, ObservableObject, NSWindowDe
         let size: NSSize
         switch state {
         case .details: size = NSSize(width: 500, height: 350)
-        case .preparing: size = NSSize(width: 400, height: UpdateWindowLayout.progressHeight)
-        case .prepared: size = NSSize(width: 400, height: 210)
-        case .failed: size = NSSize(width: 500, height: 320)
+        case .confirming, .preparing, .prepared, .failed: size = UpdateWindowLayout.promptSize
+        }
+        if case .details = state {
+            window?.styleMask.insert(.resizable)
+        } else {
+            window?.styleMask.remove(.resizable)
         }
         window?.contentMinSize = size
         window?.setContentSize(size)
     }
 
+    func cancelConfirmation() {
+        guard case .confirming = state else { return }
+        transition(to: .details)
+    }
+
     func install() {
-        guard !isConfirming, !isInstalling, preparationTask == nil, isVisible else { return }
+        guard !isInstalling, preparationTask == nil, isVisible else { return }
         if case .prepared = state {
             installPreparedUpdate()
             return
         }
         if case .preparing = state { return }
         if !hasConfirmedInstallation {
-            isConfirming = true
-            let confirmationOperation = operation
-            let alert = NSAlert()
-            alert.alertStyle = .warning
-            alert.messageText = StatsL10n.text("update.confirm.title")
-            alert.informativeText = StatsL10n.text("update.alert.message")
-            alert.addButton(withTitle: StatsL10n.text("update.install.action"))
-            alert.addButton(withTitle: StatsL10n.text("update.install.confirm_cancel"))
-            let confirmed = alert.runModal() == .alertFirstButtonReturn
-            isConfirming = false
-            guard confirmed, isVisible, operation == confirmationOperation else { return }
+            guard case .confirming = state else {
+                transition(to: .confirming)
+                return
+            }
             // The release is fixed for this controller; retries keep this window's consent.
             hasConfirmedInstallation = true
         }

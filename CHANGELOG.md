@@ -4,6 +4,20 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
+## [1.14.5] - 2026-11-18
+
+### English
+
+- Unify update checks, installation confirmation, download/verification progress, ready-to-install, and failure prompts at 400 × 140 with shared icon, compact spacing, and action layout. Long messages scroll; release notes keep their larger resizable window.
+- Cancelling installation confirmation returns to release notes without granting consent; retries after confirmation retain consent until the window closes.
+- Increase download byte/percentage text size and tighten its spacing below the progress bar.
+
+### 中文
+
+- 检查更新、安装确认、下载及校验进度、安装就绪和失败提示统一为 400 × 140，共用图标、紧凑间距及按钮布局；长提示可滚动，版本说明保留较大的可调整窗口。
+- 取消安装确认后返回版本说明，不视为已授权；确认后的重试保留本次授权，关闭窗口后清除。
+- 下载量及百分比文字略微放大，并收紧与进度条的间距。
+
 ## [1.14.4] - 2026-11-18
 
 ### English
