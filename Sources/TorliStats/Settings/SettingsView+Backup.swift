@@ -100,18 +100,24 @@ extension SettingsView {
         alert.informativeText = StatsL10n.text("settings.backup.password_help")
         alert.addButton(withTitle: StatsL10n.text("settings.backup.continue"))
         alert.addButton(withTitle: StatsL10n.text("settings.backup.cancel"))
-        let first = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+        let height: CGFloat = 24
+        let width: CGFloat = 280
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: width, height: confirm ? 56 : height))
+        let first = NSSecureTextField(frame: NSRect(x: 0, y: confirm ? 32 : 0, width: width, height: height))
         first.placeholderString = StatsL10n.text("settings.backup.password")
-        let second = NSSecureTextField(frame: first.frame)
-        second.placeholderString = StatsL10n.text("settings.backup.confirm_password")
-        let stack = NSStackView(views: confirm ? [first, second] : [first])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 8
-        stack.frame = NSRect(x: 0, y: 0, width: 280, height: confirm ? 56 : 24)
-        alert.accessoryView = stack
+        container.addSubview(first)
+        let second: NSSecureTextField?
+        if confirm {
+            let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: width, height: height))
+            field.placeholderString = StatsL10n.text("settings.backup.confirm_password")
+            container.addSubview(field)
+            second = field
+        } else {
+            second = nil
+        }
+        alert.accessoryView = container
         guard alert.runModal() == .alertFirstButtonReturn else { return nil }
-        guard !first.stringValue.isEmpty, !confirm || first.stringValue == second.stringValue else {
+        guard !first.stringValue.isEmpty, !confirm || first.stringValue == second?.stringValue else {
             let error = NSAlert()
             error.messageText = StatsL10n.text("settings.backup.password_invalid")
             error.runModal()
