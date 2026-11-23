@@ -4,6 +4,16 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
+## [1.14.7] - 2026-11-23
+
+### English
+
+- Confirm the launched update even when macOS relocates a quarantined app, and retain the underlying launch error if the update is rolled back.
+
+### 中文
+
+- 修复 macOS 隔离应用路径变化时可能误判更新启动失败的问题；更新回滚时保留具体启动错误。
+
 ## [1.14.6] - 2026-11-23
 
 ### English

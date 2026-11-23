@@ -831,7 +831,8 @@ func swapAndLaunch(target: URL, replacement: URL, launch: () throws -> Void) thr
         guard renamex_np(target.path, replacement.path, UInt32(RENAME_SWAP)) == 0 else {
             throw UpdateRollbackFailure(path: replacement.path)
         }
-        throw updateError("The new app could not be opened. The original app was restored.")
+        let restored = updateError("The new app could not be opened. The original app was restored.").localizedDescription
+        throw UpdateFailure.message("\(restored)\n\(error.localizedDescription)")
     }
 }
 
@@ -909,30 +910,85 @@ private func validateHomebrewCask(_ brew: String) throws {
     }
 }
 
+// Launch Services may run a quarantined app from a translocated path. Match
+// the launched process to the installed binary instead of requiring that path.
+struct UpdateLaunchIdentity {
+    private let channel: PrivateUpdateChannel?
+    private let version: String
+    private let executable: String
+    private let digest: SHA256.Digest
+
+    init(target: URL, channel: PrivateUpdateChannel? = PrivateUpdateChannel.current) throws {
+        self.channel = channel
+        version = try bundleVersion(at: target, channel: channel)
+        executable = "Contents/MacOS/" + (channel?.product ?? "TorliStats")
+        digest = try Self.digest(target.appendingPathComponent(executable))
+    }
+
+    func matches(bundle: URL, processExecutable: URL) -> Bool {
+        let executableURL = bundle.appendingPathComponent(executable).resolvingSymlinksInPath()
+        guard processExecutable.resolvingSymlinksInPath() == executableURL,
+              (try? bundleVersion(at: bundle, channel: channel)) == version,
+              let actual = try? Self.digest(executableURL) else { return false }
+        return actual == digest
+    }
+
+    private static func digest(_ url: URL) throws -> SHA256.Digest {
+        let file = try FileHandle(forReadingFrom: url)
+        defer { try? file.close() }
+        var hash = SHA256()
+        while let chunk = try file.read(upToCount: 256 * 1024), !chunk.isEmpty {
+            hash.update(data: chunk)
+        }
+        return hash.finalize()
+    }
+}
+
+private final class UpdateLaunchResult {
+    // Accessed on the main thread, including the dispatched completion.
+    var app: NSRunningApplication?
+    var error: Error?
+    var finished = false
+}
+
 private func openAndConfirm(_ target: URL) throws {
+    let identity = try UpdateLaunchIdentity(target: target)
     let started = Date()
-    try runCommand("/usr/bin/open", ["-n", target.path])
-    let deadline = Date().addingTimeInterval(30)
-    var previous: pid_t?
+    let result = UpdateLaunchResult()
+    let configuration = NSWorkspace.OpenConfiguration()
+    configuration.createsNewApplicationInstance = true
+    NSWorkspace.shared.openApplication(at: target, configuration: configuration) { app, error in
+        DispatchQueue.main.async {
+            result.app = app
+            result.error = error
+            result.finished = true
+        }
+    }
+    let deadline = started.addingTimeInterval(30)
+    var confirmedPID: pid_t?
     var consecutive = 0
     while Date() < deadline {
-        let app = NSRunningApplication.runningApplications(withBundleIdentifier: "local.torli.stats").first { app in
-            guard app.processIdentifier != getpid(), !app.isTerminated,
-                  app.bundleURL?.standardizedFileURL.path == target.path,
-                  let date = app.launchDate, date >= started.addingTimeInterval(-2) else { return false }
-            var path = [CChar](repeating: 0, count: 4096)
-            return updateProcPath(app.processIdentifier, &path, UInt32(path.count)) > 0 &&
-                String(cString: path) == target.appendingPathComponent(executablePath).path
+        if result.finished {
+            if let error = result.error { throw error }
+            guard let app = result.app, app.processIdentifier != getpid(), !app.isTerminated else {
+                throw updateError("The updated app did not start within 30 seconds. macOS may have blocked it or require approval.")
+            }
+            if app.isFinishedLaunching, let date = app.launchDate, date >= started.addingTimeInterval(-2) {
+                if confirmedPID == nil, let bundle = app.bundleURL {
+                    var path = [CChar](repeating: 0, count: 4096)
+                    if updateProcPath(app.processIdentifier, &path, UInt32(path.count)) > 0,
+                       identity.matches(bundle: bundle, processExecutable: URL(fileURLWithPath: String(cString: path))) {
+                        confirmedPID = app.processIdentifier
+                    }
+                }
+                if confirmedPID == app.processIdentifier {
+                    consecutive += 1
+                    if consecutive >= 3 { return }
+                }
+            }
         }
-        if let pid = app?.processIdentifier {
-            consecutive = previous == pid ? consecutive + 1 : 1
-            previous = pid
-            if consecutive >= 3 { return }
-        } else {
-            previous = nil
-            consecutive = 0
-        }
-        Thread.sleep(forTimeInterval: 1)
+        // NSRunningApplication state and the completion need the main run loop.
+        RunLoop.current.run(until: Date().addingTimeInterval(1))
     }
     throw updateError("The updated app did not start within 30 seconds. macOS may have blocked it or require approval.")
 }

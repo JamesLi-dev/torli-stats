@@ -121,13 +121,43 @@ final class UpdateInstallerTests: XCTestCase {
         try FileManager.default.createDirectory(at: replacement, withIntermediateDirectories: false)
         try Data("old".utf8).write(to: target.appendingPathComponent("version"))
         try Data("new".utf8).write(to: replacement.appendingPathComponent("version"))
-        struct LaunchFailure: Error {}
-        XCTAssertThrowsError(try swapAndLaunch(target: target, replacement: replacement) { throw LaunchFailure() })
+        let failure = NSError(domain: "LaunchTest", code: 1, userInfo: [NSLocalizedDescriptionKey: "Launch was blocked"])
+        XCTAssertThrowsError(try swapAndLaunch(target: target, replacement: replacement) { throw failure }) {
+            XCTAssertTrue($0.localizedDescription.contains("Launch was blocked"))
+        }
         XCTAssertEqual(try String(contentsOf: target.appendingPathComponent("version"), encoding: .utf8), "old")
         XCTAssertEqual(try String(contentsOf: replacement.appendingPathComponent("version"), encoding: .utf8), "new")
         try swapAndLaunch(target: target, replacement: replacement) {}
         XCTAssertEqual(try String(contentsOf: target.appendingPathComponent("version"), encoding: .utf8), "new")
         XCTAssertEqual(try String(contentsOf: replacement.appendingPathComponent("version"), encoding: .utf8), "old")
+    }
+
+    func testLaunchIdentityMatchesRelocatedBundlesButRejectsDifferentApps() throws {
+        let pro = PrivateUpdateChannel(origin: URL(string: "https://updates.example.test")!,
+                                       product: "TorliStatsPro", credential: { "test" },
+                                       credentialSettings: { AnyView(EmptyView()) })
+        for channel in [nil, pro] as [PrivateUpdateChannel?] {
+            let product = channel?.product ?? "TorliStats"
+            let installed = directory.appendingPathComponent("installed-\(product).app")
+            let relocated = directory.appendingPathComponent("translocated-\(product).app")
+            func fixture(_ url: URL, version: String, binary: String) throws {
+                let contents = url.appendingPathComponent("Contents")
+                try FileManager.default.createDirectory(at: contents.appendingPathComponent("MacOS"), withIntermediateDirectories: true)
+                let info = ["CFBundleIdentifier": "local.torli.stats", "CFBundleExecutable": product, "CFBundleShortVersionString": version]
+                try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
+                try Data(binary.utf8).write(to: contents.appendingPathComponent("MacOS/\(product)"))
+            }
+            try fixture(installed, version: "1.14.7", binary: "new")
+            try fixture(relocated, version: "1.14.7", binary: "new")
+            let identity = try UpdateLaunchIdentity(target: installed, channel: channel)
+            let executable = relocated.appendingPathComponent("Contents/MacOS/\(product)")
+            XCTAssertTrue(identity.matches(bundle: relocated, processExecutable: executable))
+            XCTAssertFalse(identity.matches(bundle: relocated, processExecutable: installed.appendingPathComponent("Contents/MacOS/\(product)")))
+            try fixture(relocated, version: "1.14.6", binary: "new")
+            XCTAssertFalse(identity.matches(bundle: relocated, processExecutable: executable))
+            try fixture(relocated, version: "1.14.7", binary: "different")
+            XCTAssertFalse(identity.matches(bundle: relocated, processExecutable: executable))
+        }
     }
 
     func testHomebrewRecoveryRestoresOldAppWithoutTouchingPro() throws {
