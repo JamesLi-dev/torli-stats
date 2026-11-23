@@ -4,6 +4,16 @@ All notable changes to Torli Stats are documented here.
 
 ## [Unreleased]
 
+## [1.14.6] - 2026-11-23
+
+### English
+
+- Fix the settings backup password fields collapsing in the import and export dialogs.
+
+### 中文
+
+- 修复导入和导出设置时备份密码输入框被压缩的问题。
+
 ## [1.14.5] - 2026-11-18
 
 ### English
